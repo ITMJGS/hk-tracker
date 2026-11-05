@@ -14,7 +14,7 @@
   <script>
     /* Alamat server (Google Apps Script). Ganti jika membuat deployment baru. */
     window.HK_API_URL = 'https://script.google.com/macros/s/AKfycbyyFZ7k-3dElnTu4hKc6IbNF9uVi5FnZiOTJ6N4Wszv9jNoRZQYKMee7GVqjIfr-QEaRA/exec';
-    window.HK_BUILD = '20261105201221';
+    window.HK_BUILD = '20261105202106';
     /* Pengganti google.script.run: memanggil server lewat POST {fn, args} */
     (function () {
       function runner() {
@@ -95,6 +95,7 @@
 
 /* ---------------- ICONS ---------------- */
 const P={
+  layers:'<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>',
   play:'<path d="M7 5l12 7-12 7z" fill="currentColor" stroke="none"/>',
   pause:'<rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none"/>',
   check:'<path d="M5 12.5l4.5 4.5L19 7.5"/>', dcheck:'<path d="M2 12.5l4.5 4.5L15 8.5M10 16l1 1 9.5-9.5"/>',
@@ -134,7 +135,14 @@ function lsDel(k){try{localStorage.removeItem(k);sessionStorage.removeItem(k)}ca
 const fmtDate=k=>{if(!k)return '';const [y,m,d]=k.split('-').map(Number);return new Date(y,m-1,d).toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'})};
 const fmtShort=k=>{if(!k)return '';const [y,m,d]=k.split('-').map(Number);return new Date(y,m-1,d).toLocaleDateString('id-ID',{weekday:'short',day:'numeric',month:'short'})};
 const fmtDT=ms=>ms?new Date(ms).toLocaleString('id-ID',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):'';
-const floorOf=r=>{const s=String(r.room||r);return /^\d{3,5}$/.test(s)?s.slice(0,-2):'Lain'};
+const floorOf=r=>{const s=String(r.room||r);return /^\d{3,5}$/.test(s)?String(+s.slice(0,-2)):'Lain'};
+/* ---- Lantai supervisor: supervisor yang diberi lantai hanya menerima notifikasi dari lantainya. Kosong = semua lantai. ---- */
+const cmpFloor=(a,b)=>(isNaN(a)||isNaN(b))?String(a).localeCompare(String(b)):a-b;
+const floorsOf=u=>String((u&&u.floors)||'').split(',').filter(Boolean);
+const myFloors=()=>S.me&&S.me.role==='supervisor'&&S.me.floors?new Set(floorsOf(S.me)):null;
+const onMyFloor=r=>{const f=myFloors();return !f||f.has(floorOf(r))};
+const spvOfFloor=f=>(S.users||[]).filter(u=>u.role==='supervisor'&&u.active&&(!u.floors||floorsOf(u).includes(f)));
+const fmtFloors=a=>a.length?'Lt '+a.join(', '):'Semua lantai';
 const greet=()=>{const h=new Date().getHours();return h<11?'Selamat pagi':h<15?'Selamat siang':h<18?'Selamat sore':'Selamat malam'};
 
 const ST={
@@ -179,7 +187,7 @@ async function run(fn,ok){try{const r=await fn();if(ok)toast(typeof ok==='functi
 let toastT;function toast(m){const el=document.getElementById('toast');document.getElementById('toast-msg').textContent=m;el.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>el.hidden=true,3500)}
 function renderBusy(){document.querySelectorAll('[data-busy]').forEach(el=>el.classList.toggle('spin',!!S.busy))}
 
-const CLIENT_VERSION=5; /* harus sama dengan APP_VERSION di Code.gs */
+const CLIENT_VERSION=6; /* harus sama dengan APP_VERSION di Code.gs */
 async function refresh(silent){
   if(!S.token||!S.me||S.me.mustChange)return;
   try{
@@ -450,7 +458,7 @@ function navItems(){
 const defaultView=()=>S.me?navItems()[0]:'';
 function navBadge(v){
   if(!S.loaded)return 0;
-  if(v==='inspect')return spvQueue().length;
+  if(v==='inspect')return spvQueue().filter(onMyFloor).length;
   if(v==='dash')return queued().length;
   if(v==='rooms')return S.rooms.filter(r=>!r.assignedTo).length;
   if(v==='hk')return S.rooms.filter(r=>r.assignedTo===S.me.id&&r.status==='PENDING').length;
@@ -525,8 +533,8 @@ function floorMap(rooms){
   const floors=Object.keys(by).sort((a,b)=>(+b||0)-(+a||0));
   const legend=Object.keys(ST).map(k=>`<span class="inline-flex items-center gap-1.5 mr-3"><span class="w-2.5 h-2.5 rounded ${ST[k].dot}"></span>${ST[k].l}</span>`).join('');
   return card(`${cardHead('Peta lantai','Status tiap kamar per lantai',`<div class="hidden md:block text-[11px] text-slate-500">${legend}</div>`)}
-    <div class="px-4 sm:px-5 pb-5 pt-3 space-y-2">${floors.map(f=>`<div class="flex items-start gap-3"><span class="w-11 shrink-0 pt-1.5 text-[11px] font-bold text-slate-500">Lt ${esc(f)}</span>
-      <div class="flex flex-wrap gap-1.5 min-w-0">${by[f].sort(roomSort).map(r=>`<span title="${esc(r.room)} · ${ST[r.status].l} · ${esc(nameOf(r.assignedTo))}${r.arrivalFlag?' · Arrival':''}" class="relative w-12 h-8 rounded-lg ring-1 ring-inset ${ST[r.status].tile} ${isQ(r)?'outline outline-2 outline-offset-1 outline-rose-600':''} text-[11px] font-bold flex items-center justify-center">${esc(r.room)}${isQ(r)?`<span class="absolute -top-1.5 -left-1.5 w-4 h-4 rounded-full bg-rose-600 text-white flex items-center justify-center ring-2 ring-white">${ic('bell','w-2.5 h-2.5')}</span>`:''}${r.arrivalFlag&&r.status!=='COMPLETED'?'<span class="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-fuchsia-500 ring-2 ring-white"></span>':''}</span>`).join('')}</div></div>`).join('')}
+    <div class="px-4 sm:px-5 pb-5 pt-3 space-y-2">${floors.map(f=>{const sp=spvOfFloor(f).filter(u=>u.floors);return `<div class="flex items-start gap-3"><span class="w-14 shrink-0 pt-1 text-[11px] font-bold text-slate-500 leading-tight">Lt ${esc(f)}${sp.length?`<span class="block font-semibold text-violet-600 truncate" title="Supervisor: ${esc(sp.map(u=>u.name).join(', '))}">${esc(sp.map(u=>u.name.split(' ')[0]).join(', '))}</span>`:''}</span>
+      <div class="flex flex-wrap gap-1.5 min-w-0">${by[f].sort(roomSort).map(r=>`<span title="${esc(r.room)} · ${ST[r.status].l} · ${esc(nameOf(r.assignedTo))}${r.arrivalFlag?' · Arrival':''}" class="relative w-12 h-8 rounded-lg ring-1 ring-inset ${ST[r.status].tile} ${isQ(r)?'outline outline-2 outline-offset-1 outline-rose-600':''} text-[11px] font-bold flex items-center justify-center">${esc(r.room)}${isQ(r)?`<span class="absolute -top-1.5 -left-1.5 w-4 h-4 rounded-full bg-rose-600 text-white flex items-center justify-center ring-2 ring-white">${ic('bell','w-2.5 h-2.5')}</span>`:''}${r.arrivalFlag&&r.status!=='COMPLETED'?'<span class="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-fuchsia-500 ring-2 ring-white"></span>':''}</span>`).join('')}</div></div>`}).join('')}
       <p class="md:hidden text-[11px] text-slate-500 pt-2 leading-6">${legend}</p>
       <p class="text-[11px] text-slate-500"><span class="inline-block w-2 h-2 rounded-full bg-fuchsia-500 mr-1"></span>ada tamu arrival hari ini, belum ready <span class="ml-3 inline-flex items-center gap-1"><span class="inline-flex w-3.5 h-3.5 rounded-full bg-rose-600 text-white items-center justify-center">${ic('bell','w-2 h-2')}</span>tamu sudah menunggu</span></p></div>`);
 }
@@ -661,9 +669,13 @@ function timeline(r,isSO){
 }
 function viewInspect(){
   const q=dv('f-spvq','').trim().toUpperCase(),match=r=>!q||String(r.room).toUpperCase().startsWith(q);
-  const all=spvQueue(),queue=all.filter(match).sort((a,b)=>qFirst(a,b)||(b.arrivalFlag?1:0)-(a.arrivalFlag?1:0)||a.finishHkAt-b.finishHkAt);
-  const mine=inspecting().find(r=>r.spvId===S.me.id),others=inspecting().filter(r=>r.spvId!==S.me.id&&match(r));
-  const Q=queued(),working=cnt(S.rooms,'CLEANING')+cnt(S.rooms,'PAUSED');
+  const mf=myFloors(),scopeAll=!mf||S.spvAllFloors,inScope=r=>scopeAll||onMyFloor(r);
+  const total=spvQueue(),all=total.filter(inScope),queue=all.filter(match).sort((a,b)=>qFirst(a,b)||(b.arrivalFlag?1:0)-(a.arrivalFlag?1:0)||a.finishHkAt-b.finishHkAt);
+  const mine=inspecting().find(r=>r.spvId===S.me.id),others=inspecting().filter(r=>r.spvId!==S.me.id&&match(r)&&inScope(r));
+  const offFloor=mf?total.filter(r=>!onMyFloor(r)).length:0;
+  const floorSpv=r=>{const l=spvOfFloor(floorOf(r)).filter(u=>u.floors);return l.length?' · SPV '+l.map(u=>esc(u.name.split(' ')[0])).join(', '):''};
+  const scopeBar=mf?`<div class="flex flex-wrap items-center gap-2 mb-4"><div class="flex gap-1 p-1 rounded-xl bg-slate-200/60">${[['mine',`${ic('layers','w-3.5 h-3.5')} Lantai saya · ${[...mf].join(', ')}`,total.length-offFloor],['all','Semua lantai',total.length]].map(([k,l,n])=>`<button data-act="spvScope" data-v="${k}" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap ${(k==='all')===!!S.spvAllFloors?'bg-white text-slate-900 shadow-card':'text-slate-600 hover:text-slate-900'}">${l} <span class="text-slate-400">${n}</span></button>`).join('')}</div><p class="text-xs text-slate-500">Notifikasi hanya dari lantai Anda.</p></div>`:'';
+  const Q=queued().filter(inScope),working=cnt(S.rooms,'CLEANING')+cnt(S.rooms,'PAUSED');
   const since=t=>`<span class="font-mono" data-since="${t}">${timer(nowS()-t)}</span>`;
   const hero=mine?`<section class="relative overflow-hidden rounded-3xl bg-brand-950 text-white p-5 sm:p-6 shadow-lift dots mb-4">
       <div class="flex items-start justify-between gap-4"><div class="min-w-0"><p class="text-xs font-semibold text-violet-300 uppercase tracking-wider flex items-center gap-2"><span class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-violet-400"></span></span>Sedang Anda cek</p>
@@ -675,17 +687,17 @@ function viewInspect(){
         <button data-act="ask" data-type="undo" data-id="${esc(mine.room)}" class="${bc('glass','md')}" aria-label="Batalkan cek">${ic('ban')} <span class="hidden sm:inline">Batal</span></button>
         <button data-act="ask" data-type="inspect_finish" data-id="${esc(mine.room)}" class="${bc('success','md')} !bg-emerald-500 hover:!bg-emerald-400">${ic('dcheck','w-5 h-5')} Finish cek · kamar ready</button></div></section>`:'';
   const card1=r=>`<article class="bg-white rounded-2xl ${isQ(r)?'ring-2 ring-rose-500':r.arrivalFlag?'ring-1 ring-fuchsia-300':'ring-1 ring-slate-200/80'} shadow-card p-4 sm:p-5 flex flex-col gap-3.5">${isQ(r)?`<div>${qChip(r)}</div>`:''}
-    <div class="flex items-start justify-between gap-3"><div><p class="text-3xl font-extrabold text-slate-900 tracking-tight leading-none">${esc(r.room)}</p><p class="text-xs text-slate-500 mt-1.5">${esc(r.roomType)} · Lt ${esc(floorOf(r))}</p></div><div class="flex flex-wrap justify-end gap-1">${resvChip(r)}${flagChips(r)}</div></div>
+    <div class="flex items-start justify-between gap-3"><div><p class="text-3xl font-extrabold text-slate-900 tracking-tight leading-none">${esc(r.room)}</p><p class="text-xs text-slate-500 mt-1.5">${esc(r.roomType)} · Lt ${esc(floorOf(r))}${mf?(onMyFloor(r)?'':' · <span class="font-semibold text-amber-700">bukan lantai Anda</span>'):isAdmin()?floorSpv(r):''}</p></div><div class="flex flex-wrap justify-end gap-1">${resvChip(r)}${flagChips(r)}</div></div>
     <div class="flex items-center gap-2.5">${avatar(nameOf(r.assignedTo),'w-8 h-8 text-[10px]')}<div class="text-sm flex-1 min-w-0"><p class="font-semibold text-slate-900 truncate">${esc(nameOf(r.assignedTo))}</p><p class="text-xs text-slate-500">${mins(netClean(r))} menit bersih${r.totalPauseMs?' · jeda '+mins(r.totalPauseMs)+'m':''}</p></div>
       <div class="text-right"><p class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Menunggu</p><p class="text-sm font-bold text-sky-700"><span data-wait="${r.finishHkAt}">${mins(nowS()-r.finishHkAt)}</span> mnt</p></div></div>
     ${notes(r)}${timeline(r,false)}
     ${mine?'':`<button data-act="ask" data-type="inspect_start" data-id="${esc(r.room)}" class="${bc('dark','lg','w-full mt-auto')}">${ic('play','w-4 h-4')} Start cek</button>`}</article>`;
   return `${pageHead('',`${all.length} menunggu · ${inspecting().length} sedang dicek · ${working} dibersihkan`)}
   ${queueBanner(Q,`${Q.length} tamu sudah menunggu`,'Kamar ini tampil paling atas begitu housekeeper menekan Finish. Cek secepatnya.')}
-  ${hero}
+  ${hero}${scopeBar}
   <div class="flex flex-col sm:flex-row sm:items-center gap-3 mb-4"><div class="flex-1 flex gap-2 rounded-2xl bg-white ring-1 ring-slate-200/80 px-4 py-3 text-sm text-slate-600">${ic('info','w-4 h-4 mt-0.5 text-brand-600')}<span>Tekan <b>Start cek</b> saat mulai memeriksa dan <b>Finish cek</b> saat kamar sudah sesuai standar. Hanya kamar <b>Checkout</b> yang dicek; stayover otomatis ready.${mine?` <b class="text-violet-700">Selesaikan cek kamar ${esc(mine.room)} untuk mulai kamar berikutnya.</b>`:''}</span></div><div class="sm:w-64">${searchBox('f-spvq','Cari nomor kamar')}</div></div>
   ${queue.length?`<div class="grid gap-3 sm:gap-4 md:grid-cols-2 2xl:grid-cols-3">${queue.map(card1).join('')}</div>`
-  :card(empty('dcheck',q?'Tidak ada kamar yang cocok':'Antrean kosong','Kamar checkout muncul di sini begitu housekeeper menekan Finish.'))}
+  :card(empty('dcheck',q?'Tidak ada kamar yang cocok':mf&&!scopeAll?'Antrean lantai Anda kosong':'Antrean kosong',mf&&!scopeAll&&offFloor?`${offFloor} kamar menunggu di lantai lain. Ketuk "Semua lantai" untuk melihatnya.`:'Kamar checkout muncul di sini begitu housekeeper menekan Finish.'))}
   ${others.length?`<h3 class="text-sm font-bold text-slate-900 mt-6 mb-2">Sedang dicek supervisor lain</h3><div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">${others.map(r=>`<div class="flex items-center gap-3 rounded-2xl bg-white ring-1 ring-violet-200 px-4 py-3"><span class="text-xl font-extrabold text-slate-900 w-14">${esc(r.room)}</span><div class="flex-1 min-w-0 text-xs text-slate-500"><p class="font-semibold text-slate-800 truncate">${esc(nameOf(r.spvId))}</p><p>mulai ${clk(r.spvStartAt)}</p></div><span class="text-sm font-bold text-violet-700">${since(r.spvStartAt)}</span>${isAdmin()?`<button data-act="ask" data-type="inspect_finish" data-id="${esc(r.room)}" class="${bc('soft','sm')}">Finish</button>`:''}</div>`).join('')}</div>`:''}`;
 }
 function recapCard(r,undo){
@@ -819,7 +831,7 @@ function rights(t){
   const u=S.me,self=u.id===t.id,m=['supervisor','housekeeper'].includes(t.role);
   return {name:u.role==='superadmin'||(u.role==='admin'&&(m||self)),username:u.role==='superadmin',
     password:!self&&((u.role==='superadmin'&&t.role!=='superadmin')||(u.role==='admin'&&m)||(u.role==='supervisor'&&t.role==='housekeeper')),
-    role:u.role==='superadmin'&&!self&&t.role!=='superadmin',active:!self&&((u.role==='superadmin'&&t.role!=='superadmin')||(u.role==='admin'&&m))};
+    floors:(u.role==='superadmin'||u.role==='admin')&&t.role==='supervisor',role:u.role==='superadmin'&&!self&&t.role!=='superadmin',active:!self&&((u.role==='superadmin'&&t.role!=='superadmin')||(u.role==='admin'&&m))};
 }
 function viewUsers(){
   if(!S.allUsers){loadUsers();return skeleton()}
@@ -840,14 +852,41 @@ function viewUsers(){
     ${isSpv?`<p class="text-sm text-slate-600 flex items-center gap-2">${ic('key','w-4 h-4 text-brand-600')} Supervisor bisa mengganti password housekeeper.</p>`:`<div class="flex gap-1 p-1 rounded-xl bg-slate-200/60 overflow-x-auto no-scrollbar">${tabs.map(([k,l,n])=>`<button data-act="ufilter" data-v="${k}" class="px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap ${fr===k?'bg-white text-slate-900 shadow-card':'text-slate-600 hover:text-slate-900'}">${l} <span class="text-slate-400">${n}</span></button>`).join('')}</div>`}
     <div class="flex-1 md:max-w-xs md:ml-auto">${searchBox('f-uq','Cari nama atau username')}</div>
     ${isAdmin()?`<button data-act="openAddUser" class="${bc('primary')}">${ic('plus')} Tambah pengguna</button>`:''}</div>
+  ${isAdmin()?floorCard():''}
   ${card(list.length?`<div class="hidden md:block overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-xs text-slate-500 border-b border-slate-100 bg-slate-50/60"><th class="font-semibold px-5 py-3">Pengguna</th><th class="font-semibold px-3 py-3">Role</th><th class="font-semibold px-3 py-3">Status</th><th class="px-5 py-3"></th></tr></thead>
       <tbody class="divide-y divide-slate-100">${list.map(u=>`<tr class="hover:bg-slate-50/60 ${u.active?'':'opacity-60'}"><td class="px-5 py-3"><div class="flex items-center gap-3">${avatar(u.name)}<div><p class="font-semibold text-slate-900">${esc(u.name)}${you(u)}</p><p class="text-xs text-slate-500">@${esc(u.username)}</p></div></div></td>
-        <td class="px-3 py-3">${roleChip(u.role)}</td><td class="px-3 py-3">${status(u)}</td><td class="px-5 py-3">${actions(u,'justify-end')}</td></tr>`).join('')}</tbody></table></div>
-    <div class="md:hidden divide-y divide-slate-100">${list.map(u=>`<div class="p-4 space-y-3 ${u.active?'':'opacity-60'}"><div class="flex items-center gap-3">${avatar(u.name)}<div class="flex-1 min-w-0"><p class="font-semibold text-slate-900 truncate">${esc(u.name)}${you(u)}</p><p class="text-xs text-slate-500">@${esc(u.username)}</p></div>${roleChip(u.role)}</div>
+        <td class="px-3 py-3">${roleChip(u.role)}${u.role==='supervisor'?`<p class="text-[11px] text-violet-700 font-semibold mt-1">${fmtFloors(floorsOf(u))}</p>`:''}</td><td class="px-3 py-3">${status(u)}</td><td class="px-5 py-3">${actions(u,'justify-end')}</td></tr>`).join('')}</tbody></table></div>
+    <div class="md:hidden divide-y divide-slate-100">${list.map(u=>`<div class="p-4 space-y-3 ${u.active?'':'opacity-60'}"><div class="flex items-center gap-3">${avatar(u.name)}<div class="flex-1 min-w-0"><p class="font-semibold text-slate-900 truncate">${esc(u.name)}${you(u)}</p><p class="text-xs text-slate-500">@${esc(u.username)}${u.role==='supervisor'?` · <span class="text-violet-700 font-semibold">${fmtFloors(floorsOf(u))}</span>`:''}</p></div>${roleChip(u.role)}</div>
       <div class="flex items-center justify-between gap-2">${status(u)}</div>${actions(u,'')}</div>`).join('')}</div>`
     :empty('users','Tidak ada pengguna yang cocok',''))}`;
 }
-async function loadUsers(){const r=await run(()=>api('listUsers'));if(r){S.allUsers=r;render()}}
+async function loadUsers(){const r=await run(()=>api('listUsers'));if(r){S.allUsers=r;S.floorDraft=null;render()}}
+/* Pembagian lantai supervisor (admin & PENGUASA) */
+function floorCard(){
+  const spvs=S.allUsers.filter(u=>u.role==='supervisor'&&u.active).sort((a,b)=>a.name.localeCompare(b.name));
+  if(!spvs.length)return '';
+  if(!S.floorDraft){S.floorDraft={};spvs.forEach(u=>S.floorDraft[u.id]=floorsOf(u))}
+  const D=S.floorDraft;spvs.forEach(u=>{if(!D[u.id])D[u.id]=floorsOf(u)});
+  const set=new Set((S.rooms||[]).map(floorOf).filter(f=>f!=='Lain'));spvs.forEach(u=>D[u.id].concat(floorsOf(u)).forEach(f=>set.add(f)));(S.extraFloors||[]).forEach(f=>set.add(f));
+  const floors=[...set].sort(cmpFloor);
+  const roomsOn=f=>(S.rooms||[]).filter(r=>floorOf(r)===f).length;
+  const dirty=spvs.some(u=>D[u.id].join(',')!==floorsOf(u).join(','));
+  const anyAll=spvs.some(u=>!D[u.id].length);
+  const uncovered=anyAll?[]:floors.filter(f=>!spvs.some(u=>D[u.id].includes(f)));
+  const shared=floors.filter(f=>spvs.filter(u=>D[u.id].includes(f)).length>1);
+  const row=u=>{const a=D[u.id];return `<div class="rounded-xl ring-1 ring-inset ring-slate-200/80 p-3 space-y-2.5">
+    <div class="flex items-center gap-3">${avatar(u.name,'w-8 h-8 text-[10px]')}<div class="flex-1 min-w-0"><p class="text-sm font-semibold text-slate-900 truncate">${esc(u.name)}</p><p class="text-xs ${a.length?'text-violet-700 font-semibold':'text-slate-500'}">${a.length?fmtFloors(a):'Semua lantai (belum dibagi)'}</p></div>
+      ${a.length?`<button data-act="flClear" data-id="${u.id}" class="text-xs font-semibold text-slate-500 hover:text-slate-800 px-2 py-1">Kosongkan</button>`:''}</div>
+    <div class="flex flex-wrap gap-1.5">${floors.length?floors.map(f=>{const on=a.includes(f);return `<button data-act="flTog" data-id="${u.id}" data-f="${esc(f)}" aria-pressed="${on}" class="min-w-[3rem] px-2.5 py-1.5 rounded-lg text-xs font-bold ring-1 ring-inset transition ${on?'bg-violet-600 text-white ring-violet-600 shadow-sm':'bg-white text-slate-600 ring-slate-200 hover:ring-violet-300 hover:text-violet-700'}">Lt ${esc(f)}</button>`}).join(''):'<p class="text-xs text-slate-500">Belum ada kamar hari ini. Tambahkan nomor lantai di bawah.</p>'}</div></div>`};
+  return `<div class="mb-4">${card(`${cardHead('Lantai supervisor','Supervisor hanya menerima notifikasi dari lantai yang dipilih. Kosong = semua lantai.',`${ic('layers','w-5 h-5 text-violet-600')}`)}
+    <div class="px-4 sm:px-5 pb-4"><div class="grid gap-2.5 lg:grid-cols-2 2xl:grid-cols-3 pt-1">${spvs.map(row).join('')}</div>
+      ${uncovered.length?`<div class="mt-2 flex items-start gap-2 rounded-xl bg-rose-50 ring-1 ring-inset ring-rose-200 px-3 py-2.5 text-xs text-rose-800">${ic('alert','w-4 h-4 shrink-0')}<span><b>${fmtFloors(uncovered)}</b> belum punya supervisor. Tidak ada supervisor yang mendapat notifikasi dari lantai ini.</span></div>`:''}
+      ${shared.length?`<p class="mt-2 text-xs text-slate-500">${fmtFloors(shared)} di-handle lebih dari satu supervisor; keduanya mendapat notifikasi.</p>`:''}
+      <div class="mt-3 flex flex-col sm:flex-row sm:items-center gap-2">
+        <div class="flex gap-2 sm:w-64"><input id="f-flnew" type="text" inputmode="numeric" placeholder="Tambah lantai (mis. 11-14)" aria-label="Tambah lantai" class="${field} !py-2 !text-sm"><button data-act="flAdd" class="${bc('soft','sm')} shrink-0">${ic('plus','w-3.5 h-3.5')}</button></div>
+        <p class="text-[11px] text-slate-400 sm:flex-1">${floors.length?floors.map(f=>'Lt '+esc(f)+': '+roomsOn(f)).join(' · ')+' kamar hari ini':''}</p>
+        ${dirty?`<button data-act="flReset" class="${bc('ghost','sm')}">Batal</button>`:''}<button data-act="flSave" ${dirty?'':'disabled'} class="${bc('primary','sm')} disabled:opacity-40 disabled:cursor-not-allowed">Simpan pembagian</button></div></div>`)}</div>`;
+}
 
 /* ================= SISTEM ================= */
 function viewSystem(){
@@ -900,6 +939,7 @@ function renderModals(){
       <div>${label('f-uname','Nama lengkap')}<input id="f-uname" data-keep type="text" value="${esc(dv('f-uname',''))}" class="${field}" placeholder="Mis. Siti Rahma"></div>
       <div>${label('f-uuser','Username (opsional)')}<input id="f-uuser" data-keep type="text" autocapitalize="none" value="${esc(dv('f-uuser',''))}" class="${field}" placeholder="dibuat dari nama jika kosong"></div>
       <fieldset><legend class="block text-xs font-semibold text-slate-600 mb-1.5">Role</legend><div class="grid gap-2" style="grid-template-columns:repeat(${creatable.length},minmax(0,1fr))">${creatable.map(r=>`<label class="cursor-pointer"><input type="radio" name="f-urole" value="${r}" data-urolepick class="peer sr-only" ${role===r?'checked':''}><span class="block text-center rounded-xl ring-1 ring-inset ring-slate-200 peer-checked:ring-2 peer-checked:ring-brand-500 peer-checked:bg-brand-50 peer-focus-visible:ring-2 peer-focus-visible:ring-brand-500 px-2 py-2.5 text-sm font-semibold text-slate-700">${ROLE[r].l}</span></label>`).join('')}</div></fieldset>
+      ${role==='supervisor'?`<div>${label('f-ufloors','Lantai yang di-handle (opsional)')}<input id="f-ufloors" data-keep type="text" value="${esc(dv('f-ufloors',''))}" class="${field}" placeholder="mis. 3,4,5 atau 3-5 · kosong = semua lantai"></div>`:''}
       <div class="grid sm:grid-cols-2 gap-3"><div>${label('f-upw','Password')}<input id="f-upw" type="password" autocomplete="new-password" minlength="4" class="${field}" placeholder="min. 4 karakter"></div>
         <div>${label('f-upw2','Ulangi password')}<input id="f-upw2" type="password" autocomplete="new-password" minlength="4" class="${field}"></div></div>
       <p id="au-err" class="text-sm text-rose-600" hidden></p>
@@ -914,6 +954,7 @@ function renderModals(){
       ${R.password?`<div class="grid sm:grid-cols-2 gap-3"><div>${label('e-pw',R.name||R.username?'Password baru (kosongkan jika tidak diganti)':'Password baru')}<input id="e-pw" type="password" autocomplete="new-password" class="${field}" placeholder="min. 4 karakter"></div>
         <div>${label('e-pw2','Ulangi password baru')}<input id="e-pw2" type="password" autocomplete="new-password" class="${field}"></div></div>
         <p class="text-xs text-slate-500">Setelah password diganti, ${esc(t.name)} keluar dari semua perangkat dan login dengan password baru.</p>`:''}
+      ${R.floors?`<div>${label('e-floors','Lantai yang di-handle')}<input id="e-floors" type="text" value="${esc(t.floors||'')}" class="${field}" placeholder="mis. 3,4,5 atau 3-5"><p class="text-xs text-slate-500 mt-1">Kosongkan agar menerima notifikasi semua lantai.</p></div>`:''}
       ${t.id===S.me.id?`<p class="text-xs text-slate-500">Password Anda sendiri diganti dari menu Akun.</p>`:''}
       <p id="eu-err" class="text-sm text-rose-600" hidden></p>
       <div class="flex gap-2"><button data-act="closeEditUser" class="${bc('ghost')}">Batal</button><button data-act="saveEditUser" class="${bc('primary','md','flex-1')}">Simpan</button></div></div>`,{close:'closeEditUser',lbl:'Edit akun'});}
@@ -1015,6 +1056,17 @@ const A={
   openMore(){S.more=true;render()},closeMore(){S.more=false;render()},
   toggleAll(){S.showAll=!S.showAll;render()},
   hardReload(){hardReload()},
+  spvScope(el){S.spvAllFloors=el.dataset.v==='all';render()},
+  flTog(el){const a=S.floorDraft[el.dataset.id],f=el.dataset.f,i=a.indexOf(f);if(i>=0)a.splice(i,1);else{a.push(f);a.sort(cmpFloor)}render()},
+  flClear(el){S.floorDraft[el.dataset.id]=[];render()},
+  flReset(){S.floorDraft=null;S.extraFloors=[];render()},
+  flAdd(){const i=document.getElementById('f-flnew');const v=String(i&&i.value||'').toUpperCase().trim();if(!v)return;
+    const out=[];for(const t of v.split(/[,;\s]+/).filter(Boolean)){const m=t.match(/^(\d{1,3})-(\d{1,3})$/);if(m){let a=+m[1],b=+m[2];if(a>b)[a,b]=[b,a];if(b-a>60)return toast('Rentang terlalu panjang.');for(let x=a;x<=b;x++)out.push(String(x))}else{const z=t.replace(/^(LT|L)\.?(?=\d)/,'');if(!/^[0-9A-Z]{1,4}$/.test(z))return toast('Lantai tidak valid: '+t);out.push(/^\d+$/.test(z)?String(+z):z)}}
+    S.extraFloors=[...new Set((S.extraFloors||[]).concat(out))];render()},
+  async flSave(){const D=S.floorDraft||{},map={};(S.allUsers||[]).filter(u=>u.role==='supervisor'&&D[u.id]&&D[u.id].join(',')!==floorsOf(u).join(',')).forEach(u=>map[u.id]=D[u.id].join(','));
+    if(!Object.keys(map).length)return;
+    const r=await run(()=>api('setSpvFloors',map),r=>`Pembagian lantai disimpan (${r.changed} supervisor).`);
+    if(r){S.allUsers=null;S.floorDraft=null;S.extraFloors=[];refresh(true);render()}},
   exportReport(){exportReport()},
   refresh(){refresh()},
   togglePw(el){const i=document.getElementById(el.dataset.for);if(i)i.type=i.type==='password'?'text':'password'},
@@ -1067,8 +1119,8 @@ const A={
     const pw=document.getElementById('f-upw').value,pw2=document.getElementById('f-upw2').value;
     if(pw.length<4)return err('Password minimal 4 karakter.');if(pw!==pw2)return err('Password tidak sama.');
     const role=dv('f-urole','housekeeper');
-    try{const r=await api('saveUser',{name,username:dv('f-uuser','').trim(),role,password:pw});
-      S.addUser=false;S.drafts['f-uname']='';S.drafts['f-uuser']='';S.allUsers=null;toast(`Akun ${r.user.name} (@${r.user.username}) dibuat.`);refresh(true);render();
+    try{const r=await api('saveUser',{name,username:dv('f-uuser','').trim(),role,password:pw,floors:role==='supervisor'?dv('f-ufloors',''):''});
+      S.addUser=false;S.drafts['f-uname']='';S.drafts['f-uuser']='';S.drafts['f-ufloors']='';S.allUsers=null;toast(`Akun ${r.user.name} (@${r.user.username}) dibuat.`);refresh(true);render();
     }catch(e){if(e.code!=='AUTH')err(e.message)}
   },
   openEditUser(el){S.editUser=el.dataset.id;render();setTimeout(()=>{const i=document.getElementById('e-name')||document.getElementById('e-pw');i&&i.focus()},60)},
@@ -1080,6 +1132,7 @@ const A={
     const data={id:t.id};
     if(R.name){const n=v('e-name').trim();if(!n)return err('Nama tidak boleh kosong.');data.name=n}
     if(R.username){const u=v('e-user').trim().toLowerCase();if(!/^[a-z0-9._-]{3,30}$/.test(u))return err('Username 3–30 karakter: huruf kecil, angka, titik, strip.');data.username=u}
+    if(R.floors)data.floors=v('e-floors');
     if(R.password){const p=v('e-pw'),p2=v('e-pw2');
       if(p||p2||!(R.name||R.username)){if(p.length<4)return err('Password minimal 4 karakter.');if(p!==p2)return err('Password tidak sama.');data.password=p}}
     try{const r=await api('editUser',data);S.editUser=null;S.allUsers=null;
@@ -1108,7 +1161,7 @@ function markSeen(list){const s=seenSet();list.forEach(r=>s.add(qKey(r)));try{lo
 function relevantQueue(){
   if(!S.me)return [];
   if(S.me.role==='housekeeper')return queued().filter(r=>r.assignedTo===S.me.id);
-  if(S.me.role==='supervisor')return queued();
+  if(S.me.role==='supervisor')return queued().filter(onMyFloor);
   return [];
 }
 function checkQueueAlerts(){
@@ -1175,7 +1228,7 @@ function detectEvents(prev,next){
     if(added.length)notify('info',added.length===1?'Kamar baru: '+added[0].room:added.length+' kamar baru untuk Anda',added.length>1?added.slice(0,8).map(r=>r.room).join(', '):'','assign');
   }
   if(me.role==='supervisor'){
-    const ready=next.filter(r=>r.status==='INSPECTION_READY'&&r.category==='CHECKOUT'&&P.get(r.room)&&P.get(r.room).status!=='INSPECTION_READY');
+    const ready=next.filter(r=>r.status==='INSPECTION_READY'&&r.category==='CHECKOUT'&&onMyFloor(r)&&P.get(r.room)&&P.get(r.room).status!=='INSPECTION_READY');
     if(ready.length)notify('info',ready.length===1?'Kamar '+ready[0].room+' siap dicek':ready.length+' kamar siap dicek',ready.slice(0,6).map(r=>r.room+' ('+nameOf(r.assignedTo)+')').join(', '),'inspect');
   }
   if(isAdmin()){
