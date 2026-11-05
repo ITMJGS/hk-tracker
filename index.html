@@ -6,7 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>HK Tracker</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b2a29'/%3E%3Cpath d='M20 50V14h22v36M14 50h36M36 32h1' fill='none' stroke='%2378cfc4' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
-  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b2a29'/%3E%3Cpath d='M20 50V14h22v36M14 50h36M36 32h1' fill='none' stroke='%2378cfc4' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="manifest" href="manifest.webmanifest">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <script>
@@ -151,7 +152,7 @@ const isAdmin=()=>S.me&&(S.me.role==='superadmin'||S.me.role==='admin');
 
 const S={persist:(()=>{try{return !!localStorage.getItem('hk.token')}catch(e){return false}})(),token:lsGet('hk.token'),me:null,today:'',rooms:[],users:[],uploads:[],loaded:false,view:'',
   reportDate:'',report:{},allUsers:null,log:null,storage:null,drafts:{},del:'',modal:null,confirm:null,creds:null,acct:false,more:false,addUser:false,imp:null,
-  showAll:false,busy:0,lastSync:0,loginErr:'',syncErr:'',qAlert:null,editUser:null};
+  showAll:false,busy:0,lastSync:0,loginErr:'',syncErr:'',qAlert:null,editUser:null,soundOn:lsGet('hk.sound')!=='0',wake:lsGet('hk.wake')==='1'};
 
 /* ---------------- SERVER CALLS ---------------- */
 function call(fn,args){
@@ -179,7 +180,8 @@ async function refresh(silent){
   if(!S.token||!S.me||S.me.mustChange)return;
   try{
     const t0=Date.now();const st=await api('getState',S.today||'');syncClock(st.serverTime,t0,Date.now());
-    S.me=st.me;S.rooms=st.rooms;S.users=st.users;S.uploads=st.uploads||[];S.loaded=true;S.lastSync=nowS();S.syncErr='';
+    const prev=(S.loaded&&S.stateDate===st.date)?S.rooms:null;S.stateDate=st.date;
+    S.me=st.me;S.users=st.users;detectEvents(prev,st.rooms);S.rooms=st.rooms;S.uploads=st.uploads||[];S.loaded=true;S.lastSync=nowS();S.syncErr='';
     S.today=st.today;if(!S.reportDate)S.reportDate=st.today;
     checkQueueAlerts();
     render();
@@ -436,6 +438,7 @@ function topbar(){
       <button data-act="refresh" class="hidden sm:inline-flex items-center gap-2 text-xs font-semibold text-slate-500 hover:text-slate-800 px-3 py-2 rounded-xl hover:bg-white ring-1 ring-transparent hover:ring-slate-200" title="Muat ulang data">
         <span data-busy class="inline-flex ${S.busy?'spin':''}">${ic('refresh','w-4 h-4')}</span><span>${S.lastSync?'Diperbarui '+clk(S.lastSync):'Memuat'}</span></button>
       <button data-act="refresh" class="sm:hidden p-2 rounded-xl text-slate-500 hover:bg-white" aria-label="Muat ulang"><span data-busy class="inline-flex ${S.busy?'spin':''}">${ic('refresh','w-5 h-5')}</span></button>
+      <button data-act="toggleSound" data-bell class="p-2 rounded-xl ${S.soundOn&&audioOn()?'text-brand-700 hover:bg-white':'text-slate-400 hover:bg-white'}" aria-label="${S.soundOn?'Matikan bunyi':'Nyalakan bunyi'}" title="${S.soundOn?'Bunyi notifikasi: nyala':'Bunyi notifikasi: mati'}"><span class="relative inline-flex">${ic('bell','w-5 h-5')}${S.soundOn?'':'<span class="absolute inset-0 flex items-center justify-center"><span class="w-6 h-0.5 bg-slate-400 rotate-45 rounded"></span></span>'}</span></button>
       <button data-act="acct" class="lg:hidden" aria-label="Akun">${avatar(S.me.name)}</button>
     </div></header>`;
 }
@@ -454,6 +457,7 @@ function viewShell(){
   else body={dash:viewDash,upload:viewUpload,rooms:viewRooms,inspect:viewInspect,recap:viewRecap,report:viewReport,users:viewUsers,system:viewSystem,hk:viewHK}[S.view]();
   return `${sidebar(nav)}<div class="lg:pl-72 min-h-screen">${topbar()}
     <main class="px-safe pt-5 pb-28 lg:pb-12 max-w-[1400px]">
+      ${S.soundOn?`<div id="audio-banner" ${audioOn()?'hidden':''} class="mb-4 flex items-center gap-3 rounded-2xl bg-amber-50 ring-1 ring-inset ring-amber-300 px-4 py-3"><span class="w-9 h-9 rounded-xl bg-amber-400 text-amber-950 flex items-center justify-center shrink-0">${ic('bell','w-5 h-5')}</span><div class="flex-1 min-w-0 text-sm text-amber-900"><p class="font-bold">Bunyi notifikasi belum aktif</p><p class="text-xs">Browser butuh satu ketukan sebelum boleh berbunyi.</p></div><button data-act="enableAlerts" class="${bc('warn','sm')} shrink-0">Aktifkan bunyi</button></div>`:''}
       ${S.syncErr&&S.loaded?`<div class="mb-4 flex items-center justify-between gap-3 rounded-xl bg-amber-50 ring-1 ring-inset ring-amber-200 px-4 py-2.5 text-sm text-amber-900"><span class="flex items-center gap-2">${ic('alert')} ${esc(S.syncErr)}</span><button data-act="refresh" class="font-semibold">Coba lagi</button></div>`:''}
       ${body}</main></div>${bottomNav(nav)}`;
 }
@@ -784,6 +788,14 @@ function renderModals(){
   if(S.acct&&S.me){
     h+=sheet(`${sheetHead('Akun','','closeAcct')}<div class="px-5 sm:px-6 pb-6 space-y-4 overflow-y-auto">
       <div class="flex items-center gap-3 rounded-2xl bg-slate-50 p-3.5">${avatar(S.me.name,'w-12 h-12 text-sm')}<div class="min-w-0 flex-1"><p class="font-bold text-slate-900 truncate">${esc(S.me.name)}</p><p class="text-sm text-slate-500">@${esc(S.me.username)}</p></div>${roleChip(S.me.role)}</div>
+      <div class="rounded-2xl ring-1 ring-inset ring-slate-200 divide-y divide-slate-100">
+        <label class="flex items-center gap-3 px-4 py-3 cursor-pointer"><span class="flex-1"><span class="block text-sm font-semibold text-slate-800">Bunyi notifikasi</span><span class="block text-xs text-slate-500">${S.soundOn?(audioOn()?'Aktif':'Ketuk "Tes bunyi" untuk mengaktifkan'):'Mati'}</span></span>
+          <input type="checkbox" data-pref="sound" class="peer sr-only" ${S.soundOn?'checked':''}><span class="relative w-11 h-6 rounded-full bg-slate-200 peer-checked:bg-brand-600 transition after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-5 after:h-5 after:rounded-full after:bg-white after:shadow after:transition peer-checked:after:translate-x-5"></span></label>
+        <label class="flex items-center gap-3 px-4 py-3 cursor-pointer"><span class="flex-1"><span class="block text-sm font-semibold text-slate-800">Layar tetap menyala</span><span class="block text-xs text-slate-500">Saat aplikasi terbuka, agar notifikasi tidak terlewat</span></span>
+          <input type="checkbox" data-pref="wake" class="peer sr-only" ${S.wake?'checked':''}><span class="relative w-11 h-6 rounded-full bg-slate-200 peer-checked:bg-brand-600 transition after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-5 after:h-5 after:rounded-full after:bg-white after:shadow after:transition peer-checked:after:translate-x-5"></span></label>
+        ${canSysNotify()?`<div class="flex items-center gap-3 px-4 py-3"><span class="flex-1"><span class="block text-sm font-semibold text-slate-800">Notifikasi di layar HP</span><span class="block text-xs text-slate-500">${Notification.permission==='granted'?'Diizinkan':Notification.permission==='denied'?'Diblokir di pengaturan browser':'Belum diizinkan'}</span></span>${Notification.permission==='default'?`<button data-act="enableAlerts" class="${bc('soft','sm')}">Izinkan</button>`:''}</div>`:''}
+        <div class="px-4 py-3"><button data-act="testSound" class="${bc('ghost','sm','w-full')}">${ic('bell','w-3.5 h-3.5')} Tes bunyi</button></div>
+      </div>
       <details class="rounded-2xl ring-1 ring-inset ring-slate-200 group"><summary class="px-4 py-3.5 flex items-center gap-2 font-semibold text-slate-800 cursor-pointer">${ic('key','w-4 h-4 text-brand-600')} Ganti password <span class="ml-auto text-slate-400 group-open:rotate-90 transition">${ic('chevron')}</span></summary><div class="px-4 pb-4">${pwForm(false)}</div></details>
       <button data-act="logout" class="${bc('dangerSoft','md','w-full')}">${ic('logout')} Keluar</button></div>`,{close:'closeAcct',lbl:'Akun'});
   }
@@ -943,6 +955,9 @@ const A={
   closeCreds(){S.creds=null;render()},
   async copyCreds(){const t=document.getElementById('cred-text');try{await navigator.clipboard.writeText(t.value);toast('Disalin ke clipboard.')}catch(e){t.className='w-full h-32 text-xs font-mono rounded-xl ring-1 ring-slate-200 p-2';t.select();toast('Salin manual: tekan lama lalu Salin.')}},
   confirmNo(){S.confirm=null;render()},
+  enableAlerts(){enableAlerts()},
+  testSound(){unlockAudio();S.soundOn=true;lsSet('hk.sound','1',true);setTimeout(()=>{playSound('alarm');try{navigator.vibrate&&navigator.vibrate([300,100,300])}catch(e){}},150);render()},
+  toggleSound(){if(S.soundOn&&audioOn()){S.soundOn=false;lsSet('hk.sound','0',true);toast('Bunyi notifikasi dimatikan')}else{enableAlerts();toast('Bunyi notifikasi aktif')}render()},
   qAck(){markSeen(S.qAlert||[]);S.qAlert=null;try{document.title='HK Tracker'}catch(e){}render()},
   async confirmYes(){const C=S.confirm;S.confirm=null;render();if(C&&C.onYes)await C.onYes()},
   ask(el){askRoom(el.dataset.type,el.dataset.id)},
@@ -1004,13 +1019,72 @@ function checkQueueAlerts(){
   const seen=S.qSeenMem||seenSet();
   const fresh=rel.filter(r=>!seen.has(qKey(r)));
   if(!fresh.length)return;
-  S.qAlert=rel;chime();try{navigator.vibrate&&navigator.vibrate([300,150,300,150,500])}catch(e){}
-  try{document.title='🔔 Tamu menunggu · HK Tracker'}catch(e){}
+  S.qAlert=rel;
+  notify('alarm','Tamu sudah menunggu','Kamar '+fresh.map(r=>r.room).join(', ')+(S.me.role==='housekeeper'?' — kerjakan lebih dulu':' — segera cek'),'queue');
 }
-let actx=null;
-document.addEventListener('pointerdown',()=>{try{if(!actx){const C=window.AudioContext||window.webkitAudioContext;if(C)actx=new C()}if(actx&&actx.state==='suspended')actx.resume()}catch(e){}},{passive:true});
-function chime(){
-  try{if(!actx)return;const t=actx.currentTime;[[880,0],[660,.22],[880,.44]].forEach(([f,d])=>{const o=actx.createOscillator(),g=actx.createGain();o.type='sine';o.frequency.value=f;g.gain.setValueAtTime(0.0001,t+d);g.gain.exponentialRampToValueAtTime(0.35,t+d+.02);g.gain.exponentialRampToValueAtTime(0.0001,t+d+.2);o.connect(g);g.connect(actx.destination);o.start(t+d);o.stop(t+d+.22)})}catch(e){}
+
+/* ================= BUNYI & NOTIFIKASI ================= */
+/* Browser hanya mengizinkan bunyi setelah layar disentuh sekali. Banner "Aktifkan bunyi" muncul sampai itu terjadi. */
+let actx=null,swReg=null,wakeLock=null;
+const audioOn=()=>!!(actx&&actx.state==='running');
+/* jangan render ulang seluruh halaman di sini: ketukan pertama bisa hilang jika tombol diganti di tengah klik */
+function updateAudioUi(){const b=document.getElementById('audio-banner');if(b)b.hidden=!S.soundOn||audioOn();document.querySelectorAll('[data-bell]').forEach(el=>el.classList.toggle('text-brand-700',S.soundOn&&audioOn()))}
+function unlockAudio(){
+  try{
+    if(!actx){const C=window.AudioContext||window.webkitAudioContext;if(C){actx=new C();actx.onstatechange=updateAudioUi}}
+    if(actx&&actx.state!=='running')actx.resume().then(updateAudioUi).catch(()=>{});
+  }catch(e){}
+}
+document.addEventListener('pointerdown',unlockAudio,{passive:true});
+document.addEventListener('keydown',unlockAudio);
+function playSound(kind){
+  if(!S.soundOn||!audioOn())return;
+  const seq=kind==='alarm'?[[880,0],[660,.2],[880,.4],[660,.6],[988,.8],[1175,1.0]]:kind==='test'?[[659,0],[880,.16],[1047,.32]]:[[784,0],[1047,.16]];
+  try{const t=actx.currentTime;seq.forEach(([f,d])=>{const o=actx.createOscillator(),g=actx.createGain();o.type=kind==='alarm'?'square':'sine';o.frequency.value=f;
+    const peak=kind==='alarm'?0.22:0.35;g.gain.setValueAtTime(0.0001,t+d);g.gain.exponentialRampToValueAtTime(peak,t+d+.02);g.gain.exponentialRampToValueAtTime(0.0001,t+d+.18);
+    o.connect(g);g.connect(actx.destination);o.start(t+d);o.stop(t+d+.2)})}catch(e){}
+}
+function sysNotify(title,body,tag){
+  if(!document.hidden||!('Notification' in window)||Notification.permission!=='granted')return;
+  const opt={body:body||'',tag:tag||'hk',renotify:true,icon:'icon-192.png',badge:'icon-192.png',vibrate:[300,150,300]};
+  try{if(swReg&&swReg.showNotification)swReg.showNotification(title,opt);else new Notification(title,opt)}catch(e){}
+}
+function notify(kind,title,body,tag){
+  playSound(kind);
+  try{navigator.vibrate&&navigator.vibrate(kind==='alarm'?[400,150,400,150,600]:[200,100,200])}catch(e){}
+  if(kind!=='alarm')toast(title+(body?' · '+body:''));
+  sysNotify(title,body,tag);
+}
+const canSysNotify=()=>!!window.HK_API_URL&&('Notification' in window);
+async function enableAlerts(){
+  unlockAudio();S.soundOn=true;lsSet('hk.sound','1',true);
+  setTimeout(()=>playSound('test'),150);
+  if(canSysNotify()&&Notification.permission==='default'){try{await Notification.requestPermission()}catch(e){}}
+  render();
+}
+async function applyWake(){
+  try{
+    if(S.wake&&!document.hidden&&'wakeLock' in navigator){if(!wakeLock){wakeLock=await navigator.wakeLock.request('screen');wakeLock.addEventListener('release',()=>{wakeLock=null})}}
+    else if(wakeLock){await wakeLock.release();wakeLock=null}
+  }catch(e){}
+}
+if(window.HK_API_URL&&'serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').then(r=>{swReg=r}).catch(()=>{})}
+/* kejadian baru sejak pembaruan terakhir → bunyi */
+function detectEvents(prev,next){
+  if(!prev||!S.me)return;
+  const P=new Map(prev.map(r=>[r.room,r])),me=S.me;
+  if(me.role==='housekeeper'){
+    const added=next.filter(r=>r.assignedTo===me.id&&r.status!=='COMPLETED'&&!(P.get(r.room)&&P.get(r.room).assignedTo===me.id));
+    if(added.length)notify('info',added.length===1?'Kamar baru: '+added[0].room:added.length+' kamar baru untuk Anda',added.length>1?added.slice(0,8).map(r=>r.room).join(', '):'','assign');
+  }
+  if(me.role==='supervisor'){
+    const ready=next.filter(r=>r.status==='INSPECTION_READY'&&r.category==='CHECKOUT'&&P.get(r.room)&&P.get(r.room).status!=='INSPECTION_READY');
+    if(ready.length)notify('info',ready.length===1?'Kamar '+ready[0].room+' siap dicek':ready.length+' kamar siap dicek',ready.slice(0,6).map(r=>r.room+' ('+nameOf(r.assignedTo)+')').join(', '),'inspect');
+  }
+  if(isAdmin()){
+    const done=next.filter(r=>r.status==='COMPLETED'&&r.queuedAt&&P.get(r.room)&&P.get(r.room).status!=='COMPLETED');
+    if(done.length)notify('info','Kamar '+done.map(r=>r.room).join(', ')+' ready','Tamu yang menunggu sudah bisa masuk','qready');
+  }
 }
 
 /* ================= RENDER + EVENTS ================= */
@@ -1042,6 +1116,8 @@ document.addEventListener('change',async e=>{
     const upd=await run(()=>api('setQueue',S.today,room,on),()=>on?`Kamar ${room}: tamu menunggu. ${r0&&r0.assignedTo?nameOf(r0.assignedTo)+' & supervisor diberi tahu.':'Kamar ini belum di-assign!'}`:`Queue kamar ${room} dibatalkan`);
     if(upd){const i=S.rooms.findIndex(x=>x.room===upd.room);if(i>=0)S.rooms[i]=upd}render()}
   else if(el.dataset.reassign){const room=el.dataset.reassign,to=el.value;const r=await run(()=>api('assignRooms',S.today,[[room,to]]),'Kamar '+room+' → '+nameOf(to));if(r){S.rooms=r.rooms;render()}}
+  else if(el.dataset.pref==='sound'){if(el.checked){enableAlerts()}else{S.soundOn=false;lsSet('hk.sound','0',true);render()}}
+  else if(el.dataset.pref==='wake'){S.wake=el.checked;lsSet('hk.wake',el.checked?'1':'0',true);applyWake();toast(el.checked?'Layar akan tetap menyala selama aplikasi terbuka':'Layar boleh mati otomatis');render()}
   else if(el.dataset.urole){await run(()=>api('saveUser',{id:el.dataset.urole,role:el.value}),'Role diperbarui');S.allUsers=null;render()}
   else if(el.dataset.pick&&S.modal){el.checked?S.modal.sel.add(el.dataset.pick):S.modal.sel.delete(el.dataset.pick)}
   else if(el.id==='f-rdate'&&el.value){S.reportDate=el.value;if(el.value!==S.today&&!S.report[el.value])loadReport(el.value);render()}
@@ -1051,18 +1127,18 @@ document.addEventListener('dragover',e=>{const d=e.target.closest&&e.target.clos
 document.addEventListener('dragleave',e=>{const d=e.target.closest&&e.target.closest('#drop');if(d)d.classList.remove('!border-brand-500','!bg-brand-50')});
 document.addEventListener('drop',e=>{if(e.target.closest&&e.target.closest('#drop')){e.preventDefault();handleFile(e.dataTransfer.files&&e.dataTransfer.files[0])}});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&(S.modal||S.confirm||S.acct||S.more||S.addUser||S.qAlert||S.editUser)){if(S.qAlert)markSeen(S.qAlert);Object.assign(S,{modal:null,confirm:null,acct:false,more:false,addUser:false,qAlert:null,editUser:null});render()}});
-document.addEventListener('visibilitychange',()=>{if(!document.hidden&&S.me&&nowS()-S.lastSync>10000)refresh(true)});
+document.addEventListener('visibilitychange',()=>{applyWake();if(!document.hidden&&S.me&&nowS()-S.lastSync>10000)refresh(true)});
 setInterval(()=>{document.querySelectorAll('[data-since]').forEach(el=>{const s=+el.dataset.since;if(s)el.textContent=timer(nowS()-s)});const c=fmtClock();document.querySelectorAll('[data-clock]').forEach(el=>el.textContent=c);document.querySelectorAll('[data-wait]').forEach(el=>{const s=+el.dataset.wait;if(s)el.textContent=mins(nowS()-s)})},1000);
 /* sinkron jam server saat dibuka & tiap 10 menit (juga di halaman login) */
 async function syncServerTime(){try{const t0=Date.now();const r=await call('getServerTime',[]);syncClock(r.now,t0,Date.now())}catch(e){}}
 syncServerTime();setInterval(syncServerTime,600000);
 /* refresh: tiap 20 detik, atau 10 detik selama ada tamu menunggu */
-setInterval(()=>{if(!S.me||S.me.mustChange||document.hidden||S.busy||S.modal||S.confirm||S.addUser||S.editUser||(S.imp&&S.imp.state==='writing'))return;const every=queued().length?10000:20000;if(nowS()-S.lastSync>=every)refresh(true)},2500);
+setInterval(()=>{if(!S.me||S.me.mustChange||S.busy||S.modal||S.confirm||S.addUser||S.editUser||(S.imp&&S.imp.state==='writing'))return;const every=document.hidden?30000:queued().length?10000:20000;if(nowS()-S.lastSync>=every)refresh(true)},2500);
 
 (async function boot(){
   render();
   if(!S.token)return;
-  try{const r=await call('whoAmI',[S.token]);S.me=r.me;S.today=r.today;S.view=defaultView();render();refresh()}
+  try{const r=await call('whoAmI',[S.token]);S.me=r.me;S.today=r.today;S.view=defaultView();render();refresh();applyWake()}
   catch(e){if(e.code==='AUTH')doLocalLogout('');else{S.token='';S.me=null;S.loginErr=e.message;render()}}
 })();
 </script>
