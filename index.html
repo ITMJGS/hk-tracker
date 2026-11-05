@@ -143,7 +143,7 @@ const ST={
 };
 const CAT={CHECKOUT:{l:'Checkout',chip:'bg-rose-50 text-rose-700 ring-rose-200',text:'text-rose-600'},STAYOVER:{l:'Stayover',chip:'bg-indigo-50 text-indigo-700 ring-indigo-200',text:'text-indigo-600'}};
 const catOf=c=>CAT[c]||CAT.CHECKOUT;
-const ROLE={superadmin:{l:'Superadmin',chip:'bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-200'},admin:{l:'Admin',chip:'bg-brand-50 text-brand-700 ring-brand-200'},supervisor:{l:'Supervisor',chip:'bg-amber-50 text-amber-800 ring-amber-200'},housekeeper:{l:'Housekeeper',chip:'bg-sky-50 text-sky-700 ring-sky-200'}};
+const ROLE={superadmin:{l:'PENGUASA',chip:'bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-200'},admin:{l:'Admin',chip:'bg-brand-50 text-brand-700 ring-brand-200'},supervisor:{l:'Supervisor',chip:'bg-amber-50 text-amber-800 ring-amber-200'},housekeeper:{l:'Housekeeper',chip:'bg-sky-50 text-sky-700 ring-sky-200'}};
 const ORDER={CLEANING:0,PAUSED:1,PENDING:2,INSPECTION_READY:3,COMPLETED:4};
 const ROOM_TYPES=['DBA','DBB','DBE','TWA','TWB','SKA','S2D','CA1A','CA2A','CA2P'];
 const AV=['bg-brand-100 text-brand-800','bg-sky-100 text-sky-800','bg-amber-100 text-amber-800','bg-rose-100 text-rose-800','bg-indigo-100 text-indigo-800','bg-emerald-100 text-emerald-800','bg-fuchsia-100 text-fuchsia-800','bg-orange-100 text-orange-800'];
@@ -151,7 +151,7 @@ const isAdmin=()=>S.me&&(S.me.role==='superadmin'||S.me.role==='admin');
 
 const S={persist:(()=>{try{return !!localStorage.getItem('hk.token')}catch(e){return false}})(),token:lsGet('hk.token'),me:null,today:'',rooms:[],users:[],uploads:[],loaded:false,view:'',
   reportDate:'',report:{},allUsers:null,log:null,storage:null,drafts:{},del:'',modal:null,confirm:null,creds:null,acct:false,more:false,addUser:false,imp:null,
-  showAll:false,busy:0,lastSync:0,loginErr:'',syncErr:'',qAlert:null};
+  showAll:false,busy:0,lastSync:0,loginErr:'',syncErr:'',qAlert:null,editUser:null};
 
 /* ---------------- SERVER CALLS ---------------- */
 function call(fn,args){
@@ -346,7 +346,7 @@ function viewLogin(){
           <button type="button" data-act="togglePw" data-for="l-pass" class="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-slate-400 hover:text-slate-600" aria-label="Tampilkan password">${ic('eye')}</button></div></div>
         <label class="flex items-center gap-2.5 text-sm text-slate-600 select-none"><input type="checkbox" id="l-remember" class="w-4 h-4 rounded accent-brand-600" ${dv('l-remember',true)?'checked':''} data-keep> Tetap masuk di perangkat ini</label>
         <button id="l-submit" type="submit" class="${bc('dark','lg','w-full')}">Masuk ${ic('chevron')}</button>
-        <p class="text-xs text-slate-400 text-center">Lupa password? Minta admin atau superadmin untuk meresetnya.</p>
+        <p class="text-xs text-slate-400 text-center">Lupa password? Minta admin atau PENGUASA untuk menggantinya.</p>
       </form>
     </main></div>`;
 }
@@ -354,8 +354,8 @@ function pwForm(forced){
   return `<form id="pw-form" class="space-y-4">
     ${forced?`<div class="flex gap-2 rounded-xl bg-amber-50 ring-1 ring-inset ring-amber-200 text-amber-900 text-sm px-3.5 py-3">${ic('key','w-4 h-4 mt-0.5')}<span>Ini login pertama Anda atau password baru saja direset. Buat password baru sebelum melanjutkan.</span></div>`:''}
     <div>${label('p-old',forced?'Password / PIN sementara':'Password lama')}<input id="p-old" type="password" autocomplete="current-password" required class="${field}"></div>
-    <div>${label('p-new','Password baru (min. 6 karakter)')}<input id="p-new" type="password" autocomplete="new-password" minlength="6" required class="${field}"></div>
-    <div>${label('p-new2','Ulangi password baru')}<input id="p-new2" type="password" autocomplete="new-password" minlength="6" required class="${field}"></div>
+    <div>${label('p-new','Password baru (min. 4 karakter)')}<input id="p-new" type="password" autocomplete="new-password" minlength="4" required class="${field}"></div>
+    <div>${label('p-new2','Ulangi password baru')}<input id="p-new2" type="password" autocomplete="new-password" minlength="4" required class="${field}"></div>
     <p id="pw-err" class="text-sm text-rose-600" hidden></p>
     <button id="p-submit" type="submit" class="${bc('primary','md','w-full')}">Simpan password</button>
   </form>`;
@@ -397,7 +397,7 @@ const VIEWS={
   inspect:{l:'Inspeksi',i:'dcheck',d:'Kamar checkout yang menunggu verifikasi'},
   recap:{l:'Rekap',i:'clock',d:'Durasi kamar yang sudah ready hari ini'},
   report:{l:'Laporan',i:'chart',d:'Kinerja per tanggal'},
-  users:{l:'Pengguna',i:'users',d:'Akun, peran, dan password'},
+  users:{l:'Pengguna',i:'users',d:'Akun, role, dan password'},
   system:{l:'Sistem',i:'shield',d:'Log aktivitas & penyimpanan'},
   hk:{l:'Tugas Saya',i:'list',d:'Kamar yang ditugaskan kepada Anda'}
 };
@@ -405,7 +405,7 @@ function navItems(){
   const r=S.me.role;
   if(r==='superadmin')return ['dash','upload','rooms','inspect','report','users','recap','system'];
   if(r==='admin')return ['dash','upload','rooms','inspect','report','users','recap'];
-  if(r==='supervisor')return ['inspect','dash','recap'];
+  if(r==='supervisor')return ['inspect','dash','recap','users'];
   return ['hk'];
 }
 const defaultView=()=>S.me?navItems()[0]:'';
@@ -593,7 +593,7 @@ function viewRooms(){
   const mobile=`<div class="md:hidden divide-y divide-slate-100 border-t border-slate-100">${shown.map(r=>`<div class="px-4 py-3 space-y-2 ${isQ(r)?'bg-rose-50/70 border-l-4 border-rose-500':''}"><div class="flex items-start justify-between gap-3"><div><p class="font-extrabold text-slate-900 text-lg leading-none">${esc(r.room)}</p><p class="text-xs text-slate-500 mt-1">${esc(r.roomType)} · Lt ${esc(floorOf(r))}</p></div><div class="flex flex-col items-end gap-1.5">${stChip(r.status)}${qToggle(r)}</div></div>
     <div class="flex flex-wrap gap-1">${resvChip(r)||catChip(r.category)}${flagChips(r)}</div><div class="flex items-center gap-2"><div class="flex-1 min-w-0">${assignCell(r)}</div>${r.status==='PENDING'?delBtn('r'+r.room,'delRoom',r.room,'Hapus kamar '+r.room):''}</div></div>`).join('')}</div>`;
   const people=hks.map(h=>{const m=R.filter(r=>r.assignedTo===h.id);const co=m.filter(r=>r.category==='CHECKOUT').length;const d=m.filter(r=>r.status==='INSPECTION_READY'||r.status==='COMPLETED').length;
-    return `<button data-act="openAssign" data-id="${h.id}" class="text-left rounded-2xl ring-1 ring-inset ring-slate-200 hover:ring-brand-300 hover:bg-brand-50/30 p-3.5 space-y-2.5 transition"><div class="flex items-center gap-3">${avatar(h.name)}<div class="min-w-0 flex-1"><p class="font-semibold text-slate-900 truncate">${esc(h.name)}</p><p class="text-xs text-slate-500">${h.team?catOf(h.team).l+' team':'Tanpa tim'}</p></div><span class="text-sm font-extrabold text-slate-900">${m.length}</span></div>
+    return `<button data-act="openAssign" data-id="${h.id}" class="text-left rounded-2xl ring-1 ring-inset ring-slate-200 hover:ring-brand-300 hover:bg-brand-50/30 p-3.5 space-y-2.5 transition"><div class="flex items-center gap-3">${avatar(h.name)}<div class="min-w-0 flex-1"><p class="font-semibold text-slate-900 truncate">${esc(h.name)}</p><p class="text-xs text-slate-500">Ketuk untuk assign kamar</p></div><span class="text-sm font-extrabold text-slate-900">${m.length}</span></div>
       ${bar(d,m.length||1,'bg-brand-500','h-1.5')}<p class="text-[11px] text-slate-500"><span class="text-rose-600 font-semibold">${co} CO</span> · <span class="text-indigo-600 font-semibold">${m.length-co} SO</span> · ${d} selesai</p></button>`}).join('');
   const Q=queued();
   return `${pageHead('',`${R.length} kamar · ${R.filter(r=>!r.assignedTo).length} belum di-assign`)}
@@ -716,30 +716,37 @@ function hkCard(r,active){
 
 /* ================= PENGGUNA ================= */
 const ROLE_ORDER=['superadmin','admin','supervisor','housekeeper'];
+/* hak ubah akun (sama dengan aturan di server) */
+function rights(t){
+  const u=S.me,self=u.id===t.id,m=['supervisor','housekeeper'].includes(t.role);
+  return {name:u.role==='superadmin'||(u.role==='admin'&&(m||self)),username:u.role==='superadmin',
+    password:!self&&((u.role==='superadmin'&&t.role!=='superadmin')||(u.role==='admin'&&m)||(u.role==='supervisor'&&t.role==='housekeeper')),
+    role:u.role==='superadmin'&&!self&&t.role!=='superadmin',active:!self&&((u.role==='superadmin'&&t.role!=='superadmin')||(u.role==='admin'&&m))};
+}
 function viewUsers(){
   if(!S.allUsers){loadUsers();return skeleton()}
-  const canManage=u=>u.id!==S.me.id&&(S.me.role==='superadmin'?u.role!=='superadmin':['supervisor','housekeeper'].includes(u.role));
-  const q=norm(dv('f-uq','')),fr=dv('f-ufr','');
+  const isSpv=S.me.role==='supervisor';
+  const q=norm(dv('f-uq','')),fr=isSpv?'':dv('f-ufr','');
   const list=S.allUsers.filter(u=>(!q||norm(u.name).includes(q)||u.username.includes(q))&&(!fr||u.role===fr)).sort((a,b)=>ROLE_ORDER.indexOf(a.role)-ROLE_ORDER.indexOf(b.role)||(b.active-a.active)||a.name.localeCompare(b.name));
   const counts={};S.allUsers.forEach(u=>counts[u.role]=(counts[u.role]||0)+1);
-  const teamSel=u=>u.role==='housekeeper'&&canManage(u)?`<select data-uteam="${u.id}" aria-label="Tim ${esc(u.name)}" class="${selectCls} !py-1.5 !text-xs"><option value="" ${!u.team?'selected':''}>Tanpa tim</option><option value="CHECKOUT" ${u.team==='CHECKOUT'?'selected':''}>Checkout</option><option value="STAYOVER" ${u.team==='STAYOVER'?'selected':''}>Stayover</option></select>`:`<span class="text-xs text-slate-500">${u.team?catOf(u.team).l:'–'}</span>`;
-  const actions=(u,justify)=>canManage(u)?`<div class="flex flex-wrap gap-1.5 ${justify}">
-    ${S.me.role==='superadmin'?`<select data-urole="${u.id}" aria-label="Peran ${esc(u.name)}" class="${selectCls} !py-1.5 !text-xs">${['admin','supervisor','housekeeper'].map(r=>`<option value="${r}" ${u.role===r?'selected':''}>${ROLE[r].l}</option>`).join('')}</select>`:''}
-    <button data-act="resetPw" data-id="${u.id}" class="${bc('ghost','sm')}">${ic('key','w-3.5 h-3.5')} Reset</button>
-    <button data-act="toggleActive" data-id="${u.id}" class="${bc(u.active?'dangerSoft':'soft','sm')}">${u.active?'Nonaktifkan':'Aktifkan'}</button></div>`:'';
-  const status=u=>u.active?(u.mustChange?chip('Belum ganti password','bg-amber-50 text-amber-800 ring-amber-200'):chip('Aktif','bg-emerald-50 text-emerald-700 ring-emerald-200','bg-emerald-500')):chip('Nonaktif','bg-slate-100 text-slate-500 ring-slate-200');
-  const tabs=[['','Semua',S.allUsers.length]].concat(['admin','supervisor','housekeeper'].map(r=>[r,ROLE[r].l,counts[r]||0]));
+  const actions=(u,justify)=>{const R=rights(u);if(!(R.name||R.username||R.password||R.role||R.active))return '';
+    return `<div class="flex flex-wrap gap-1.5 ${justify}">
+    ${R.role?`<select data-urole="${u.id}" aria-label="Role ${esc(u.name)}" class="${selectCls} !py-1.5 !text-xs">${['admin','supervisor','housekeeper'].map(r=>`<option value="${r}" ${u.role===r?'selected':''}>${ROLE[r].l}</option>`).join('')}</select>`:''}
+    ${(R.name||R.username||R.password)?`<button data-act="openEditUser" data-id="${u.id}" class="${bc('ghost','sm')}">${ic(R.name||R.username?'edit':'key','w-3.5 h-3.5')} ${R.name||R.username?'Edit':'Ganti password'}</button>`:''}
+    ${R.active?`<button data-act="toggleActive" data-id="${u.id}" class="${bc(u.active?'dangerSoft':'soft','sm')}">${u.active?'Nonaktifkan':'Aktifkan'}</button>`:''}</div>`};
+  const status=u=>u.active?chip('Aktif','bg-emerald-50 text-emerald-700 ring-emerald-200','bg-emerald-500'):chip('Nonaktif','bg-slate-100 text-slate-500 ring-slate-200');
+  const tabs=[['','Semua',S.allUsers.length]].concat(['superadmin','admin','supervisor','housekeeper'].filter(r=>counts[r]).map(r=>[r,ROLE[r].l,counts[r]]));
   const you=u=>u.id===S.me.id?' <span class="text-xs text-brand-600">(Anda)</span>':'';
-  return `${pageHead('',`${S.allUsers.length} akun`)}
+  return `${pageHead('',isSpv?`${S.allUsers.length} housekeeper`:`${S.allUsers.length} akun`)}
   <div class="flex flex-col md:flex-row md:items-center gap-3 mb-4">
-    <div class="flex gap-1 p-1 rounded-xl bg-slate-200/60 overflow-x-auto no-scrollbar">${tabs.map(([k,l,n])=>`<button data-act="ufilter" data-v="${k}" class="px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap ${fr===k?'bg-white text-slate-900 shadow-card':'text-slate-600 hover:text-slate-900'}">${l} <span class="text-slate-400">${n}</span></button>`).join('')}</div>
+    ${isSpv?`<p class="text-sm text-slate-600 flex items-center gap-2">${ic('key','w-4 h-4 text-brand-600')} Supervisor bisa mengganti password housekeeper.</p>`:`<div class="flex gap-1 p-1 rounded-xl bg-slate-200/60 overflow-x-auto no-scrollbar">${tabs.map(([k,l,n])=>`<button data-act="ufilter" data-v="${k}" class="px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap ${fr===k?'bg-white text-slate-900 shadow-card':'text-slate-600 hover:text-slate-900'}">${l} <span class="text-slate-400">${n}</span></button>`).join('')}</div>`}
     <div class="flex-1 md:max-w-xs md:ml-auto">${searchBox('f-uq','Cari nama atau username')}</div>
-    <button data-act="openAddUser" class="${bc('primary')}">${ic('plus')} Tambah pengguna</button></div>
-  ${card(list.length?`<div class="hidden md:block overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-xs text-slate-500 border-b border-slate-100 bg-slate-50/60"><th class="font-semibold px-5 py-3">Pengguna</th><th class="font-semibold px-3 py-3">Peran</th><th class="font-semibold px-3 py-3">Tim</th><th class="font-semibold px-3 py-3">Status</th><th class="px-5 py-3"></th></tr></thead>
+    ${isAdmin()?`<button data-act="openAddUser" class="${bc('primary')}">${ic('plus')} Tambah pengguna</button>`:''}</div>
+  ${card(list.length?`<div class="hidden md:block overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-xs text-slate-500 border-b border-slate-100 bg-slate-50/60"><th class="font-semibold px-5 py-3">Pengguna</th><th class="font-semibold px-3 py-3">Role</th><th class="font-semibold px-3 py-3">Status</th><th class="px-5 py-3"></th></tr></thead>
       <tbody class="divide-y divide-slate-100">${list.map(u=>`<tr class="hover:bg-slate-50/60 ${u.active?'':'opacity-60'}"><td class="px-5 py-3"><div class="flex items-center gap-3">${avatar(u.name)}<div><p class="font-semibold text-slate-900">${esc(u.name)}${you(u)}</p><p class="text-xs text-slate-500">@${esc(u.username)}</p></div></div></td>
-        <td class="px-3 py-3">${roleChip(u.role)}</td><td class="px-3 py-3">${teamSel(u)}</td><td class="px-3 py-3">${status(u)}</td><td class="px-5 py-3">${actions(u,'justify-end')}</td></tr>`).join('')}</tbody></table></div>
+        <td class="px-3 py-3">${roleChip(u.role)}</td><td class="px-3 py-3">${status(u)}</td><td class="px-5 py-3">${actions(u,'justify-end')}</td></tr>`).join('')}</tbody></table></div>
     <div class="md:hidden divide-y divide-slate-100">${list.map(u=>`<div class="p-4 space-y-3 ${u.active?'':'opacity-60'}"><div class="flex items-center gap-3">${avatar(u.name)}<div class="flex-1 min-w-0"><p class="font-semibold text-slate-900 truncate">${esc(u.name)}${you(u)}</p><p class="text-xs text-slate-500">@${esc(u.username)}</p></div>${roleChip(u.role)}</div>
-      <div class="flex items-center justify-between gap-2">${status(u)}${teamSel(u)}</div>${actions(u,'')}</div>`).join('')}</div>`
+      <div class="flex items-center justify-between gap-2">${status(u)}</div>${actions(u,'')}</div>`).join('')}</div>`
     :empty('users','Tidak ada pengguna yang cocok',''))}`;
 }
 async function loadUsers(){const r=await run(()=>api('listUsers'));if(r){S.allUsers=r;render()}}
@@ -783,26 +790,41 @@ function renderModals(){
   if(S.addUser&&S.me){
     const creatable=S.me.role==='superadmin'?['admin','supervisor','housekeeper']:['supervisor','housekeeper'];
     const role=creatable.includes(dv('f-urole','housekeeper'))?dv('f-urole','housekeeper'):'housekeeper';
-    h+=sheet(`${sheetHead('Tambah pengguna','Password sementara dibuat otomatis','closeAddUser')}<div class="px-5 sm:px-6 pb-6 space-y-4 overflow-y-auto">
+    h+=sheet(`${sheetHead('Tambah pengguna','','closeAddUser')}<div class="px-5 sm:px-6 pb-6 space-y-4 overflow-y-auto">
       <div>${label('f-uname','Nama lengkap')}<input id="f-uname" data-keep type="text" value="${esc(dv('f-uname',''))}" class="${field}" placeholder="Mis. Siti Rahma"></div>
       <div>${label('f-uuser','Username (opsional)')}<input id="f-uuser" data-keep type="text" autocapitalize="none" value="${esc(dv('f-uuser',''))}" class="${field}" placeholder="dibuat dari nama jika kosong"></div>
-      <fieldset><legend class="block text-xs font-semibold text-slate-600 mb-1.5">Peran</legend><div class="grid gap-2" style="grid-template-columns:repeat(${creatable.length},minmax(0,1fr))">${creatable.map(r=>`<label class="cursor-pointer"><input type="radio" name="f-urole" value="${r}" data-urolepick class="peer sr-only" ${role===r?'checked':''}><span class="block text-center rounded-xl ring-1 ring-inset ring-slate-200 peer-checked:ring-2 peer-checked:ring-brand-500 peer-checked:bg-brand-50 peer-focus-visible:ring-2 peer-focus-visible:ring-brand-500 px-2 py-2.5 text-sm font-semibold text-slate-700">${ROLE[r].l}</span></label>`).join('')}</div></fieldset>
-      ${role==='housekeeper'?`<div>${label('f-uteam','Tim')}<select id="f-uteam" data-keep class="${selectCls} w-full"><option value="">Tanpa tim</option><option value="CHECKOUT" ${dv('f-uteam','')==='CHECKOUT'?'selected':''}>Checkout team</option><option value="STAYOVER" ${dv('f-uteam','')==='STAYOVER'?'selected':''}>Stayover team</option></select></div>`:''}
-      <p class="text-xs text-slate-500">${role==='housekeeper'?'Housekeeper mendapat PIN 6 angka.':'Mendapat password acak 10 karakter.'} Wajib diganti saat login pertama.</p>
+      <fieldset><legend class="block text-xs font-semibold text-slate-600 mb-1.5">Role</legend><div class="grid gap-2" style="grid-template-columns:repeat(${creatable.length},minmax(0,1fr))">${creatable.map(r=>`<label class="cursor-pointer"><input type="radio" name="f-urole" value="${r}" data-urolepick class="peer sr-only" ${role===r?'checked':''}><span class="block text-center rounded-xl ring-1 ring-inset ring-slate-200 peer-checked:ring-2 peer-checked:ring-brand-500 peer-checked:bg-brand-50 peer-focus-visible:ring-2 peer-focus-visible:ring-brand-500 px-2 py-2.5 text-sm font-semibold text-slate-700">${ROLE[r].l}</span></label>`).join('')}</div></fieldset>
+      <div class="grid sm:grid-cols-2 gap-3"><div>${label('f-upw','Password')}<input id="f-upw" type="password" autocomplete="new-password" minlength="4" class="${field}" placeholder="min. 4 karakter"></div>
+        <div>${label('f-upw2','Ulangi password')}<input id="f-upw2" type="password" autocomplete="new-password" minlength="4" class="${field}"></div></div>
+      <p id="au-err" class="text-sm text-rose-600" hidden></p>
       <div class="flex gap-2"><button data-act="closeAddUser" class="${bc('ghost')}">Batal</button><button data-act="addUser" class="${bc('primary','md','flex-1')}">Buat akun</button></div></div>`,{close:'closeAddUser',lbl:'Tambah pengguna'});
+  }
+  if(S.editUser&&S.me){
+    const t=(S.allUsers||[]).find(x=>x.id===S.editUser);
+    if(t){const R=rights(t);
+    h+=sheet(`${sheetHead(R.name||R.username?'Edit akun':'Ganti password',`${esc(t.name)} · ${ROLE[t.role].l}`,'closeEditUser')}<div class="px-5 sm:px-6 pb-6 space-y-4 overflow-y-auto">
+      ${R.name?`<div>${label('e-name','Nama')}<input id="e-name" type="text" value="${esc(t.name)}" class="${field}"></div>`:''}
+      ${R.username?`<div>${label('e-user','Username')}<input id="e-user" type="text" autocapitalize="none" value="${esc(t.username)}" class="${field}"></div>`:''}
+      ${R.password?`<div class="grid sm:grid-cols-2 gap-3"><div>${label('e-pw',R.name||R.username?'Password baru (kosongkan jika tidak diganti)':'Password baru')}<input id="e-pw" type="password" autocomplete="new-password" class="${field}" placeholder="min. 4 karakter"></div>
+        <div>${label('e-pw2','Ulangi password baru')}<input id="e-pw2" type="password" autocomplete="new-password" class="${field}"></div></div>
+        <p class="text-xs text-slate-500">Setelah password diganti, ${esc(t.name)} keluar dari semua perangkat dan login dengan password baru.</p>`:''}
+      ${t.id===S.me.id?`<p class="text-xs text-slate-500">Password Anda sendiri diganti dari menu Akun.</p>`:''}
+      <p id="eu-err" class="text-sm text-rose-600" hidden></p>
+      <div class="flex gap-2"><button data-act="closeEditUser" class="${bc('ghost')}">Batal</button><button data-act="saveEditUser" class="${bc('primary','md','flex-1')}">Simpan</button></div></div>`,{close:'closeEditUser',lbl:'Edit akun'});}
+    else S.editUser=null;
   }
   if(S.modal){
     const hk=hkList().find(u=>u.id===S.modal.hkId);
     if(hk){
-      const avail=S.rooms.filter(r=>!hk.team||r.category===hk.team).sort(roomSort);
-      h+=sheet(`${sheetHead('Assign · '+esc(hk.name),hk.team?catOf(hk.team).l+' team':'Tanpa tim · semua kamar','closeAssign')}
+      const avail=S.rooms.slice().sort(roomSort);
+      h+=sheet(`${sheetHead('Assign · '+esc(hk.name),'Pilih kamar yang ditugaskan','closeAssign')}
         <div class="px-3 sm:px-5 overflow-y-auto flex-1 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 pb-2 content-start">${avail.length?avail.map(r=>{
           const other=r.assignedTo&&r.assignedTo!==hk.id,busy=r.status!=='PENDING',dis=other||busy,chk=S.modal.sel.has(r.room);
           return `<label class="relative ${dis?'cursor-not-allowed':'cursor-pointer'}"><input type="checkbox" data-pick="${esc(r.room)}" class="peer sr-only" ${chk?'checked':''} ${dis?'disabled':''}>
             <span class="block rounded-2xl ring-1 ring-inset ring-slate-200 peer-checked:ring-2 peer-checked:ring-brand-500 peer-checked:bg-brand-50 peer-disabled:bg-slate-50 peer-disabled:opacity-60 peer-focus-visible:ring-2 peer-focus-visible:ring-brand-500 p-3">
               <span class="flex items-center justify-between"><span class="text-lg font-extrabold text-slate-900">${esc(r.room)}</span><span class="text-[10px] font-bold ${catOf(r.category).text}">${r.category==='CHECKOUT'?'CO':'SO'}</span></span>
               <span class="flex items-center gap-1 text-[11px] text-slate-500 truncate mt-0.5">${busy?ST[r.status].l:other?ic('lock','w-3 h-3')+' '+esc(nameOf(r.assignedTo)):esc(r.roomType)}</span></span></label>`}).join('')
-          :`<p class="col-span-full text-sm text-slate-500 p-4 text-center">Belum ada kamar${hk.team?' '+catOf(hk.team).l.toLowerCase():''} hari ini.</p>`}</div>
+          :`<p class="col-span-full text-sm text-slate-500 p-4 text-center">Belum ada kamar hari ini.</p>`}</div>
         <div class="px-5 sm:px-6 py-4 border-t border-slate-100 flex gap-2"><button data-act="closeAssign" class="${bc('ghost')}">Batal</button><button data-act="saveAssign" class="${bc('primary','md','flex-1')}">Simpan penugasan</button></div>`,{close:'closeAssign',size:'sm:max-w-3xl',lbl:'Assign kamar'});
     }else S.modal=null;
   }
@@ -823,7 +845,7 @@ function renderModals(){
   if(S.creds){
     const text=S.creds.list.map(c=>`${c.name} | username: ${c.username} | ${/^\d+$/.test(c.password)?'PIN':'password'}: ${c.password}`).join('\n');
     h+=sheet(`${sheetHead(esc(S.creds.title),'Catat atau salin sekarang')}<div class="px-5 sm:px-6 space-y-3 overflow-y-auto flex-1">
-      <div class="flex gap-2 rounded-xl bg-amber-50 ring-1 ring-inset ring-amber-200 p-3 text-xs text-amber-900">${ic('alert','w-4 h-4 mt-0.5')}<span>Password/PIN ini tidak bisa dilihat lagi. Jika hilang, reset dari menu Pengguna. Pemilik akun wajib menggantinya saat login pertama.</span></div>
+      <div class="flex gap-2 rounded-xl bg-amber-50 ring-1 ring-inset ring-amber-200 p-3 text-xs text-amber-900">${ic('alert','w-4 h-4 mt-0.5')}<span>Password/PIN ini hanya ditampilkan sekali. Jika lupa, ganti dari menu Pengguna.</span></div>
       <div class="rounded-2xl ring-1 ring-inset ring-slate-200 divide-y divide-slate-100">${S.creds.list.map(c=>`<div class="flex items-center gap-3 px-3.5 py-2.5">${avatar(c.name,'w-8 h-8 text-[10px]')}<div class="flex-1 min-w-0"><p class="text-sm font-semibold text-slate-900 truncate">${esc(c.name)}</p><p class="text-xs text-slate-500">@${esc(c.username)}</p></div><span class="font-mono text-sm font-bold text-brand-700 bg-brand-50 rounded-lg px-2 py-1 select-all">${esc(c.password)}</span></div>`).join('')}</div>
       <textarea id="cred-text" readonly class="sr-only" aria-hidden="true">${esc(text)}</textarea></div>
       <div class="px-5 sm:px-6 py-4 grid grid-cols-2 gap-2"><button data-act="copyCreds" class="${bc('ghost')}">${ic('copy')} Salin semua</button><button data-act="closeCreds" class="${bc('primary')}">Sudah dicatat</button></div>`,{size:'sm:max-w-lg',lbl:'Akun baru'});
@@ -900,7 +922,7 @@ const A={
   closeAssign(){S.modal=null;render()},
   async saveAssign(){
     const {hkId,sel}=S.modal,hk=hkList().find(u=>u.id===hkId);S.modal=null;render();
-    const changes=S.rooms.filter(r=>r.status==='PENDING'&&(!hk.team||r.category===hk.team)).map(r=>{
+    const changes=S.rooms.filter(r=>r.status==='PENDING').map(r=>{
       if(sel.has(r.room)&&!r.assignedTo)return[r.room,hkId];
       if(!sel.has(r.room)&&r.assignedTo===hkId)return[r.room,''];return null}).filter(Boolean);
     if(!changes.length)return toast('Tidak ada perubahan.');
@@ -928,16 +950,29 @@ const A={
   openAddUser(){S.addUser=true;render();setTimeout(()=>{const i=document.getElementById('f-uname');i&&i.focus()},60)},
   closeAddUser(){S.addUser=false;render()},
   async addUser(){
-    const name=dv('f-uname','').trim();if(!name)return toast('Isi nama dulu.');
+    const err=m=>{const e=document.getElementById('au-err');if(e){e.textContent=m;e.hidden=false}};
+    const name=dv('f-uname','').trim();if(!name)return err('Isi nama dulu.');
+    const pw=document.getElementById('f-upw').value,pw2=document.getElementById('f-upw2').value;
+    if(pw.length<4)return err('Password minimal 4 karakter.');if(pw!==pw2)return err('Password tidak sama.');
     const role=dv('f-urole','housekeeper');
-    const r=await run(()=>api('saveUser',{name,username:dv('f-uuser','').trim(),role,team:role==='housekeeper'?dv('f-uteam',''):''}));
-    if(r){S.addUser=false;S.creds={title:'Akun baru: '+r.user.name,list:[{name:r.user.name,username:r.user.username,password:r.password}]};S.drafts['f-uname']='';S.drafts['f-uuser']='';S.allUsers=null;refresh(true);render()}
+    try{const r=await api('saveUser',{name,username:dv('f-uuser','').trim(),role,password:pw});
+      S.addUser=false;S.drafts['f-uname']='';S.drafts['f-uuser']='';S.allUsers=null;toast(`Akun ${r.user.name} (@${r.user.username}) dibuat.`);refresh(true);render();
+    }catch(e){if(e.code!=='AUTH')err(e.message)}
   },
-  resetPw(el){
-    const u=(S.allUsers||[]).find(x=>x.id===el.dataset.id);if(!u)return;
-    S.confirm={icon:'key',iconCls:'bg-amber-50 text-amber-600',title:`Reset ${u.role==='housekeeper'?'PIN':'password'} ${esc(u.name)}?`,msg:'Password lama langsung tidak berlaku dan pengguna keluar dari semua perangkat.',btnV:'warn',btn:'Reset',
-      onYes:async()=>{const r=await run(()=>api('resetPassword',u.id));if(r){S.creds={title:'Password baru · '+r.name,list:[r]};S.allUsers=null;render()}}};
-    render();
+  openEditUser(el){S.editUser=el.dataset.id;render();setTimeout(()=>{const i=document.getElementById('e-name')||document.getElementById('e-pw');i&&i.focus()},60)},
+  closeEditUser(){S.editUser=null;render()},
+  async saveEditUser(){
+    const t=(S.allUsers||[]).find(x=>x.id===S.editUser);if(!t)return;const R=rights(t);
+    const err=m=>{const e=document.getElementById('eu-err');if(e){e.textContent=m;e.hidden=false}};
+    const v=id=>{const e=document.getElementById(id);return e?e.value:''};
+    const data={id:t.id};
+    if(R.name){const n=v('e-name').trim();if(!n)return err('Nama tidak boleh kosong.');data.name=n}
+    if(R.username){const u=v('e-user').trim().toLowerCase();if(!/^[a-z0-9._-]{3,30}$/.test(u))return err('Username 3–30 karakter: huruf kecil, angka, titik, strip.');data.username=u}
+    if(R.password){const p=v('e-pw'),p2=v('e-pw2');
+      if(p||p2||!(R.name||R.username)){if(p.length<4)return err('Password minimal 4 karakter.');if(p!==p2)return err('Password tidak sama.');data.password=p}}
+    try{const r=await api('editUser',data);S.editUser=null;S.allUsers=null;
+      toast(r.changed.length?`${r.user.name}: ${r.changed.join(', ')} diperbarui.`:'Tidak ada perubahan.');refresh(true);render();
+    }catch(e){if(e.code!=='AUTH')err(e.message)}
   },
   toggleActive(el){
     const u=(S.allUsers||[]).find(x=>x.id===el.dataset.id);if(!u)return;
@@ -1007,8 +1042,7 @@ document.addEventListener('change',async e=>{
     const upd=await run(()=>api('setQueue',S.today,room,on),()=>on?`Kamar ${room}: tamu menunggu. ${r0&&r0.assignedTo?nameOf(r0.assignedTo)+' & supervisor diberi tahu.':'Kamar ini belum di-assign!'}`:`Queue kamar ${room} dibatalkan`);
     if(upd){const i=S.rooms.findIndex(x=>x.room===upd.room);if(i>=0)S.rooms[i]=upd}render()}
   else if(el.dataset.reassign){const room=el.dataset.reassign,to=el.value;const r=await run(()=>api('assignRooms',S.today,[[room,to]]),'Kamar '+room+' → '+nameOf(to));if(r){S.rooms=r.rooms;render()}}
-  else if(el.dataset.uteam){const r=await run(()=>api('saveUser',{id:el.dataset.uteam,team:el.value}),'Tim diperbarui');if(r){S.allUsers=null;refresh(true);render()}}
-  else if(el.dataset.urole){await run(()=>api('saveUser',{id:el.dataset.urole,role:el.value}),'Peran diperbarui');S.allUsers=null;render()}
+  else if(el.dataset.urole){await run(()=>api('saveUser',{id:el.dataset.urole,role:el.value}),'Role diperbarui');S.allUsers=null;render()}
   else if(el.dataset.pick&&S.modal){el.checked?S.modal.sel.add(el.dataset.pick):S.modal.sel.delete(el.dataset.pick)}
   else if(el.id==='f-rdate'&&el.value){S.reportDate=el.value;if(el.value!==S.today&&!S.report[el.value])loadReport(el.value);render()}
   else if(el.id==='f-impdate'&&el.value&&S.imp){S.imp.date=el.value;if(el.value!==S.today&&!S.report[el.value])loadReport(el.value);render()}
@@ -1016,14 +1050,14 @@ document.addEventListener('change',async e=>{
 document.addEventListener('dragover',e=>{const d=e.target.closest&&e.target.closest('#drop');if(d){e.preventDefault();d.classList.add('!border-brand-500','!bg-brand-50')}});
 document.addEventListener('dragleave',e=>{const d=e.target.closest&&e.target.closest('#drop');if(d)d.classList.remove('!border-brand-500','!bg-brand-50')});
 document.addEventListener('drop',e=>{if(e.target.closest&&e.target.closest('#drop')){e.preventDefault();handleFile(e.dataTransfer.files&&e.dataTransfer.files[0])}});
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&(S.modal||S.confirm||S.acct||S.more||S.addUser||S.qAlert)){if(S.qAlert)markSeen(S.qAlert);Object.assign(S,{modal:null,confirm:null,acct:false,more:false,addUser:false,qAlert:null});render()}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&(S.modal||S.confirm||S.acct||S.more||S.addUser||S.qAlert||S.editUser)){if(S.qAlert)markSeen(S.qAlert);Object.assign(S,{modal:null,confirm:null,acct:false,more:false,addUser:false,qAlert:null,editUser:null});render()}});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&S.me&&nowS()-S.lastSync>10000)refresh(true)});
 setInterval(()=>{document.querySelectorAll('[data-since]').forEach(el=>{const s=+el.dataset.since;if(s)el.textContent=timer(nowS()-s)});const c=fmtClock();document.querySelectorAll('[data-clock]').forEach(el=>el.textContent=c);document.querySelectorAll('[data-wait]').forEach(el=>{const s=+el.dataset.wait;if(s)el.textContent=mins(nowS()-s)})},1000);
 /* sinkron jam server saat dibuka & tiap 10 menit (juga di halaman login) */
 async function syncServerTime(){try{const t0=Date.now();const r=await call('getServerTime',[]);syncClock(r.now,t0,Date.now())}catch(e){}}
 syncServerTime();setInterval(syncServerTime,600000);
 /* refresh: tiap 20 detik, atau 10 detik selama ada tamu menunggu */
-setInterval(()=>{if(!S.me||S.me.mustChange||document.hidden||S.busy||S.modal||S.confirm||S.addUser||(S.imp&&S.imp.state==='writing'))return;const every=queued().length?10000:20000;if(nowS()-S.lastSync>=every)refresh(true)},2500);
+setInterval(()=>{if(!S.me||S.me.mustChange||document.hidden||S.busy||S.modal||S.confirm||S.addUser||S.editUser||(S.imp&&S.imp.state==='writing'))return;const every=queued().length?10000:20000;if(nowS()-S.lastSync>=every)refresh(true)},2500);
 
 (async function boot(){
   render();
