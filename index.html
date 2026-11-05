@@ -3,6 +3,7 @@
 <head>
   <base target="_top">
   <meta charset="utf-8">
+  <meta http-equiv="Cache-Control" content="no-cache">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>HK Tracker</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b2a29'/%3E%3Cpath d='M20 50V14h22v36M14 50h36M36 32h1' fill='none' stroke='%2378cfc4' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
@@ -13,6 +14,7 @@
   <script>
     /* Alamat server (Google Apps Script). Ganti jika membuat deployment baru. */
     window.HK_API_URL = 'https://script.google.com/macros/s/AKfycbyyFZ7k-3dElnTu4hKc6IbNF9uVi5FnZiOTJ6N4Wszv9jNoRZQYKMee7GVqjIfr-QEaRA/exec';
+    window.HK_BUILD = '20261105201221';
     /* Pengganti google.script.run: memanggil server lewat POST {fn, args} */
     (function () {
       function runner() {
@@ -177,16 +179,35 @@ async function run(fn,ok){try{const r=await fn();if(ok)toast(typeof ok==='functi
 let toastT;function toast(m){const el=document.getElementById('toast');document.getElementById('toast-msg').textContent=m;el.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>el.hidden=true,3500)}
 function renderBusy(){document.querySelectorAll('[data-busy]').forEach(el=>el.classList.toggle('spin',!!S.busy))}
 
+const CLIENT_VERSION=5; /* harus sama dengan APP_VERSION di Code.gs */
 async function refresh(silent){
   if(!S.token||!S.me||S.me.mustChange)return;
   try{
     const t0=Date.now();const st=await api('getState',S.today||'');syncClock(st.serverTime,t0,Date.now());
     const prev=(S.loaded&&S.stateDate===st.date)?S.rooms:null;S.stateDate=st.date;
+    S.srvVer=+st.version||0;if(S.srvVer>CLIENT_VERSION&&window.HK_API_URL&&reloadOk())return hardReload();
     S.me=st.me;S.users=st.users;detectEvents(prev,st.rooms);S.rooms=st.rooms;S.uploads=st.uploads||[];S.loaded=true;S.lastSync=nowS();S.syncErr='';
     S.today=st.today;if(!S.reportDate)S.reportDate=st.today;
     checkQueueAlerts();
     render();
   }catch(e){if(e.code!=='AUTH'&&e.code!=='MUSTCHANGE'){S.syncErr=e.message;if(!silent)toast(e.message);render()}}
+}
+function verBanner(){
+  const oldSrv=S.srvVer<CLIENT_VERSION,adm=isAdmin();
+  const t=oldSrv?(adm?'Server (Code.gs) belum diperbarui':'Aplikasi sedang diperbarui'):'Ada versi baru aplikasi';
+  const d=oldSrv?(adm?`Tombol baru seperti Start cek / Finish cek belum bisa dipakai. Di Apps Script ganti isi Code.gs, lalu Deploy → Manage deployments → pensil → New version → Deploy. (server v${S.srvVer||'lama'}, tampilan v${CLIENT_VERSION})`:'Beberapa tombol mungkin gagal sampai admin selesai memperbarui server.'):'Muat ulang halaman untuk memakai versi terbaru.';
+  return `<div class="mb-4 flex items-center gap-3 rounded-2xl bg-rose-50 ring-1 ring-inset ring-rose-300 px-4 py-3"><span class="w-9 h-9 rounded-xl bg-rose-500 text-white flex items-center justify-center shrink-0">${ic('alert','w-5 h-5')}</span><div class="flex-1 min-w-0 text-sm text-rose-900"><p class="font-bold">${t}</p><p class="text-xs">${d}</p></div>${oldSrv?'':`<button data-act="hardReload" class="${bc('danger','sm')} shrink-0">Muat ulang</button>`}</div>`;
+}
+/* Muat ulang tanpa cache browser (GitHub Pages menyimpan halaman ±10 menit) */
+function reloadOk(){try{const t=+sessionStorage.getItem('hkReload')||0;if(Date.now()-t<300000)return false;sessionStorage.setItem('hkReload',Date.now());return true}catch(e){return false}}
+function hardReload(v){try{location.replace(location.pathname+'?v='+(v||Date.now()))}catch(e){location.reload()}}
+/* Versi GitHub: cek version.json; jika ada versi baru, muat ulang otomatis saat tidak sedang mengetik/membuka dialog */
+let lastVerCheck=0;
+async function checkUpdate(){
+  if(!window.HK_API_URL||!window.HK_BUILD||Date.now()-lastVerCheck<90000)return;lastVerCheck=Date.now();
+  try{const j=await (await fetch('version.json?t='+Date.now(),{cache:'no-store'})).json();
+    if(j&&j.build&&j.build!==window.HK_BUILD){const busy=S.busy||S.modal||S.confirm||S.addUser||S.editUser||S.acct||S.imp||(document.activeElement&&/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName));
+      if(!busy&&reloadOk())hardReload(j.build)}}catch(e){}
 }
 async function loadReport(date){const st=await run(()=>api('getState',date));if(st){S.report[date]=st.rooms;render()}}
 function doLocalLogout(msg){
@@ -473,6 +494,7 @@ function viewShell(){
   else body={dash:viewDash,upload:viewUpload,rooms:viewRooms,inspect:viewInspect,recap:viewRecap,report:viewReport,users:viewUsers,system:viewSystem,hk:viewHK}[S.view]();
   return `${sidebar(nav)}<div class="lg:pl-72 min-h-screen">${topbar()}
     <main class="px-safe pt-5 pb-28 lg:pb-12 max-w-[1400px]">
+      ${S.loaded&&S.srvVer!==CLIENT_VERSION?verBanner():''}
       ${S.soundOn?`<div id="audio-banner" ${audioOn()?'hidden':''} class="mb-4 flex items-center gap-3 rounded-2xl bg-amber-50 ring-1 ring-inset ring-amber-300 px-4 py-3"><span class="w-9 h-9 rounded-xl bg-amber-400 text-amber-950 flex items-center justify-center shrink-0">${ic('bell','w-5 h-5')}</span><div class="flex-1 min-w-0 text-sm text-amber-900"><p class="font-bold">Bunyi notifikasi belum aktif</p><p class="text-xs">Browser butuh satu ketukan sebelum boleh berbunyi.</p></div><button data-act="enableAlerts" class="${bc('warn','sm')} shrink-0">Aktifkan bunyi</button></div>`:''}
       ${S.syncErr&&S.loaded?`<div class="mb-4 flex items-center justify-between gap-3 rounded-xl bg-amber-50 ring-1 ring-inset ring-amber-200 px-4 py-2.5 text-sm text-amber-900"><span class="flex items-center gap-2">${ic('alert')} ${esc(S.syncErr)}</span><button data-act="refresh" class="font-semibold">Coba lagi</button></div>`:''}
       ${body}</main></div>${bottomNav(nav)}`;
@@ -992,6 +1014,7 @@ const A={
   nav(el){S.view=el.dataset.v;S.more=false;S.del='';S.showAll=false;if(S.view==='users')S.allUsers=null;if(S.view==='system')S.log=null;if(S.view==='report'&&S.reportDate&&S.reportDate!==S.today&&!S.report[S.reportDate])loadReport(S.reportDate);render();window.scrollTo(0,0)},
   openMore(){S.more=true;render()},closeMore(){S.more=false;render()},
   toggleAll(){S.showAll=!S.showAll;render()},
+  hardReload(){hardReload()},
   exportReport(){exportReport()},
   refresh(){refresh()},
   togglePw(el){const i=document.getElementById(el.dataset.for);if(i)i.type=i.type==='password'?'text':'password'},
@@ -1201,13 +1224,13 @@ document.addEventListener('dragover',e=>{const d=e.target.closest&&e.target.clos
 document.addEventListener('dragleave',e=>{const d=e.target.closest&&e.target.closest('#drop');if(d)d.classList.remove('!border-brand-500','!bg-brand-50')});
 document.addEventListener('drop',e=>{if(e.target.closest&&e.target.closest('#drop')){e.preventDefault();handleFile(e.dataTransfer.files&&e.dataTransfer.files[0])}});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&(S.modal||S.confirm||S.acct||S.more||S.addUser||S.qAlert||S.editUser)){if(S.qAlert)markSeen(S.qAlert);Object.assign(S,{modal:null,confirm:null,acct:false,more:false,addUser:false,qAlert:null,editUser:null});render()}});
-document.addEventListener('visibilitychange',()=>{applyWake();if(!document.hidden&&S.me&&nowS()-S.lastSync>10000)refresh(true)});
+document.addEventListener('visibilitychange',()=>{applyWake();if(!document.hidden)checkUpdate();if(!document.hidden&&S.me&&nowS()-S.lastSync>10000)refresh(true)});
 setInterval(()=>{document.querySelectorAll('[data-since]').forEach(el=>{const s=+el.dataset.since;if(s)el.textContent=timer(nowS()-s)});const c=fmtClock();document.querySelectorAll('[data-clock]').forEach(el=>el.textContent=c);document.querySelectorAll('[data-wait]').forEach(el=>{const s=+el.dataset.wait;if(s)el.textContent=mins(nowS()-s)})},1000);
 /* sinkron jam server saat dibuka & tiap 10 menit (juga di halaman login) */
 async function syncServerTime(){try{const t0=Date.now();const r=await call('getServerTime',[]);syncClock(r.now,t0,Date.now())}catch(e){}}
 syncServerTime();setInterval(syncServerTime,600000);
 /* refresh: tiap 20 detik, atau 10 detik selama ada tamu menunggu */
-setInterval(()=>{if(!S.me||S.me.mustChange||S.busy||S.modal||S.confirm||S.addUser||S.editUser||(S.imp&&S.imp.state==='writing'))return;const every=document.hidden?30000:queued().length?10000:20000;if(nowS()-S.lastSync>=every)refresh(true)},2500);
+setInterval(()=>{checkUpdate();if(!S.me||S.me.mustChange||S.busy||S.modal||S.confirm||S.addUser||S.editUser||(S.imp&&S.imp.state==='writing'))return;const every=document.hidden?30000:queued().length?10000:20000;if(nowS()-S.lastSync>=every)refresh(true)},2500);
 
 (async function boot(){
   render();
