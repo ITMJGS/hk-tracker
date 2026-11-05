@@ -140,12 +140,13 @@ const ST={
   CLEANING:{l:'Dibersihkan',chip:'bg-amber-50 text-amber-800 ring-amber-200',dot:'bg-amber-500',tile:'bg-amber-400 text-amber-950 ring-amber-500'},
   PAUSED:{l:'Jeda',chip:'bg-orange-50 text-orange-800 ring-orange-200',dot:'bg-orange-500',tile:'bg-orange-200 text-orange-900 ring-orange-300'},
   INSPECTION_READY:{l:'Tunggu SPV',chip:'bg-sky-50 text-sky-800 ring-sky-200',dot:'bg-sky-500',tile:'bg-sky-500 text-white ring-sky-600'},
+  INSPECTING:{l:'Dicek SPV',chip:'bg-violet-50 text-violet-800 ring-violet-200',dot:'bg-violet-500',tile:'bg-violet-500 text-white ring-violet-600'},
   COMPLETED:{l:'Ready',chip:'bg-emerald-50 text-emerald-800 ring-emerald-200',dot:'bg-emerald-500',tile:'bg-emerald-500 text-white ring-emerald-600'}
 };
 const CAT={CHECKOUT:{l:'Checkout',chip:'bg-rose-50 text-rose-700 ring-rose-200',text:'text-rose-600'},STAYOVER:{l:'Stayover',chip:'bg-indigo-50 text-indigo-700 ring-indigo-200',text:'text-indigo-600'}};
 const catOf=c=>CAT[c]||CAT.CHECKOUT;
 const ROLE={superadmin:{l:'PENGUASA',chip:'bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-200'},admin:{l:'Admin',chip:'bg-brand-50 text-brand-700 ring-brand-200'},supervisor:{l:'Supervisor',chip:'bg-amber-50 text-amber-800 ring-amber-200'},housekeeper:{l:'Housekeeper',chip:'bg-sky-50 text-sky-700 ring-sky-200'}};
-const ORDER={CLEANING:0,PAUSED:1,PENDING:2,INSPECTION_READY:3,COMPLETED:4};
+const ORDER={CLEANING:0,PAUSED:1,PENDING:2,INSPECTION_READY:3,INSPECTING:4,COMPLETED:5};
 const ROOM_TYPES=['DBA','DBB','DBE','TWA','TWB','SKA','S2D','CA1A','CA2A','CA2P'];
 const AV=['bg-brand-100 text-brand-800','bg-sky-100 text-sky-800','bg-amber-100 text-amber-800','bg-rose-100 text-rose-800','bg-indigo-100 text-indigo-800','bg-emerald-100 text-emerald-800','bg-fuchsia-100 text-fuchsia-800','bg-orange-100 text-orange-800'];
 const isAdmin=()=>S.me&&(S.me.role==='superadmin'||S.me.role==='admin');
@@ -261,6 +262,11 @@ const dv=(id,def)=>id in S.drafts?S.drafts[id]:def;
 const netClean=r=>(r.finishHkAt||0)-(r.startAt||0)-(r.totalPauseMs||0);
 const cnt=(rooms,st)=>rooms.filter(r=>r.status===st).length;
 const spvQueue=()=>S.rooms.filter(r=>r.status==='INSPECTION_READY'&&r.category==='CHECKOUT');
+const inspecting=()=>S.rooms.filter(r=>r.status==='INSPECTING');
+const hkDone=r=>r.status==='INSPECTION_READY'||r.status==='INSPECTING'||r.status==='COMPLETED';
+/* durasi supervisor: tunggu = Finish HK → Start cek; cek = Start cek → Ready (data lama tanpa Start cek: Finish HK → Ready) */
+const spvWait=r=>r.spvStartAt&&r.finishHkAt?r.spvStartAt-r.finishHkAt:0;
+const spvCheck=r=>r.finishSpvAt?(r.spvStartAt?r.finishSpvAt-r.spvStartAt:r.finishSpvAt-(r.finishHkAt||r.finishSpvAt)):0;
 /* ---- Queue: tamu sudah datang, kamar belum ready ---- */
 const isQ=r=>!!r.queued&&r.status!=='COMPLETED';
 const queued=()=>S.rooms.filter(isQ).sort((a,b)=>(a.queuedAt||0)-(b.queuedAt||0));
@@ -493,10 +499,10 @@ function floorMap(rooms){
       <p class="text-[11px] text-slate-500"><span class="inline-block w-2 h-2 rounded-full bg-fuchsia-500 mr-1"></span>ada tamu arrival hari ini, belum ready <span class="ml-3 inline-flex items-center gap-1"><span class="inline-flex w-3.5 h-3.5 rounded-full bg-rose-600 text-white items-center justify-center">${ic('bell','w-2 h-2')}</span>tamu sudah menunggu</span></p></div>`);
 }
 function viewDash(){
-  const R=S.rooms,total=R.length,ready=cnt(R,'COMPLETED'),wait=cnt(R,'INSPECTION_READY'),work=cnt(R,'CLEANING')+cnt(R,'PAUSED'),pend=cnt(R,'PENDING');
+  const R=S.rooms,total=R.length,ready=cnt(R,'COMPLETED'),wait=cnt(R,'INSPECTION_READY'),chk=cnt(R,'INSPECTING'),work=cnt(R,'CLEANING')+cnt(R,'PAUSED'),pend=cnt(R,'PENDING');
   if(!total)return pageHead('',esc(fmtDate(S.today)))+card(empty('inbox','Belum ada kamar hari ini',isAdmin()?'Upload Task Sheet Report pagi ini untuk membagikan kamar ke housekeeper.':'Kamar muncul setelah admin meng-upload task sheet.',isAdmin()?`<button data-act="nav" data-v="upload" class="${bc('primary')}">${ic('upload')} Upload task sheet</button>`:''));
   const arr=R.filter(r=>r.arrivalFlag&&r.status!=='COMPLETED').sort((a,b)=>ORDER[a.status]-ORDER[b.status]||roomSort(a,b));
-  const hks=hkList().map(h=>{const m=R.filter(r=>r.assignedTo===h.id);const d=m.filter(r=>r.status==='INSPECTION_READY'||r.status==='COMPLETED');const avg=d.length?Math.round(d.reduce((s,r)=>s+mins(netClean(r)),0)/d.length):0;return{h,m,d:d.length,avg,a:m.find(r=>r.status==='CLEANING'),p:m.find(r=>r.status==='PAUSED')}}).filter(x=>x.m.length).sort((a,b)=>(b.d/b.m.length)-(a.d/a.m.length));
+  const hks=hkList().map(h=>{const m=R.filter(r=>r.assignedTo===h.id);const d=m.filter(hkDone);const avg=d.length?Math.round(d.reduce((s,r)=>s+mins(netClean(r)),0)/d.length):0;return{h,m,d:d.length,avg,a:m.find(r=>r.status==='CLEANING'),p:m.find(r=>r.status==='PAUSED')}}).filter(x=>x.m.length).sort((a,b)=>(b.d/b.m.length)-(a.d/a.m.length));
   const since=r=>`<span class="font-mono" data-since="${r.startAt+(r.totalPauseMs||0)}">${timer(nowS()-r.startAt-(r.totalPauseMs||0))}</span>`;
   const row=(r,right)=>`<div class="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-slate-50"><span class="w-12 font-extrabold text-slate-900">${esc(r.room)}</span><span class="flex-1 min-w-0 text-xs text-slate-500 truncate">${right}</span>`;
   const Q=queued();
@@ -506,13 +512,13 @@ function viewDash(){
   <div class="grid grid-cols-2 md:grid-cols-5 gap-3 sm:gap-4">
     ${kpi('bed','bg-slate-100 text-slate-600','Total kamar',total,`${R.filter(r=>r.category==='CHECKOUT').length} CO · ${R.filter(r=>r.category==='STAYOVER').length} SO`)}
     ${kpi('check','bg-emerald-50 text-emerald-600','Ready',ready,`${total?Math.round(ready/total*100):0}% dari total`)}
-    ${kpi('dcheck','bg-sky-50 text-sky-600','Tunggu SPV',wait,'checkout selesai')}
+    ${kpi('dcheck','bg-sky-50 text-sky-600','Tunggu / cek SPV',wait+chk,`${chk} sedang dicek`)}
     ${kpi('clock','bg-amber-50 text-amber-600','Dikerjakan',work,`${cnt(R,'PAUSED')} dijeda`)}
     ${kpi('inbox','bg-slate-100 text-slate-500','Belum mulai',pend,`${R.filter(r=>!r.assignedTo).length} belum di-assign`,'col-span-2 md:col-span-1')}
   </div>
   <div class="grid gap-4 mt-4 md:grid-cols-2 lg:grid-cols-3">
     ${card(`${cardHead('Progress hotel','Kamar berstatus ready')}<div class="px-5 pb-5 pt-2 flex items-center gap-5">${donut(ready,total,132,14)}
-      <div class="flex-1 space-y-2.5 text-sm">${['COMPLETED','INSPECTION_READY','CLEANING','PAUSED','PENDING'].map(k=>`<div class="flex items-center justify-between gap-2"><span class="flex items-center gap-2 text-slate-600"><span class="w-2.5 h-2.5 rounded-full ${ST[k].dot}"></span>${ST[k].l}</span><span class="font-bold text-slate-900">${cnt(R,k)}</span></div>`).join('')}</div></div>`)}
+      <div class="flex-1 space-y-2.5 text-sm">${['COMPLETED','INSPECTING','INSPECTION_READY','CLEANING','PAUSED','PENDING'].map(k=>`<div class="flex items-center justify-between gap-2"><span class="flex items-center gap-2 text-slate-600"><span class="w-2.5 h-2.5 rounded-full ${ST[k].dot}"></span>${ST[k].l}</span><span class="font-bold text-slate-900">${cnt(R,k)}</span></div>`).join('')}</div></div>`)}
     ${card(`${cardHead('Prioritas arrival',`${arr.length} kamar arrival belum ready`)}<div class="px-2 sm:px-3 pb-3 pt-2 max-h-[260px] overflow-y-auto">${arr.length?arr.slice(0,40).map(r=>row(r,esc(nameOf(r.assignedTo)))+stChip(r.status)+'</div>').join(''):empty('check','Semua kamar arrival sudah ready','')}</div>`)}
     ${card(`${cardHead('Antrean supervisor',`${wait} kamar menunggu verifikasi`,`<button data-act="nav" data-v="inspect" class="${bc('soft','sm')}">Buka</button>`)}<div class="px-2 sm:px-3 pb-3 pt-2 max-h-[260px] overflow-y-auto">${wait?spvQueue().sort((a,b)=>qFirst(a,b)||(b.arrivalFlag?1:0)-(a.arrivalFlag?1:0)||a.finishHkAt-b.finishHkAt).slice(0,40).map(r=>row(r,esc(nameOf(r.assignedTo))+' · selesai '+clk(r.finishHkAt))+(r.arrivalFlag?chip('! Arrival','bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-200'):'')+'</div>').join(''):empty('inbox','Antrean kosong','')}</div>`,'md:col-span-2 lg:col-span-1')}
   </div>
@@ -596,7 +602,7 @@ function viewRooms(){
       <td class="px-3 py-3 text-xs text-slate-500 whitespace-nowrap font-mono">${r.startAt?clk(r.startAt)+(r.finishHkAt?' – '+clk(r.finishHkAt):''):'–'}</td><td class="px-5 py-3 text-right">${r.status==='PENDING'?delBtn('r'+r.room,'delRoom',r.room,'Hapus kamar '+r.room):''}</td></tr>`).join('')}</tbody></table></div>`;
   const mobile=`<div class="md:hidden divide-y divide-slate-100 border-t border-slate-100">${shown.map(r=>`<div class="px-4 py-3 space-y-2 ${isQ(r)?'bg-rose-50/70 border-l-4 border-rose-500':''}"><div class="flex items-start justify-between gap-3"><div><p class="font-extrabold text-slate-900 text-lg leading-none">${esc(r.room)}</p><p class="text-xs text-slate-500 mt-1">${esc(r.roomType)} · Lt ${esc(floorOf(r))}</p></div><div class="flex flex-col items-end gap-1.5">${stChip(r.status)}${qToggle(r)}</div></div>
     <div class="flex flex-wrap gap-1">${resvChip(r)||catChip(r.category)}${flagChips(r)}</div><div class="flex items-center gap-2"><div class="flex-1 min-w-0">${assignCell(r)}</div>${r.status==='PENDING'?delBtn('r'+r.room,'delRoom',r.room,'Hapus kamar '+r.room):''}</div></div>`).join('')}</div>`;
-  const people=hks.map(h=>{const m=R.filter(r=>r.assignedTo===h.id);const co=m.filter(r=>r.category==='CHECKOUT').length;const d=m.filter(r=>r.status==='INSPECTION_READY'||r.status==='COMPLETED').length;
+  const people=hks.map(h=>{const m=R.filter(r=>r.assignedTo===h.id);const co=m.filter(r=>r.category==='CHECKOUT').length;const d=m.filter(hkDone).length;
     return `<button data-act="openAssign" data-id="${h.id}" class="text-left rounded-2xl ring-1 ring-inset ring-slate-200 hover:ring-brand-300 hover:bg-brand-50/30 p-3.5 space-y-2.5 transition"><div class="flex items-center gap-3">${avatar(h.name)}<div class="min-w-0 flex-1"><p class="font-semibold text-slate-900 truncate">${esc(h.name)}</p><p class="text-xs text-slate-500">Ketuk untuk assign kamar</p></div><span class="text-sm font-extrabold text-slate-900">${m.length}</span></div>
       ${bar(d,m.length||1,'bg-brand-500','h-1.5')}<p class="text-[11px] text-slate-500"><span class="text-rose-600 font-semibold">${co} CO</span> · <span class="text-indigo-600 font-semibold">${m.length-co} SO</span> · ${d} selesai</p></button>`}).join('');
   const Q=queued();
@@ -618,22 +624,37 @@ function viewRooms(){
 /* ================= INSPEKSI & REKAP ================= */
 function timeline(r,isSO){
   const step=(t,v,c)=>`<div class="flex-1 min-w-0"><p class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">${t}</p><p class="font-mono font-bold ${c||'text-slate-900'}">${v}</p></div>`;
-  return `<div class="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2.5">${step('Start',clk(r.startAt))}${ic('chevron','w-3.5 h-3.5 text-slate-300')}${step('Finish',clk(r.finishHkAt))}${ic('chevron','w-3.5 h-3.5 text-slate-300')}${step('Verified',isSO?'auto':clk(r.finishSpvAt),'text-brand-700')}</div>`;
+  const sep=ic('chevron','w-3 h-3 text-slate-300');
+  return `<div class="flex items-center gap-1.5 rounded-xl bg-slate-50 px-3 py-2.5">${step('Start',clk(r.startAt))}${sep}${step('Finish',clk(r.finishHkAt))}${isSO?'':sep+step('Cek SPV',clk(r.spvStartAt),'text-violet-700')}${sep}${step('Ready',isSO?'auto':clk(r.finishSpvAt),'text-brand-700')}</div>`;
 }
 function viewInspect(){
-  const q=dv('f-spvq','').trim().toUpperCase();
-  const all=spvQueue(),queue=all.filter(r=>!q||String(r.room).toUpperCase().startsWith(q)).sort((a,b)=>qFirst(a,b)||(b.arrivalFlag?1:0)-(a.arrivalFlag?1:0)||a.finishHkAt-b.finishHkAt);
-  const Q=queued();
-  const working=cnt(S.rooms,'CLEANING')+cnt(S.rooms,'PAUSED');
-  return `${pageHead('',`${all.length} kamar menunggu · ${working} sedang dibersihkan`)}
-  ${queueBanner(Q,`${Q.length} tamu sudah menunggu`,'Kamar ini tampil paling atas begitu housekeeper menekan Finish. Cek secepatnya.')}
-  <div class="flex flex-col sm:flex-row sm:items-center gap-3 mb-4"><div class="flex-1 flex gap-2 rounded-2xl bg-white ring-1 ring-slate-200/80 px-4 py-3 text-sm text-slate-600">${ic('info','w-4 h-4 mt-0.5 text-brand-600')}<span>Hanya kamar <b>Checkout</b> yang dicek. Stayover otomatis ready. Kamar <b class="text-fuchsia-700">! Arrival</b> tampil paling atas.</span></div><div class="sm:w-64">${searchBox('f-spvq','Cari nomor kamar')}</div></div>
-  ${queue.length?`<div class="grid gap-3 sm:gap-4 md:grid-cols-2 2xl:grid-cols-3">${queue.map(r=>`<article class="bg-white rounded-2xl ${isQ(r)?'ring-2 ring-rose-500':r.arrivalFlag?'ring-1 ring-fuchsia-300':'ring-1 ring-slate-200/80'} shadow-card p-4 sm:p-5 flex flex-col gap-3.5">${isQ(r)?`<div>${qChip(r)}</div>`:''}
+  const q=dv('f-spvq','').trim().toUpperCase(),match=r=>!q||String(r.room).toUpperCase().startsWith(q);
+  const all=spvQueue(),queue=all.filter(match).sort((a,b)=>qFirst(a,b)||(b.arrivalFlag?1:0)-(a.arrivalFlag?1:0)||a.finishHkAt-b.finishHkAt);
+  const mine=inspecting().find(r=>r.spvId===S.me.id),others=inspecting().filter(r=>r.spvId!==S.me.id&&match(r));
+  const Q=queued(),working=cnt(S.rooms,'CLEANING')+cnt(S.rooms,'PAUSED');
+  const since=t=>`<span class="font-mono" data-since="${t}">${timer(nowS()-t)}</span>`;
+  const hero=mine?`<section class="relative overflow-hidden rounded-3xl bg-brand-950 text-white p-5 sm:p-6 shadow-lift dots mb-4">
+      <div class="flex items-start justify-between gap-4"><div class="min-w-0"><p class="text-xs font-semibold text-violet-300 uppercase tracking-wider flex items-center gap-2"><span class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-violet-400"></span></span>Sedang Anda cek</p>
+        <p class="text-5xl sm:text-6xl font-extrabold tracking-tight mt-2">${esc(mine.room)}</p>${isQ(mine)?`<div class="mt-2">${qChip(mine)}</div>`:''}
+        <p class="text-sm text-brand-100/80 mt-1">${esc(mine.roomType)} · dibersihkan ${esc(nameOf(mine.assignedTo))} · ${mins(netClean(mine))} mnt</p></div>
+        <div class="text-right shrink-0"><p class="text-[11px] text-brand-300">Mulai cek ${clk(mine.spvStartAt)}</p><p class="font-mono text-3xl sm:text-4xl font-bold text-violet-300 mt-1" data-since="${mine.spvStartAt}">${timer(nowS()-mine.spvStartAt)}</p></div></div>
+      ${(mine.specials||mine.instructions)?`<div class="mt-4 rounded-xl bg-white/10 px-3 py-2 text-xs text-brand-50">${esc([mine.specials,mine.instructions].filter(Boolean).join(' · '))}</div>`:''}
+      <div class="mt-5 grid grid-cols-[auto_1fr] gap-2">
+        <button data-act="ask" data-type="undo" data-id="${esc(mine.room)}" class="${bc('glass','md')}" aria-label="Batalkan cek">${ic('ban')} <span class="hidden sm:inline">Batal</span></button>
+        <button data-act="ask" data-type="inspect_finish" data-id="${esc(mine.room)}" class="${bc('success','md')} !bg-emerald-500 hover:!bg-emerald-400">${ic('dcheck','w-5 h-5')} Finish cek · kamar ready</button></div></section>`:'';
+  const card1=r=>`<article class="bg-white rounded-2xl ${isQ(r)?'ring-2 ring-rose-500':r.arrivalFlag?'ring-1 ring-fuchsia-300':'ring-1 ring-slate-200/80'} shadow-card p-4 sm:p-5 flex flex-col gap-3.5">${isQ(r)?`<div>${qChip(r)}</div>`:''}
     <div class="flex items-start justify-between gap-3"><div><p class="text-3xl font-extrabold text-slate-900 tracking-tight leading-none">${esc(r.room)}</p><p class="text-xs text-slate-500 mt-1.5">${esc(r.roomType)} · Lt ${esc(floorOf(r))}</p></div><div class="flex flex-wrap justify-end gap-1">${resvChip(r)}${flagChips(r)}</div></div>
-    <div class="flex items-center gap-2.5">${avatar(nameOf(r.assignedTo),'w-8 h-8 text-[10px]')}<div class="text-sm"><p class="font-semibold text-slate-900">${esc(nameOf(r.assignedTo))}</p><p class="text-xs text-slate-500">${mins(netClean(r))} menit bersih${r.totalPauseMs?' · jeda '+mins(r.totalPauseMs)+'m':''}</p></div></div>
+    <div class="flex items-center gap-2.5">${avatar(nameOf(r.assignedTo),'w-8 h-8 text-[10px]')}<div class="text-sm flex-1 min-w-0"><p class="font-semibold text-slate-900 truncate">${esc(nameOf(r.assignedTo))}</p><p class="text-xs text-slate-500">${mins(netClean(r))} menit bersih${r.totalPauseMs?' · jeda '+mins(r.totalPauseMs)+'m':''}</p></div>
+      <div class="text-right"><p class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Menunggu</p><p class="text-sm font-bold text-sky-700"><span data-wait="${r.finishHkAt}">${mins(nowS()-r.finishHkAt)}</span> mnt</p></div></div>
     ${notes(r)}${timeline(r,false)}
-    <button data-act="ask" data-type="approve" data-id="${esc(r.room)}" class="${bc('success','lg','w-full mt-auto')}">${ic('dcheck','w-5 h-5')} Konfirmasi ready</button></article>`).join('')}</div>`
-  :card(empty('dcheck',q?'Tidak ada kamar yang cocok':'Antrean kosong','Kamar checkout muncul di sini begitu housekeeper menekan Finish.'))}`;
+    ${mine?'':`<button data-act="ask" data-type="inspect_start" data-id="${esc(r.room)}" class="${bc('dark','lg','w-full mt-auto')}">${ic('play','w-4 h-4')} Start cek</button>`}</article>`;
+  return `${pageHead('',`${all.length} menunggu · ${inspecting().length} sedang dicek · ${working} dibersihkan`)}
+  ${queueBanner(Q,`${Q.length} tamu sudah menunggu`,'Kamar ini tampil paling atas begitu housekeeper menekan Finish. Cek secepatnya.')}
+  ${hero}
+  <div class="flex flex-col sm:flex-row sm:items-center gap-3 mb-4"><div class="flex-1 flex gap-2 rounded-2xl bg-white ring-1 ring-slate-200/80 px-4 py-3 text-sm text-slate-600">${ic('info','w-4 h-4 mt-0.5 text-brand-600')}<span>Tekan <b>Start cek</b> saat mulai memeriksa dan <b>Finish cek</b> saat kamar sudah sesuai standar. Hanya kamar <b>Checkout</b> yang dicek; stayover otomatis ready.${mine?` <b class="text-violet-700">Selesaikan cek kamar ${esc(mine.room)} untuk mulai kamar berikutnya.</b>`:''}</span></div><div class="sm:w-64">${searchBox('f-spvq','Cari nomor kamar')}</div></div>
+  ${queue.length?`<div class="grid gap-3 sm:gap-4 md:grid-cols-2 2xl:grid-cols-3">${queue.map(card1).join('')}</div>`
+  :card(empty('dcheck',q?'Tidak ada kamar yang cocok':'Antrean kosong','Kamar checkout muncul di sini begitu housekeeper menekan Finish.'))}
+  ${others.length?`<h3 class="text-sm font-bold text-slate-900 mt-6 mb-2">Sedang dicek supervisor lain</h3><div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">${others.map(r=>`<div class="flex items-center gap-3 rounded-2xl bg-white ring-1 ring-violet-200 px-4 py-3"><span class="text-xl font-extrabold text-slate-900 w-14">${esc(r.room)}</span><div class="flex-1 min-w-0 text-xs text-slate-500"><p class="font-semibold text-slate-800 truncate">${esc(nameOf(r.spvId))}</p><p>mulai ${clk(r.spvStartAt)}</p></div><span class="text-sm font-bold text-violet-700">${since(r.spvStartAt)}</span>${isAdmin()?`<button data-act="ask" data-type="inspect_finish" data-id="${esc(r.room)}" class="${bc('soft','sm')}">Finish</button>`:''}</div>`).join('')}</div>`:''}`;
 }
 function recapCard(r,undo){
   const isSO=r.category==='STAYOVER';
@@ -641,7 +662,8 @@ function recapCard(r,undo){
     <div class="flex items-start justify-between gap-3"><div class="min-w-0"><div class="flex items-center gap-2"><p class="text-xl font-extrabold text-slate-900">${esc(r.room)}</p>${catChip(r.category)}</div><p class="text-xs text-slate-500 mt-1 truncate">${esc(nameOf(r.assignedTo))}${r.spvId?' · SPV '+esc(nameOf(r.spvId)):''}</p></div>
       ${undo?`<button data-act="ask" data-type="undo" data-id="${esc(r.room)}" class="${bc('soft','sm')}">${ic('undo','w-3.5 h-3.5')} Undo</button>`:stChip('COMPLETED')}</div>
     ${timeline(r,isSO)}${r.queuedAt?`<p class="flex items-center gap-1.5 text-xs font-semibold text-rose-700">${ic('bell','w-3.5 h-3.5')} Tamu menunggu ${mins((r.finishSpvAt||nowS())-r.queuedAt)} menit sampai kamar ready</p>`:''}
-    <div class="grid grid-cols-4 gap-2 text-center">${[['Bersih',mins(netClean(r)),'text-amber-600'],['Jeda',mins(r.totalPauseMs),'text-orange-600'],['Cek SPV',isSO?'–':mins(r.finishSpvAt-r.finishHkAt),'text-sky-600'],['Total',mins(r.finishSpvAt-r.startAt),'text-brand-700']].map(([l,v,c])=>`<div class="rounded-xl ring-1 ring-inset ring-slate-100 py-2"><p class="text-lg font-extrabold ${c}">${v}</p><p class="text-[10px] text-slate-500">${l}${v==='–'?'':' mnt'}</p></div>`).join('')}</div></article>`;
+    ${r.totalPauseMs?`<p class="text-xs text-orange-700">Jeda ${mins(r.totalPauseMs)} menit (tidak dihitung di durasi bersih)</p>`:''}
+    <div class="grid grid-cols-4 gap-2 text-center">${[['Bersih',mins(netClean(r)),'text-amber-600'],['Tunggu SPV',isSO||!r.spvStartAt?'–':mins(spvWait(r)),'text-sky-600'],['Cek SPV',isSO?'–':mins(spvCheck(r)),'text-violet-600'],['Total',mins(r.finishSpvAt-r.startAt),'text-brand-700']].map(([l,v,c])=>`<div class="rounded-xl ring-1 ring-inset ring-slate-100 py-2"><p class="text-lg font-extrabold ${c}">${v}</p><p class="text-[10px] text-slate-500">${l}${v==='–'?'':' mnt'}</p></div>`).join('')}</div></article>`;
 }
 function viewRecap(){
   const q=dv('f-rq','').trim().toUpperCase();
@@ -659,18 +681,18 @@ function viewReport(){
   if(!all)return head+skeleton();
   const done=all.filter(r=>r.status==='COMPLETED').sort(roomSort),co=done.filter(r=>r.category==='CHECKOUT');
   const avg=a=>a.length?Math.round(a.reduce((s,x)=>s+x,0)/a.length):0;
-  const avgC=avg(done.map(r=>mins(netClean(r)))),avgS=avg(co.map(r=>mins(r.finishSpvAt-r.finishHkAt))),avgT=avg(done.map(r=>mins(r.finishSpvAt-r.startAt)));
+  const avgC=avg(done.map(r=>mins(netClean(r)))),avgS=avg(co.map(r=>mins(spvCheck(r)))),avgW=avg(co.filter(r=>r.spvStartAt).map(r=>mins(spvWait(r)))),avgT=avg(done.map(r=>mins(r.finishSpvAt-r.startAt)));
   const per={};done.forEach(r=>{const k=r.assignedTo||'-';const p=per[k]=per[k]||{n:0,c:[],co:0};p.n++;p.c.push(mins(netClean(r)));if(r.category==='CHECKOUT')p.co++});
   const rows=Object.entries(per).sort((a,b)=>b[1].n-a[1].n);
   return head+`<div class="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
     ${kpi('check','bg-emerald-50 text-emerald-600','Kamar ready',done.length,`dari ${all.length} kamar${done.some(r=>r.queuedAt)?` · ${done.filter(r=>r.queuedAt).length} tamu sempat menunggu (rata-rata ${avg(done.filter(r=>r.queuedAt).map(r=>mins(r.finishSpvAt-r.queuedAt)))} mnt)`:''}`)}
     ${kpi('clock','bg-amber-50 text-amber-600','Rata-rata bersih',avgC+' mnt','tanpa waktu jeda')}
-    ${kpi('dcheck','bg-sky-50 text-sky-600','Rata-rata cek SPV',avgS+' mnt','kamar checkout')}
+    ${kpi('dcheck','bg-violet-50 text-violet-600','Rata-rata cek SPV',avgS+' mnt',`tunggu sebelum dicek ±${avgW} mnt`)}
     ${kpi('chart','bg-brand-50 text-brand-600','Start → ready',avgT+' mnt','rata-rata total')}</div>
   <div class="grid gap-4 mt-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] items-start">
     ${card(`${cardHead('Per housekeeper','Diurutkan dari kamar terbanyak')}<div class="px-2 pb-2 pt-2">${rows.length?rows.map(([id,p])=>`<div class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50">${avatar(nameOf(id),'w-8 h-8 text-[10px]')}<div class="flex-1 min-w-0"><p class="text-sm font-semibold text-slate-900 truncate">${esc(nameOf(id))}</p><p class="text-xs text-slate-500">${p.co} checkout · ${p.n-p.co} stayover</p></div><div class="text-right"><p class="text-sm font-extrabold text-slate-900">${p.n}</p><p class="text-[11px] text-slate-500">${avg(p.c)} mnt/kamar</p></div></div>`).join(''):empty('chart','Belum ada data','')}</div>`)}
-    ${card(`${cardHead('Detail kamar',`${done.length} kamar ready`)}${done.length?`<div class="hidden md:block overflow-x-auto mt-3 max-h-[640px] overflow-y-auto"><table class="w-full text-sm"><thead class="sticky top-0 bg-slate-50"><tr class="text-left text-xs text-slate-500 border-y border-slate-100"><th class="font-semibold px-5 py-2.5">Kamar</th><th class="font-semibold px-3 py-2.5">Housekeeper</th><th class="font-semibold px-3 py-2.5">Start</th><th class="font-semibold px-3 py-2.5">Finish</th><th class="font-semibold px-3 py-2.5">Verified</th><th class="font-semibold px-3 py-2.5 text-right">Bersih</th><th class="font-semibold px-3 py-2.5 text-right">Jeda</th><th class="font-semibold px-3 py-2.5 text-right">Tamu tunggu</th><th class="font-semibold px-5 py-2.5 text-right">Total</th></tr></thead>
-      <tbody class="divide-y divide-slate-100">${done.map(r=>`<tr class="hover:bg-slate-50/60"><td class="px-5 py-2.5 whitespace-nowrap"><span class="font-extrabold text-slate-900">${esc(r.room)}</span> <span class="text-[11px] ${catOf(r.category).text} font-semibold">${r.category==='CHECKOUT'?'CO':'SO'}</span></td><td class="px-3 py-2.5 text-slate-700">${esc(nameOf(r.assignedTo))}</td><td class="px-3 py-2.5 font-mono text-xs">${clk(r.startAt)}</td><td class="px-3 py-2.5 font-mono text-xs">${clk(r.finishHkAt)}</td><td class="px-3 py-2.5 font-mono text-xs">${r.category==='STAYOVER'?'auto':clk(r.finishSpvAt)}</td><td class="px-3 py-2.5 text-right font-semibold">${mins(netClean(r))}</td><td class="px-3 py-2.5 text-right text-slate-500">${mins(r.totalPauseMs)}</td><td class="px-3 py-2.5 text-right ${r.queuedAt?'font-bold text-rose-700':'text-slate-300'}">${r.queuedAt?mins(r.finishSpvAt-r.queuedAt):'–'}</td><td class="px-5 py-2.5 text-right font-bold text-brand-700">${mins(r.finishSpvAt-r.startAt)}</td></tr>`).join('')}</tbody></table></div>
+    ${card(`${cardHead('Detail kamar',`${done.length} kamar ready`)}${done.length?`<div class="hidden md:block overflow-x-auto mt-3 max-h-[640px] overflow-y-auto"><table class="w-full text-sm"><thead class="sticky top-0 bg-slate-50"><tr class="text-left text-xs text-slate-500 border-y border-slate-100"><th class="font-semibold px-5 py-2.5">Kamar</th><th class="font-semibold px-3 py-2.5">Housekeeper</th><th class="font-semibold px-3 py-2.5">Start</th><th class="font-semibold px-3 py-2.5">Finish</th><th class="font-semibold px-3 py-2.5">Cek SPV</th><th class="font-semibold px-3 py-2.5">Ready</th><th class="font-semibold px-3 py-2.5 text-right">Bersih</th><th class="font-semibold px-3 py-2.5 text-right">Jeda</th><th class="font-semibold px-3 py-2.5 text-right">Tunggu SPV</th><th class="font-semibold px-3 py-2.5 text-right">Lama cek</th><th class="font-semibold px-3 py-2.5">SPV</th><th class="font-semibold px-3 py-2.5 text-right">Tamu tunggu</th><th class="font-semibold px-5 py-2.5 text-right">Total</th></tr></thead>
+      <tbody class="divide-y divide-slate-100">${done.map(r=>`<tr class="hover:bg-slate-50/60"><td class="px-5 py-2.5 whitespace-nowrap"><span class="font-extrabold text-slate-900">${esc(r.room)}</span> <span class="text-[11px] ${catOf(r.category).text} font-semibold">${r.category==='CHECKOUT'?'CO':'SO'}</span></td><td class="px-3 py-2.5 text-slate-700">${esc(nameOf(r.assignedTo))}</td><td class="px-3 py-2.5 font-mono text-xs">${clk(r.startAt)}</td><td class="px-3 py-2.5 font-mono text-xs">${clk(r.finishHkAt)}</td><td class="px-3 py-2.5 font-mono text-xs">${r.category==='STAYOVER'?'–':clk(r.spvStartAt)}</td><td class="px-3 py-2.5 font-mono text-xs">${r.category==='STAYOVER'?'auto':clk(r.finishSpvAt)}</td><td class="px-3 py-2.5 text-right font-semibold">${mins(netClean(r))}</td><td class="px-3 py-2.5 text-right text-slate-500">${mins(r.totalPauseMs)}</td><td class="px-3 py-2.5 text-right text-sky-700">${r.category==='STAYOVER'||!r.spvStartAt?'–':mins(spvWait(r))}</td><td class="px-3 py-2.5 text-right font-semibold text-violet-700">${r.category==='STAYOVER'?'–':mins(spvCheck(r))}</td><td class="px-3 py-2.5 text-slate-600 whitespace-nowrap">${r.spvId?esc(nameOf(r.spvId)):'–'}</td><td class="px-3 py-2.5 text-right ${r.queuedAt?'font-bold text-rose-700':'text-slate-300'}">${r.queuedAt?mins(r.finishSpvAt-r.queuedAt):'–'}</td><td class="px-5 py-2.5 text-right font-bold text-brand-700">${mins(r.finishSpvAt-r.startAt)}</td></tr>`).join('')}</tbody></table></div>
       <div class="md:hidden p-4 space-y-3">${done.slice(0,S.showAll?9999:30).map(r=>recapCard(r,false)).join('')}${done.length>30&&!S.showAll?`<button data-act="toggleAll" class="${bc('ghost','md','w-full')}">Tampilkan semua (${done.length})</button>`:''}</div>`:empty('inbox','Belum ada kamar ready pada tanggal ini','')}`)}
   </div>`;
 }
@@ -678,11 +700,11 @@ function viewReport(){
 /* ================= HOUSEKEEPER ================= */
 function viewHK(){
   const mine=S.rooms.filter(r=>r.assignedTo===S.me.id);
-  const done=mine.filter(r=>r.status==='INSPECTION_READY'||r.status==='COMPLETED').length;
+  const done=mine.filter(hkDone).length;
   const active=mine.find(r=>r.status==='CLEANING');
   const paused=mine.filter(r=>r.status==='PAUSED').sort((a,b)=>qFirst(a,b)||seqSort(a,b)),pending=mine.filter(r=>r.status==='PENDING').sort((a,b)=>qFirst(a,b)||seqSort(a,b));
   const myQ=mine.filter(isQ);
-  const waiting=mine.filter(r=>r.status==='INSPECTION_READY').sort(seqSort),finished=mine.filter(r=>r.status==='COMPLETED').sort((a,b)=>b.finishSpvAt-a.finishSpvAt);
+  const waiting=mine.filter(r=>r.status==='INSPECTION_READY'||r.status==='INSPECTING').sort(seqSort),finished=mine.filter(r=>r.status==='COMPLETED').sort((a,b)=>b.finishSpvAt-a.finishSpvAt);
   const co=mine.filter(r=>r.category==='CHECKOUT').length,arrP=mine.filter(r=>r.arrivalFlag&&r.status==='PENDING').length;
   const section=(t,list,open,hint)=>list.length?`<details ${open?'open':''} class="group"><summary class="flex items-center gap-2 py-2 cursor-pointer"><h3 class="text-sm font-bold text-slate-900">${t}</h3><span class="text-xs font-bold text-slate-500 bg-slate-200/70 rounded-full px-2 py-0.5">${list.length}</span><span class="ml-auto text-slate-400 group-open:rotate-90 transition">${ic('chevron')}</span></summary>${hint?`<p class="flex items-center gap-1.5 text-xs text-slate-500 mb-2">${ic('lock','w-3.5 h-3.5')} ${hint}</p>`:''}
     <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 mt-1 mb-4">${list.map(r=>hkCard(r,active)).join('')}</div></details>`:'';
@@ -711,6 +733,7 @@ function hkCard(r,active){
   else if(r.status==='PAUSED')act=`<div class="flex items-center justify-between text-xs text-orange-800 bg-orange-50 rounded-xl px-3 py-2"><span>Dijeda sejak ${clk(r.pausedAt)}</span></div>
     ${locked?'':`<div class="grid grid-cols-[auto_1fr] gap-2"><button data-act="ask" data-type="undo" data-id="${esc(r.room)}" class="${bc('dangerSoft','md')}" aria-label="Batalkan">${ic('ban')}</button><button data-act="ask" data-type="resume" data-id="${esc(r.room)}" class="${bc('primary','md')}">${ic('play')} Resume</button></div>`}`;
   else if(r.status==='INSPECTION_READY')act=`${timeline(r,false)}<div class="flex items-center gap-2"><span class="flex-1 text-xs text-sky-700 bg-sky-50 rounded-xl px-3 py-2">Menunggu supervisor · ${mins(netClean(r))} mnt</span><button data-act="ask" data-type="undo" data-id="${esc(r.room)}" class="${bc('soft','sm')}">${ic('undo','w-3.5 h-3.5')} Undo</button></div>`;
+  else if(r.status==='INSPECTING')act=`${timeline(r,false)}<p class="text-xs text-violet-800 bg-violet-50 rounded-xl px-3 py-2">Sedang dicek ${esc(nameOf(r.spvId))} sejak ${clk(r.spvStartAt)}</p>`;
   else if(r.status==='COMPLETED')act=`${timeline(r,r.category==='STAYOVER')}<p class="text-xs text-emerald-700 font-semibold">${mins(netClean(r))} menit bersih</p>`;
   const gl=guestLine(r),extra=resvChip(r)+flagChips(r);
   return `<article class="bg-white rounded-2xl ${isQ(r)?'ring-2 ring-rose-500':r.arrivalFlag&&r.status==='PENDING'?'ring-1 ring-fuchsia-300':'ring-1 ring-slate-200/80'} shadow-card p-4 flex flex-col gap-3">${isQ(r)?`<div>${qChip(r)}</div>`:''}
@@ -873,12 +896,13 @@ function askRoom(type,room){
     pause:['pause','bg-amber-50 text-amber-600',`Jeda kamar ${n}?`,'Timer berhenti sementara. Anda bisa melanjutkan nanti atau memulai kamar lain.','warn','Pause'],
     resume:['play','bg-brand-50 text-brand-700',`Lanjutkan kamar ${n}?`,'Timer pembersihan berjalan lagi.','primary','Resume'],
     finish:['check','bg-emerald-50 text-emerald-600',`Selesai kamar ${n}?`,r.category==='STAYOVER'?'Kamar stayover langsung ditandai ready tanpa cek supervisor.':'Pastikan semua area sudah bersih. Kamar dikirim ke supervisor untuk dicek.','success','Finish'],
-    approve:['dcheck','bg-emerald-50 text-emerald-600',`Kamar ${n} ready?`,'Konfirmasi bahwa kamar sudah sesuai standar dan siap dijual.','success','Ya, ready'],
-    undo:['undo','bg-rose-50 text-rose-600',`Batalkan status ${n}?`,{CLEANING:'Kamar kembali ke Belum mulai dan waktu yang tercatat dihapus.',PAUSED:'Kamar kembali ke Belum mulai dan waktu yang tercatat dihapus.',INSPECTION_READY:'Kamar kembali ke Sedang dibersihkan.',COMPLETED:r.category==='STAYOVER'?'Kamar stayover kembali ke Sedang dibersihkan.':'Kamar kembali ke antrean supervisor.'}[r.status]||'','danger','Ya, batalkan']
+    inspect_start:['play','bg-violet-50 text-violet-700',`Mulai cek kamar ${n}?`,'Timer pengecekan mulai berjalan. Tekan Finish cek setelah kamar sesuai standar.','dark','Start cek'],
+    inspect_finish:['dcheck','bg-emerald-50 text-emerald-600',`Selesai cek kamar ${n}?`,'Kamar dinyatakan sesuai standar dan <b>ready</b> untuk dijual'+(isQ(r)?', tamu yang menunggu bisa masuk.':'.'),'success','Finish cek'],
+    undo:['undo','bg-rose-50 text-rose-600',`Batalkan status ${n}?`,{CLEANING:'Kamar kembali ke Belum mulai dan waktu yang tercatat dihapus.',PAUSED:'Kamar kembali ke Belum mulai dan waktu yang tercatat dihapus.',INSPECTION_READY:'Kamar kembali ke Sedang dibersihkan.',INSPECTING:'Pengecekan dibatalkan, kamar kembali ke antrean cek.',COMPLETED:r.category==='STAYOVER'?'Kamar stayover kembali ke Sedang dibersihkan.':'Kamar kembali ke antrean supervisor.'}[r.status]||'','danger','Ya, batalkan']
   }[type];
   S.confirm={icon:C[0],iconCls:C[1],title:C[2],msg:C[3],btnV:C[4],btn:C[5],onYes:async()=>{
     const t0=Date.now();
-    const upd=await run(()=>api('roomAction',S.today,room,type),()=>({start:'Kamar '+room+' dimulai',pause:'Kamar '+room+' dijeda',resume:'Kamar '+room+' dilanjutkan',finish:r.category==='STAYOVER'?'Kamar '+room+' ready':'Kamar '+room+' dikirim ke supervisor',approve:'Kamar '+room+' verified ready',undo:'Kamar '+room+': undo berhasil'}[type]));
+    const upd=await run(()=>api('roomAction',S.today,room,type),()=>({start:'Kamar '+room+' dimulai',pause:'Kamar '+room+' dijeda',resume:'Kamar '+room+' dilanjutkan',finish:r.category==='STAYOVER'?'Kamar '+room+' ready':'Kamar '+room+' dikirim ke supervisor',inspect_start:'Mulai cek kamar '+room,inspect_finish:'Kamar '+room+' ready',undo:'Kamar '+room+': undo berhasil'}[type]));
     if(upd){syncClock(upd.updatedAt,t0,Date.now());const i=S.rooms.findIndex(x=>x.room===upd.room);if(i>=0)S.rooms[i]=upd;render()}else refresh(true);
   }};
   render();setTimeout(()=>{const b=document.getElementById('cm-yes');b&&b.focus()},40);
