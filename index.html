@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>HK Tracker</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b2a29'/%3E%3Cpath d='M20 50V14h22v36M14 50h36M36 32h1' fill='none' stroke='%2378cfc4' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b2a29'/%3E%3Cpath d='M20 50V14h22v36M14 50h36M36 32h1' fill='none' stroke='%2378cfc4' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <script>
+    /* Alamat server (Google Apps Script). Ganti jika membuat deployment baru. */
+    window.HK_API_URL = 'https://script.google.com/macros/s/AKfycbyyFZ7k-3dElnTu4hKc6IbNF9uVi5FnZiOTJ6N4Wszv9jNoRZQYKMee7GVqjIfr-QEaRA/exec';
+    /* Pengganti google.script.run: memanggil server lewat POST {fn, args} */
+    (function () {
+      function runner() {
+        var ok = function () {}, bad = function () {};
+        var p = new Proxy({}, { get: function (t, k) {
+          if (k === 'withSuccessHandler') return function (f) { ok = f; return p; };
+          if (k === 'withFailureHandler') return function (f) { bad = f; return p; };
+          return function () {
+            var args = Array.prototype.slice.call(arguments);
+            fetch(window.HK_API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: k, args: args }), redirect: 'follow' })
+              .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+              .then(function (j) { j.ok ? ok(j.result) : bad(new Error(j.error)); })
+              .catch(function (e) { var m = String((e && e.message) || e); bad(new Error(/Failed to fetch|NetworkError|Load failed/i.test(m) ? 'network' : m)); });
+          };
+        } });
+        return p;
+      }
+      window.google = { script: { get run() { return runner(); } } };
+    })();
+  </script>
+  <meta name="theme-color" content="#0b2a29">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap">
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace']
+          },
+          colors: {
+            brand: { 50:'#eefaf8', 100:'#d5f2ed', 200:'#ade4dc', 300:'#78cfc4', 400:'#45b3a7', 500:'#27978c', 600:'#1b7a72', 700:'#18625c', 800:'#174f4b', 900:'#15403d', 950:'#0b2a29' }
+          },
+          boxShadow: {
+            card: '0 1px 2px rgba(15,23,42,.04), 0 1px 3px rgba(15,23,42,.06)',
+            lift: '0 10px 30px -12px rgba(11,42,41,.35)'
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    :root { color-scheme: light; }
+    html, body { background:#f3f6f6; color:#0f172a; }
+    body { margin:0; font-family:"Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif; -webkit-font-smoothing:antialiased; -webkit-tap-highlight-color:transparent; font-variant-numeric:tabular-nums; }
+    [hidden] { display:none !important; }
+    .safe-b { padding-bottom: env(safe-area-inset-bottom, 0px); }
+    .safe-t { padding-top: env(safe-area-inset-top, 0px); }
+    .px-safe { padding-left:max(16px, env(safe-area-inset-left,0px)); padding-right:max(16px, env(safe-area-inset-right,0px)); }
+    @media (min-width:640px){ .px-safe { padding-left:max(24px, env(safe-area-inset-left,0px)); padding-right:max(24px, env(safe-area-inset-right,0px)); } }
+    @media (min-width:1024px){ .px-safe { padding-left:32px; padding-right:32px; } }
+    .no-scrollbar::-webkit-scrollbar { display:none; } .no-scrollbar { scrollbar-width:none; }
+    button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visible { outline:2px solid #27978c; outline-offset:2px; }
+    input, select, textarea { font-size:16px; } /* cegah auto-zoom iOS */
+    @media (min-width:640px){ input, select, textarea { font-size:14px; } }
+    .spin { animation: spin 1s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } }
+    .sheet-in { animation: sheet .22s ease-out; } @keyframes sheet { from { transform: translateY(16px); opacity:.0; } to { transform:none; opacity:1; } }
+    .dots { background-image: radial-gradient(rgba(255,255,255,.08) 1px, transparent 1px); background-size: 18px 18px; }
+    details > summary { list-style:none; } details > summary::-webkit-details-marker { display:none; }
+    @media (prefers-reduced-motion: reduce) { .animate-pulse, .animate-ping, .spin, .sheet-in { animation:none !important; } * { transition:none !important; } }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="modal-root"></div>
+  <div id="toast" role="status" aria-live="polite" class="fixed z-[70] left-1/2 -translate-x-1/2 bottom-24 lg:bottom-6 lg:left-auto lg:right-6 lg:translate-x-0 bg-slate-900 text-white text-sm px-4 py-3 rounded-xl shadow-lift flex items-center gap-2.5 max-w-[calc(100%-32px)] lg:max-w-sm" hidden>
+    <svg viewBox="0 0 24 24" class="w-4 h-4 text-brand-300 shrink-0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>
+    <span id="toast-msg"></span>
+  </div>
+  <script>
+/* =====================================================================
+   HK Tracker — client (Google Apps Script HtmlService)
+   Layout: HP = top bar + bottom tab bar · Tablet/desktop (≥1024px) = sidebar + lebar penuh
+   ===================================================================== */
+
+/* ---------------- ICONS ---------------- */
+const P={
+  play:'<path d="M7 5l12 7-12 7z" fill="currentColor" stroke="none"/>',
+  pause:'<rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none"/>',
+  check:'<path d="M5 12.5l4.5 4.5L19 7.5"/>', dcheck:'<path d="M2 12.5l4.5 4.5L15 8.5M10 16l1 1 9.5-9.5"/>',
+  clock:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>', lock:'<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+  undo:'<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>', x:'<path d="M6 6l12 12M18 6L6 18"/>',
+  info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/>', users:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/>',
+  bed:'<path d="M3 18V6M3 13h18v5M21 13a4 4 0 0 0-4-4h-7v4"/><circle cx="6.5" cy="10" r="1.5"/>', chart:'<path d="M4 20V10M10 20V4M16 20v-7M2 20h20"/>',
+  file:'<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/>', door:'<path d="M5 21V4h11v17M3 21h16M13 12h.5"/>',
+  user:'<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>', trash:'<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>', ban:'<circle cx="12" cy="12" r="9"/><path d="M6 6l12 12"/>', edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/>',
+  list:'<path d="M9 6h11M9 12h11M9 18h11M4 6h.5M4 12h.5M4 18h.5"/>', upload:'<path d="M12 16V4M7 9l5-5 5 5M4 16v4h16v-4"/>', search:'<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4-4"/>',
+  key:'<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3M15 8l2 2"/>', logout:'<path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h11"/>', shield:'<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/>',
+  refresh:'<path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/>', copy:'<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M4 16V4h12"/>', eye:'<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  home:'<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>', grid:'<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
+  calendar:'<rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>', alert:'<path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17v.5"/>',
+  chevron:'<path d="M9 6l6 6-6 6"/>', star:'<path d="M12 4l2.5 5 5.5.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.5-.8z"/>', sparkle:'<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M6 18l2.5-2.5M15.5 8.5L18 6"/>',
+  bell:'<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/>',
+  filter:'<path d="M4 5h16l-6 7v6l-4 2v-8z"/>', inbox:'<path d="M4 13l2-8h12l2 8v6H4z"/><path d="M4 13h5l1 2h4l1-2h5"/>'
+};
+const ic=(n,c='w-4 h-4')=>`<svg viewBox="0 0 24 24" class="${c} shrink-0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n]||''}</svg>`;
+
+/* ---------------- HELPERS ---------------- */
+const pad=n=>String(n).padStart(2,'0');
+/* Jam HP bisa selisih beberapa menit dari server; timer memakai jam server (S.skew = server - HP). */
+const nowS=()=>Date.now()+((typeof S!=='undefined'&&S.skew)||0);
+function syncClock(serverMs,t0,t1){if(serverMs&&t1-t0<5000){S.skew=serverMs-Math.round((t0+t1)/2);S.clockSynced=true}}
+const fmtClock=()=>new Date(nowS()).toLocaleTimeString('id-ID',{timeZone:'Asia/Jakarta',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).replace(/:/g,'.');
+const serverClock=(cls='inline-flex')=>`<span class="items-center gap-1.5 ${cls}" title="${(typeof S!=='undefined'&&S.clockSynced)?'Jam server (WIB)':'Menyamakan dengan jam server…'}">${ic('clock','w-3.5 h-3.5')}<span data-clock class="font-mono font-bold tabular-nums">${fmtClock()}</span><span class="opacity-70">WIB</span></span>`;
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const clk=ms=>{if(!ms)return '--.--';return new Date(ms).toLocaleTimeString('id-ID',{timeZone:'Asia/Jakarta',hour:'2-digit',minute:'2-digit',hour12:false}).replace(':','.')};
+const mins=ms=>Math.max(0,Math.round((ms||0)/60000));
+const timer=ms=>{const s=Math.max(0,Math.floor(ms/1000));const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;return (h?h+':'+pad(m):m)+':'+pad(x)};
+const norm=s=>String(s||'').trim().toLowerCase().replace(/\s+/g,' ');
+function lsGet(k){try{return localStorage.getItem(k)||sessionStorage.getItem(k)||''}catch(e){return ''}}
+function lsSet(k,v,persist){try{(persist?localStorage:sessionStorage).setItem(k,v)}catch(e){}}
+function lsDel(k){try{localStorage.removeItem(k);sessionStorage.removeItem(k)}catch(e){}}
+const fmtDate=k=>{if(!k)return '';const [y,m,d]=k.split('-').map(Number);return new Date(y,m-1,d).toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'})};
+const fmtShort=k=>{if(!k)return '';const [y,m,d]=k.split('-').map(Number);return new Date(y,m-1,d).toLocaleDateString('id-ID',{weekday:'short',day:'numeric',month:'short'})};
+const fmtDT=ms=>ms?new Date(ms).toLocaleString('id-ID',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):'';
+const floorOf=r=>{const s=String(r.room||r);return /^\d{3,5}$/.test(s)?s.slice(0,-2):'Lain'};
+const greet=()=>{const h=new Date().getHours();return h<11?'Selamat pagi':h<15?'Selamat siang':h<18?'Selamat sore':'Selamat malam'};
+
+const ST={
+  PENDING:{l:'Belum mulai',chip:'bg-slate-100 text-slate-700 ring-slate-200',dot:'bg-slate-400',tile:'bg-white text-slate-600 ring-slate-300'},
+  CLEANING:{l:'Dibersihkan',chip:'bg-amber-50 text-amber-800 ring-amber-200',dot:'bg-amber-500',tile:'bg-amber-400 text-amber-950 ring-amber-500'},
+  PAUSED:{l:'Jeda',chip:'bg-orange-50 text-orange-800 ring-orange-200',dot:'bg-orange-500',tile:'bg-orange-200 text-orange-900 ring-orange-300'},
+  INSPECTION_READY:{l:'Tunggu SPV',chip:'bg-sky-50 text-sky-800 ring-sky-200',dot:'bg-sky-500',tile:'bg-sky-500 text-white ring-sky-600'},
+  COMPLETED:{l:'Ready',chip:'bg-emerald-50 text-emerald-800 ring-emerald-200',dot:'bg-emerald-500',tile:'bg-emerald-500 text-white ring-emerald-600'}
+};
+const CAT={CHECKOUT:{l:'Checkout',chip:'bg-rose-50 text-rose-700 ring-rose-200',text:'text-rose-600'},STAYOVER:{l:'Stayover',chip:'bg-indigo-50 text-indigo-700 ring-indigo-200',text:'text-indigo-600'}};
+const catOf=c=>CAT[c]||CAT.CHECKOUT;
+const ROLE={superadmin:{l:'Superadmin',chip:'bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-200'},admin:{l:'Admin',chip:'bg-brand-50 text-brand-700 ring-brand-200'},supervisor:{l:'Supervisor',chip:'bg-amber-50 text-amber-800 ring-amber-200'},housekeeper:{l:'Housekeeper',chip:'bg-sky-50 text-sky-700 ring-sky-200'}};
+const ORDER={CLEANING:0,PAUSED:1,PENDING:2,INSPECTION_READY:3,COMPLETED:4};
+const ROOM_TYPES=['DBA','DBB','DBE','TWA','TWB','SKA','S2D','CA1A','CA2A','CA2P'];
+const AV=['bg-brand-100 text-brand-800','bg-sky-100 text-sky-800','bg-amber-100 text-amber-800','bg-rose-100 text-rose-800','bg-indigo-100 text-indigo-800','bg-emerald-100 text-emerald-800','bg-fuchsia-100 text-fuchsia-800','bg-orange-100 text-orange-800'];
+const isAdmin=()=>S.me&&(S.me.role==='superadmin'||S.me.role==='admin');
+
+const S={persist:(()=>{try{return !!localStorage.getItem('hk.token')}catch(e){return false}})(),token:lsGet('hk.token'),me:null,today:'',rooms:[],users:[],uploads:[],loaded:false,view:'',
+  reportDate:'',report:{},allUsers:null,log:null,storage:null,drafts:{},del:'',modal:null,confirm:null,creds:null,acct:false,more:false,addUser:false,imp:null,
+  showAll:false,busy:0,lastSync:0,loginErr:'',syncErr:'',qAlert:null};
+
+/* ---------------- SERVER CALLS ---------------- */
+function call(fn,args){
+  return new Promise((res,rej)=>{
+    google.script.run.withSuccessHandler(res).withFailureHandler(e=>{
+      const m=String((e&&e.message)||e||'Gagal');const i=m.indexOf('|');
+      rej(i>0&&/^[A-Z]+$/.test(m.slice(0,i))?{code:m.slice(0,i),message:m.slice(i+1)}:{code:'ERR',message:/network|NetworkError|failed to fetch/i.test(m)?'Koneksi terputus. Periksa internet lalu coba lagi.':m});
+    })[fn].apply(null,args);
+  });
+}
+async function api(fn,...args){
+  S.busy++;renderBusy();
+  try{return await call(fn,[S.token].concat(args))}
+  catch(e){
+    if(e.code==='AUTH'){doLocalLogout(e.message);throw e}
+    if(e.code==='MUSTCHANGE'){if(S.me)S.me.mustChange=true;render();throw e}
+    throw e;
+  }finally{S.busy--;renderBusy()}
+}
+async function run(fn,ok){try{const r=await fn();if(ok)toast(typeof ok==='function'?ok(r):ok);return r}catch(e){if(e.code!=='AUTH'&&e.code!=='MUSTCHANGE')toast(e.message||'Gagal.');return null}}
+let toastT;function toast(m){const el=document.getElementById('toast');document.getElementById('toast-msg').textContent=m;el.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>el.hidden=true,3500)}
+function renderBusy(){document.querySelectorAll('[data-busy]').forEach(el=>el.classList.toggle('spin',!!S.busy))}
+
+async function refresh(silent){
+  if(!S.token||!S.me||S.me.mustChange)return;
+  try{
+    const t0=Date.now();const st=await api('getState',S.today||'');syncClock(st.serverTime,t0,Date.now());
+    S.me=st.me;S.rooms=st.rooms;S.users=st.users;S.uploads=st.uploads||[];S.loaded=true;S.lastSync=nowS();S.syncErr='';
+    S.today=st.today;if(!S.reportDate)S.reportDate=st.today;
+    checkQueueAlerts();
+    render();
+  }catch(e){if(e.code!=='AUTH'&&e.code!=='MUSTCHANGE'){S.syncErr=e.message;if(!silent)toast(e.message);render()}}
+}
+async function loadReport(date){const st=await run(()=>api('getState',date));if(st){S.report[date]=st.rooms;render()}}
+function doLocalLogout(msg){
+  lsDel('hk.token');Object.assign(S,{token:'',me:null,loaded:false,rooms:[],users:[],allUsers:null,log:null,modal:null,confirm:null,creds:null,acct:false,more:false,addUser:false,imp:null,qAlert:null,loginErr:msg||'',view:''});
+  render();
+}
+
+/* ---------------- PDF TASK SHEET PARSER (Opera hsk_tasksheet) ---------------- */
+function parseTaskSheet(pages){
+  const COLS=[['flag',0,20],['room',20,45],['type',45,70],['rs',70,95],['fo',95,120],['am',120,140],['pm',140,165],['resv',165,240],['next',240,282],['td',282,297],['title',297,335],['name',335,385],['arr',385,428],['arrt',428,468],['dep',468,505],['dept',505,545],['vip',545,562],['adl',562,578],['chl',578,598],['spec',598,660],['instr',660,1e9]];
+  const colOf=x=>{for(const c of COLS)if(x>=c[1]&&x<c[2])return c[0]};
+  let date='',att='',seq=0;const rows=[],warnings=[];
+  for(const pg of pages){
+    const words=[];
+    for(const it of pg.items){
+      const s=it.str;if(!s||!s.trim())continue;const L=s.length;let i=0;
+      for(const part of s.split(/(\s+)/)){if(part.trim())words.push({x:it.x+(L?it.w*i/L:0),y:it.y,t:part});i+=part.length}
+    }
+    words.sort((a,b)=>a.y-b.y||a.x-b.x);
+    const lines=[];
+    for(const w of words){const l=lines[lines.length-1];if(l&&w.y-l.y<=1.6)l.ws.push(w);else lines.push({y:w.y,ws:[w]})}
+    let inRows=false,cur=null;
+    for(const l of lines){
+      l.ws.sort((a,b)=>a.x-b.x);
+      const txt=l.ws.map(w=>w.t).join(' ');
+      if(!date){const m=txt.match(/Task Date From\s+(\d{2})\/(\d{2})\/(\d{2})/);if(m)date='20'+m[3]+'-'+m[2]+'-'+m[1]}
+      if(/^Instructions\b/.test(txt)){att=l.ws.filter(w=>w.x>90).map(w=>w.t).join(' ').trim();continue}
+      if(l.ws[0].t==='No'&&l.ws[0].x<40&&l.y<200){inRows=true;continue}
+      if(/^(Total|Filter|Page)/.test(txt)||l.y>540){inRows=false;cur=null;continue}
+      if(!inRows)continue;
+      const d={};for(const w of l.ws){const c=colOf(w.x);(d[c]=d[c]||[]).push(w.t)}
+      const rw=d.room&&d.room[0];
+      if(rw&&/^\d{2,5}[A-Z]?$/.test(rw)){cur={};for(const k in d)cur[k]=d[k].join(' ');cur.att=att;cur.seq=seq++;rows.push(cur)}
+      else if(cur){
+        /* baris lanjutan: kalau ada tanggal Arrival baru, itu reservasi tamu berikutnya (kamar bertanda !) */
+        const tgt=(d.arr&&/^\d{2}\/\d{2}\/\d{2}$/.test(d.arr[0]))?(cur.nx={}):(cur.nx||cur);
+        for(const k in d)tgt[k]=((tgt[k]||'')+' '+d[k].join(' ')).trim();
+      }
+    }
+  }
+  const seen=new Set(),out=[];
+  for(const r of rows){
+    if(seen.has(r.room)){warnings.push('Kamar '+r.room+' muncul dua kali; yang kedua diabaikan.');continue}seen.add(r.room);
+    const resv=(r.resv||'').replace(/^\d+\s*/,'').trim();
+    out.push({room:r.room,type:r.type||'',resv:resv||'-',category:/due out|departed|check(ed)? ?out/i.test(resv)?'CHECKOUT':'STAYOVER',
+      arrivalFlag:/!/.test(r.flag||''),skip:/#/.test(r.flag||''),dep:r.dep||'',vip:r.vip||'',adults:r.adl||'',children:r.chl||'',
+      specials:[r.spec,r.nx&&r.nx.spec].filter(Boolean).join(' · '),instructions:[r.instr,r.nx&&r.nx.instr].filter(Boolean).join(' · '),attendant:r.att||'',seq:r.seq,
+      nextArr:((r.nx&&r.nx.arrt)||r.next||'').replace(/^00:00$/,''),nextAdults:(r.nx&&r.nx.adl)||''});
+  }
+  if(out.some(r=>!r.attendant))warnings.push('Ada kamar tanpa nama attendant; kamar itu masuk sebagai belum di-assign.');
+  return {date,rows:out,warnings};
+}
+let pdfReady=null;
+function loadPdfJs(){
+  if(pdfReady)return pdfReady;
+  const base='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+  const add=src=>new Promise((ok,no)=>{const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=()=>no(new Error('pdfjs-load'));document.head.appendChild(s)});
+  pdfReady=add(base+'pdf.min.js').then(()=>add(base+'pdf.worker.min.js')).then(()=>{
+    const L=window.pdfjsLib||window['pdfjs-dist/build/pdf'];if(!L)throw new Error('pdfjs-load');
+    if(!window.pdfjsWorker){L.GlobalWorkerOptions.workerSrc=URL.createObjectURL(new Blob([`importScripts('${base}pdf.worker.min.js')`],{type:'text/javascript'}))}
+    return L;
+  }).catch(e=>{pdfReady=null;throw e});
+  return pdfReady;
+}
+
+/* ---------------- DATA HELPERS ---------------- */
+const usersById=()=>{const m={};S.users.forEach(u=>m[u.id]=u);(S.allUsers||[]).forEach(u=>m[u.id]=Object.assign({},m[u.id],u));return m};
+const nameOf=id=>{if(!id)return 'Belum di-assign';const u=usersById()[id];return u?u.name:'(akun dihapus)'};
+const hkList=()=>S.users.filter(u=>u.role==='housekeeper'&&u.active).sort((a,b)=>a.name.localeCompare(b.name));
+const roomSort=(a,b)=>String(a.room).localeCompare(String(b.room),undefined,{numeric:true});
+const seqSort=(a,b)=>((a.seq||0)-(b.seq||0))||roomSort(a,b);
+const dv=(id,def)=>id in S.drafts?S.drafts[id]:def;
+const netClean=r=>(r.finishHkAt||0)-(r.startAt||0)-(r.totalPauseMs||0);
+const cnt=(rooms,st)=>rooms.filter(r=>r.status===st).length;
+const spvQueue=()=>S.rooms.filter(r=>r.status==='INSPECTION_READY'&&r.category==='CHECKOUT');
+/* ---- Queue: tamu sudah datang, kamar belum ready ---- */
+const isQ=r=>!!r.queued&&r.status!=='COMPLETED';
+const queued=()=>S.rooms.filter(isQ).sort((a,b)=>(a.queuedAt||0)-(b.queuedAt||0));
+const waitSpan=r=>`<span data-wait="${r.queuedAt||0}">${mins(nowS()-(r.queuedAt||nowS()))}</span>`;
+const qChip=r=>isQ(r)?chip(ic('bell','w-3 h-3')+' Tamu menunggu · '+waitSpan(r)+' mnt','bg-rose-600 text-white ring-rose-700'):'';
+const qFirst=(a,b)=>(isQ(b)?1:0)-(isQ(a)?1:0);
+
+/* ---------------- UI PRIMITIVES ---------------- */
+const B={
+  base:'inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition active:scale-[.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100',
+  md:'px-4 py-2.5 text-sm', sm:'px-3 py-1.5 text-xs', lg:'px-5 py-3.5 text-base',
+  primary:'bg-brand-600 hover:bg-brand-700 text-white shadow-sm', dark:'bg-brand-950 hover:bg-brand-900 text-white shadow-sm',
+  ghost:'bg-white hover:bg-slate-50 text-slate-700 ring-1 ring-inset ring-slate-200', soft:'bg-slate-100 hover:bg-slate-200 text-slate-700',
+  danger:'bg-rose-600 hover:bg-rose-700 text-white shadow-sm', dangerSoft:'bg-rose-50 hover:bg-rose-100 text-rose-700 ring-1 ring-inset ring-rose-200',
+  success:'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm', warn:'bg-amber-500 hover:bg-amber-600 text-white shadow-sm', glass:'bg-white/10 hover:bg-white/15 text-white'
+};
+const bc=(v,s='md',x='')=>[B.base,B[s],B[v],x].join(' ');
+const chip=(lbl,cls,dot)=>`<span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset whitespace-nowrap ${cls}">${dot?`<span class="w-1.5 h-1.5 rounded-full ${dot}"></span>`:''}${lbl}</span>`;
+const stChip=st=>{const s=ST[st]||ST.PENDING;return chip(s.l,s.chip,s.dot+(st==='CLEANING'?' animate-pulse':''))};
+const catChip=c=>chip(catOf(c).l,catOf(c).chip);
+const roleChip=r=>chip((ROLE[r]||{l:r}).l,(ROLE[r]||{chip:''}).chip);
+function resvChip(r){const v=r.resv||'';if(!v||v==='-'||/^stayover$/i.test(v))return '';const c=/departed/i.test(v)?'bg-emerald-50 text-emerald-700 ring-emerald-200':/due out/i.test(v)?'bg-rose-50 text-rose-700 ring-rose-200':/arriv/i.test(v)?'bg-sky-50 text-sky-700 ring-sky-200':'bg-indigo-50 text-indigo-700 ring-indigo-200';return chip(esc(v),c)}
+function flagChips(r){let h='';if(r.arrivalFlag)h+=chip('! Arrival','bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-200');if(r.skip)h+=chip('# Skip','bg-slate-100 text-slate-600 ring-slate-300');if(r.vip)h+=chip(ic('star','w-3 h-3')+' VIP '+esc(r.vip),'bg-yellow-50 text-yellow-800 ring-yellow-300');return h}
+const avatar=(name,size='w-9 h-9 text-xs')=>{const n=String(name||'?');let h=0;for(const c of n)h=(h*31+c.charCodeAt(0))>>>0;const ini=n.split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase()||'?';return `<span class="${size} ${AV[h%AV.length]} rounded-full font-bold inline-flex items-center justify-center shrink-0">${esc(ini)}</span>`};
+const card=(inner,x='')=>`<section class="bg-white rounded-2xl ring-1 ring-slate-200/80 shadow-card ${x}">${inner}</section>`;
+const cardHead=(title,sub,right)=>`<div class="flex items-start justify-between gap-3 px-4 sm:px-5 pt-4 sm:pt-5"><div class="min-w-0"><h2 class="text-[15px] font-bold text-slate-900">${title}</h2>${sub?`<p class="text-xs text-slate-500 mt-0.5">${sub}</p>`:''}</div>${right||''}</div>`;
+const empty=(icon,title,sub,action)=>`<div class="flex flex-col items-center justify-center text-center gap-2 py-10 px-6"><span class="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center">${ic(icon,'w-6 h-6')}</span><p class="font-semibold text-slate-800">${title}</p>${sub?`<p class="text-sm text-slate-500 max-w-sm">${sub}</p>`:''}${action||''}</div>`;
+const bar=(v,t,c='bg-brand-500',h='h-2')=>`<div class="w-full ${h} rounded-full bg-slate-100 overflow-hidden"><div class="${h} ${c} rounded-full transition-all duration-500" style="width:${t?Math.round(v/t*100):0}%"></div></div>`;
+function donut(v,t,size=120,stroke=12,color='#27978c'){
+  const r=(size-stroke)/2,C=2*Math.PI*r,p=t?v/t:0;
+  return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" class="shrink-0" role="img" aria-label="${Math.round(p*100)} persen"><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="#e2e8f0" stroke-width="${stroke}"/>
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C*(1-p)}" transform="rotate(-90 ${size/2} ${size/2})" style="transition:stroke-dashoffset .6s"/>
+    <text x="50%" y="48%" text-anchor="middle" dominant-baseline="middle" font-size="${size/4.6}" font-weight="800" fill="#0f172a">${Math.round(p*100)}%</text>
+    <text x="50%" y="66%" text-anchor="middle" font-size="${size/11}" fill="#64748b">${v}/${t}</text></svg>`;
+}
+const field='w-full rounded-xl bg-white ring-1 ring-inset ring-slate-200 focus:ring-2 focus:ring-brand-500 px-3.5 py-2.5 text-slate-900 placeholder:text-slate-400 outline-none transition';
+const selectCls='rounded-xl bg-white ring-1 ring-inset ring-slate-200 focus:ring-2 focus:ring-brand-500 px-3 py-2.5 text-sm font-medium text-slate-700 outline-none';
+const label=(f,t)=>`<label for="${f}" class="block text-xs font-semibold text-slate-600 mb-1.5">${t}</label>`;
+const searchBox=(id,ph)=>`<label class="flex items-center gap-2 rounded-xl bg-white ring-1 ring-inset ring-slate-200 focus-within:ring-2 focus-within:ring-brand-500 px-3">${ic('search','w-4 h-4 text-slate-400')}<input id="${id}" data-keep data-live type="search" placeholder="${ph}" value="${esc(dv(id,''))}" class="w-full bg-transparent py-2.5 outline-none text-slate-900 placeholder:text-slate-400" aria-label="${ph}"></label>`;
+function delBtn(key,act,id,lbl){
+  return S.del===key?`<span class="inline-flex gap-1 shrink-0"><button data-act="${act}" data-id="${esc(id)}" class="${bc('danger','sm')}">Hapus</button><button data-act="delCancel" class="${bc('soft','sm')}">Batal</button></span>`
+  :`<button data-act="delAsk" data-id="${esc(key)}" class="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 shrink-0" aria-label="${esc(lbl)}">${ic('trash')}</button>`;
+}
+function guestLine(r){const p=[];if(r.dep)p.push('Dep '+esc(String(r.dep).slice(0,5)));if(r.adults)p.push(esc(r.adults)+' dewasa'+(r.children&&r.children!=='0'?', '+esc(r.children)+' anak':''));if(r.arrivalFlag&&(r.nextArr||r.nextAdults))p.push('<span class="text-fuchsia-700 font-semibold">Tamu baru'+(r.nextArr?' tiba '+esc(r.nextArr.replace(':','.')):'')+(r.nextAdults?', '+esc(r.nextAdults)+' dewasa':'')+'</span>');return p.join(' · ')}
+function notes(r){const n=[r.specials&&('Specials: '+r.specials),r.instructions&&('Instruksi: '+r.instructions)].filter(Boolean);return n.length?`<div class="rounded-xl bg-sky-50 ring-1 ring-inset ring-sky-200 px-3 py-2 text-xs text-sky-900 leading-relaxed">${n.map(esc).join('<br>')}</div>`:''}
+
+/* ================= LOGIN ================= */
+function loginArt(){
+  /* ilustrasi umum: kamar hotel yang sudah rapi */
+  const star=(x,y,r,c)=>`<path d="M${x} ${y-r}L${x+r*.28} ${y-r*.28}L${x+r} ${y}L${x+r*.28} ${y+r*.28}L${x} ${y+r}L${x-r*.28} ${y+r*.28}L${x-r} ${y}L${x-r*.28} ${y-r*.28}Z" fill="${c}"/>`;
+  return `<svg viewBox="0 0 360 230" class="w-full max-w-md" role="img" aria-label="Ilustrasi kamar hotel yang rapi">
+    <ellipse cx="180" cy="204" rx="165" ry="10" fill="#ffffff" opacity=".06"/>
+    <circle cx="310" cy="104" r="34" fill="#f1b358" opacity=".12"/>
+    <rect x="58" y="62" width="204" height="78" rx="16" fill="#ffffff" fill-opacity=".07" stroke="#78cfc4" stroke-width="2"/>
+    <rect x="80" y="100" width="72" height="28" rx="13" fill="#ffffff"/>
+    <rect x="168" y="100" width="72" height="28" rx="13" fill="#ffffff"/>
+    <rect x="46" y="126" width="228" height="44" rx="12" fill="#ade4dc"/>
+    <rect x="46" y="140" width="228" height="30" rx="11" fill="#27978c"/>
+    <path d="M52 147h216" stroke="#d5f2ed" stroke-width="2" stroke-linecap="round" opacity=".7"/>
+    <rect x="58" y="168" width="10" height="34" rx="3" fill="#78cfc4"/>
+    <rect x="252" y="168" width="10" height="34" rx="3" fill="#78cfc4"/>
+    <rect x="288" y="146" width="48" height="56" rx="8" fill="#ffffff" fill-opacity=".08" stroke="#78cfc4" stroke-width="2"/>
+    <path d="M288 172h48" stroke="#78cfc4" stroke-width="2"/><circle cx="312" cy="160" r="2.5" fill="#78cfc4"/><circle cx="312" cy="186" r="2.5" fill="#78cfc4"/>
+    <path d="M312 146v-26" stroke="#78cfc4" stroke-width="3" stroke-linecap="round"/>
+    <path d="M296 120h32l-7-24h-18z" fill="#f1b358"/>
+    <circle cx="246" cy="58" r="20" fill="#27978c" stroke="#0b2a29" stroke-width="4"/>
+    <path d="M237 58l6 6 12-13" fill="none" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+    ${star(36,72,10,'#78cfc4')}${star(184,34,7,'#ffffff')}${star(292,56,6,'#ade4dc')}${star(26,150,5,'#ffffff')}
+  </svg>`;
+}
+function viewLogin(){
+  return `<div class="min-h-screen grid grid-rows-[auto_1fr] lg:grid-rows-1 lg:grid-cols-[1.1fr_1fr]">
+    <aside class="relative overflow-hidden bg-brand-950 text-white dots px-safe safe-t">
+      <div class="relative max-w-xl mx-auto lg:mx-0 lg:ml-auto lg:mr-16 py-6 sm:py-10 lg:py-0 lg:h-full flex flex-col justify-center gap-8">
+        <div class="flex items-center gap-3"><span class="w-11 h-11 rounded-2xl bg-brand-500/20 ring-1 ring-brand-400/40 flex items-center justify-center">${ic('door','w-6 h-6 text-brand-300')}</span><span class="text-xl font-extrabold tracking-tight">HK Tracker</span></div>
+        <div class="hidden sm:block">${loginArt()}</div>
+      </div>
+    </aside>
+    <main class="flex items-center justify-center px-safe py-10 lg:py-0">
+      <form id="login-form" class="w-full max-w-sm space-y-5" autocomplete="on">
+        <div><h2 class="text-2xl font-extrabold text-slate-900 tracking-tight">Masuk</h2><p class="text-sm text-slate-500 mt-1">Gunakan username dan password dari admin.</p></div>
+        ${S.loginErr?`<div class="flex gap-2 rounded-xl bg-rose-50 ring-1 ring-inset ring-rose-200 text-rose-800 text-sm px-3.5 py-3">${ic('alert','w-4 h-4 mt-0.5')}<span>${esc(S.loginErr)}</span></div>`:''}
+        <div>${label('l-user','Username')}<input id="l-user" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required class="${field}" value="${esc(dv('l-user',''))}" data-keep></div>
+        <div>${label('l-pass','Password / PIN')}<div class="relative"><input id="l-pass" name="password" type="password" autocomplete="current-password" required class="${field} pr-11">
+          <button type="button" data-act="togglePw" data-for="l-pass" class="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-slate-400 hover:text-slate-600" aria-label="Tampilkan password">${ic('eye')}</button></div></div>
+        <label class="flex items-center gap-2.5 text-sm text-slate-600 select-none"><input type="checkbox" id="l-remember" class="w-4 h-4 rounded accent-brand-600" ${dv('l-remember',true)?'checked':''} data-keep> Tetap masuk di perangkat ini</label>
+        <button id="l-submit" type="submit" class="${bc('dark','lg','w-full')}">Masuk ${ic('chevron')}</button>
+        <p class="text-xs text-slate-400 text-center">Lupa password? Minta admin atau superadmin untuk meresetnya.</p>
+      </form>
+    </main></div>`;
+}
+function pwForm(forced){
+  return `<form id="pw-form" class="space-y-4">
+    ${forced?`<div class="flex gap-2 rounded-xl bg-amber-50 ring-1 ring-inset ring-amber-200 text-amber-900 text-sm px-3.5 py-3">${ic('key','w-4 h-4 mt-0.5')}<span>Ini login pertama Anda atau password baru saja direset. Buat password baru sebelum melanjutkan.</span></div>`:''}
+    <div>${label('p-old',forced?'Password / PIN sementara':'Password lama')}<input id="p-old" type="password" autocomplete="current-password" required class="${field}"></div>
+    <div>${label('p-new','Password baru (min. 6 karakter)')}<input id="p-new" type="password" autocomplete="new-password" minlength="6" required class="${field}"></div>
+    <div>${label('p-new2','Ulangi password baru')}<input id="p-new2" type="password" autocomplete="new-password" minlength="6" required class="${field}"></div>
+    <p id="pw-err" class="text-sm text-rose-600" hidden></p>
+    <button id="p-submit" type="submit" class="${bc('primary','md','w-full')}">Simpan password</button>
+  </form>`;
+}
+function viewMustChange(){
+  return `<div class="min-h-screen flex items-center justify-center px-safe py-10">
+    <div class="w-full max-w-md bg-white rounded-3xl ring-1 ring-slate-200 shadow-card p-6 sm:p-8 space-y-5">
+      <div class="flex items-center gap-3">${avatar(S.me.name,'w-12 h-12 text-sm')}<div><h1 class="text-lg font-extrabold text-slate-900">Halo, ${esc(S.me.name)}</h1><p class="text-sm text-slate-500">@${esc(S.me.username)} · ${(ROLE[S.me.role]||{}).l}</p></div><span class="ml-auto">${serverClock('inline-flex text-xs text-slate-700')}</span></div>
+      ${pwForm(true)}
+      <button data-act="logout" class="${bc('soft','md','w-full')}">${ic('logout')} Keluar</button></div></div>`;
+}
+async function submitLogin(e){
+  e.preventDefault();
+  const u=document.getElementById('l-user').value.trim(),p=document.getElementById('l-pass').value,rem=document.getElementById('l-remember').checked;
+  const b=document.getElementById('l-submit');b.disabled=true;b.innerHTML=`${ic('refresh','w-4 h-4 spin')} Memeriksa…`;
+  try{
+    const r=await call('login',[u,p]);
+    S.token=r.token;S.me=r.me;S.loginErr='';S.persist=rem;lsDel('hk.token');lsSet('hk.token',r.token,rem);S.view=defaultView();
+    render();refresh();
+  }catch(err){S.loginErr=err.message;render();setTimeout(()=>{const el=document.getElementById('l-pass');el&&el.focus()},0)}
+}
+async function submitPw(e){
+  e.preventDefault();
+  const o=document.getElementById('p-old').value,n=document.getElementById('p-new').value,n2=document.getElementById('p-new2').value,er=document.getElementById('pw-err');
+  if(n!==n2){er.textContent='Password baru tidak sama.';er.hidden=false;return}
+  const b=document.getElementById('p-submit');b.disabled=true;b.textContent='Menyimpan…';
+  try{
+    const r=await call('changePassword',[S.token,o,n]);
+    S.token=r.token;S.me=r.me;lsDel('hk.token');lsSet('hk.token',r.token,S.persist);S.acct=false;
+    toast('Password tersimpan.');S.view=S.view||defaultView();render();refresh();
+  }catch(err){if(err.code==='AUTH')return doLocalLogout(err.message);er.textContent=err.message;er.hidden=false;b.disabled=false;b.textContent='Simpan password'}
+}
+
+/* ================= SHELL ================= */
+const VIEWS={
+  dash:{l:'Dashboard',i:'home',d:'Ringkasan kamar hari ini'},
+  upload:{l:'Upload',i:'upload',d:'Import Task Sheet Report dari Opera'},
+  rooms:{l:'Kamar',i:'bed',d:'Daftar kamar & penugasan housekeeper'},
+  inspect:{l:'Inspeksi',i:'dcheck',d:'Kamar checkout yang menunggu verifikasi'},
+  recap:{l:'Rekap',i:'clock',d:'Durasi kamar yang sudah ready hari ini'},
+  report:{l:'Laporan',i:'chart',d:'Kinerja per tanggal'},
+  users:{l:'Pengguna',i:'users',d:'Akun, peran, dan password'},
+  system:{l:'Sistem',i:'shield',d:'Log aktivitas & penyimpanan'},
+  hk:{l:'Tugas Saya',i:'list',d:'Kamar yang ditugaskan kepada Anda'}
+};
+function navItems(){
+  const r=S.me.role;
+  if(r==='superadmin')return ['dash','upload','rooms','inspect','report','users','recap','system'];
+  if(r==='admin')return ['dash','upload','rooms','inspect','report','users','recap'];
+  if(r==='supervisor')return ['inspect','dash','recap'];
+  return ['hk'];
+}
+const defaultView=()=>S.me?navItems()[0]:'';
+function navBadge(v){
+  if(!S.loaded)return 0;
+  if(v==='inspect')return spvQueue().length;
+  if(v==='dash')return queued().length;
+  if(v==='rooms')return S.rooms.filter(r=>!r.assignedTo).length;
+  if(v==='hk')return S.rooms.filter(r=>r.assignedTo===S.me.id&&r.status==='PENDING').length;
+  return 0;
+}
+function sidebar(nav){
+  return `<aside class="hidden lg:flex fixed inset-y-0 left-0 w-72 flex-col bg-brand-950 text-white z-30">
+    <div class="px-6 pt-6 pb-5 flex items-center gap-3"><span class="w-10 h-10 rounded-xl bg-brand-500/20 ring-1 ring-brand-400/40 flex items-center justify-center">${ic('door','w-5 h-5 text-brand-300')}</span>
+      <div><p class="font-extrabold tracking-tight leading-none">HK Tracker</p><p class="text-[11px] text-brand-300/80 mt-1">Housekeeping operations</p></div></div>
+    <nav class="flex-1 px-3 space-y-1 overflow-y-auto" aria-label="Menu utama">${nav.map(v=>{const on=S.view===v,b=navBadge(v);return `<button data-act="nav" data-v="${v}" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition ${on?'bg-white/10 text-white ring-1 ring-inset ring-white/10':'text-brand-100/70 hover:text-white hover:bg-white/5'}" ${on?'aria-current="page"':''}>${ic(VIEWS[v].i,'w-[18px] h-[18px]')}<span class="flex-1 text-left">${VIEWS[v].l}</span>${b?`<span class="min-w-[22px] h-[22px] px-1.5 rounded-full text-[11px] font-bold flex items-center justify-center ${v==='inspect'?'bg-amber-400 text-amber-950':v==='dash'?'bg-rose-500 text-white animate-pulse':'bg-white/15 text-white'}">${b}</span>`:''}</button>`}).join('')}</nav>
+    <div class="p-3"><button data-act="acct" class="w-full flex items-center gap-3 p-3 rounded-2xl bg-white/5 hover:bg-white/10 ring-1 ring-inset ring-white/10 text-left">${avatar(S.me.name)}<span class="min-w-0 flex-1"><span class="block text-sm font-bold truncate">${esc(S.me.name)}</span><span class="block text-[11px] text-brand-200/70">${(ROLE[S.me.role]||{}).l}</span></span>${ic('chevron','w-4 h-4 text-brand-300')}</button></div>
+  </aside>`;
+}
+function topbar(){
+  const v=VIEWS[S.view];
+  return `<header class="sticky top-0 z-20 bg-[#f3f6f6]/85 backdrop-blur-md border-b border-slate-200/70 safe-t">
+    <div class="px-safe h-16 flex items-center gap-3">
+      <div class="lg:hidden flex items-center gap-2.5 min-w-0 flex-1"><span class="w-9 h-9 rounded-xl bg-brand-950 flex items-center justify-center shrink-0">${ic('door','w-[18px] h-[18px] text-brand-300')}</span>
+        <div class="min-w-0"><p class="font-extrabold text-slate-900 leading-none truncate">${v.l}</p><p class="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5 whitespace-nowrap"><span>${esc(fmtShort(S.today))}</span><span class="text-slate-300">·</span>${serverClock('inline-flex text-slate-700')}</p></div></div>
+      <div class="hidden lg:block flex-1 min-w-0"><h1 class="text-xl font-extrabold text-slate-900 tracking-tight">${v.l}</h1><p class="text-xs text-slate-500">${v.d} · ${esc(fmtDate(S.today))}</p></div>
+      ${serverClock('hidden lg:inline-flex text-sm text-slate-800 bg-white ring-1 ring-slate-200 rounded-xl px-3 py-2 shadow-card')}
+      <button data-act="refresh" class="hidden sm:inline-flex items-center gap-2 text-xs font-semibold text-slate-500 hover:text-slate-800 px-3 py-2 rounded-xl hover:bg-white ring-1 ring-transparent hover:ring-slate-200" title="Muat ulang data">
+        <span data-busy class="inline-flex ${S.busy?'spin':''}">${ic('refresh','w-4 h-4')}</span><span>${S.lastSync?'Diperbarui '+clk(S.lastSync):'Memuat'}</span></button>
+      <button data-act="refresh" class="sm:hidden p-2 rounded-xl text-slate-500 hover:bg-white" aria-label="Muat ulang"><span data-busy class="inline-flex ${S.busy?'spin':''}">${ic('refresh','w-5 h-5')}</span></button>
+      <button data-act="acct" class="lg:hidden" aria-label="Akun">${avatar(S.me.name)}</button>
+    </div></header>`;
+}
+function bottomNav(nav){
+  let items=nav.slice();const max=5;let more=false;
+  if(items.length>max){items=items.slice(0,max-1);more=true}
+  const btn=(v,lbl,icon,on,b,act)=>`<button data-act="${act||'nav'}" data-v="${v}" class="relative flex-1 flex flex-col items-center gap-1 pt-2.5 pb-2 text-[10.5px] font-semibold ${on?'text-brand-700':'text-slate-500'}" ${on?'aria-current="page"':''}>
+    <span class="relative inline-flex items-center justify-center w-12 h-7 rounded-full ${on?'bg-brand-100':''}">${ic(icon,'w-5 h-5')}${b?`<span class="absolute -top-1 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center ${v==='inspect'?'bg-amber-400 text-amber-950':'bg-rose-500 text-white'}">${b>99?'99+':b}</span>`:''}</span>${lbl}</button>`;
+  return `<nav class="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200 safe-b" aria-label="Menu">
+    <div class="flex px-1 max-w-xl mx-auto">${items.map(v=>btn(v,VIEWS[v].l,VIEWS[v].i,S.view===v,navBadge(v))).join('')}${more?btn('_more','Lainnya','grid',!items.includes(S.view),0,'openMore'):''}${nav.length===1?btn('_acct','Akun','user',false,0,'acct'):''}</div></nav>`;
+}
+function viewShell(){
+  const nav=navItems();if(!nav.includes(S.view))S.view=nav[0];
+  let body;
+  if(!S.loaded)body=S.syncErr?card(empty('alert','Data belum bisa dimuat',esc(S.syncErr),`<button data-act="refresh" class="${bc('primary')}">Coba lagi</button>`)):skeleton();
+  else body={dash:viewDash,upload:viewUpload,rooms:viewRooms,inspect:viewInspect,recap:viewRecap,report:viewReport,users:viewUsers,system:viewSystem,hk:viewHK}[S.view]();
+  return `${sidebar(nav)}<div class="lg:pl-72 min-h-screen">${topbar()}
+    <main class="px-safe pt-5 pb-28 lg:pb-12 max-w-[1400px]">
+      ${S.syncErr&&S.loaded?`<div class="mb-4 flex items-center justify-between gap-3 rounded-xl bg-amber-50 ring-1 ring-inset ring-amber-200 px-4 py-2.5 text-sm text-amber-900"><span class="flex items-center gap-2">${ic('alert')} ${esc(S.syncErr)}</span><button data-act="refresh" class="font-semibold">Coba lagi</button></div>`:''}
+      ${body}</main></div>${bottomNav(nav)}`;
+}
+const skeleton=()=>`<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">${[1,2,3,4].map(()=>`<div class="h-28 rounded-2xl bg-white ring-1 ring-slate-200 animate-pulse"></div>`).join('')}</div><div class="mt-4 h-64 rounded-2xl bg-white ring-1 ring-slate-200 animate-pulse"></div>`;
+const pageHead=(title,sub,right)=>`<div class="lg:hidden mb-4 flex items-end justify-between gap-3"><div>${title?`<h2 class="text-lg font-extrabold text-slate-900">${title}</h2>`:''}${sub?`<p class="text-sm text-slate-500">${sub}</p>`:''}</div>${right||''}</div>`;
+
+/* ================= QUEUE BANNER ================= */
+function queueBanner(list,title,sub){
+  if(!list.length)return '';
+  return `<section class="mb-4 rounded-2xl bg-rose-600 text-white shadow-lift overflow-hidden" role="alert">
+    <div class="px-4 sm:px-5 py-3.5 flex items-center gap-3"><span class="relative w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center shrink-0">${ic('bell','w-5 h-5')}<span class="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-amber-300 animate-ping"></span></span>
+      <div class="min-w-0 flex-1"><p class="font-extrabold">${title}</p><p class="text-xs text-rose-100">${sub}</p></div></div>
+    <div class="bg-rose-700/40 px-2 sm:px-3 py-2 flex gap-2 overflow-x-auto no-scrollbar">${list.map(r=>`<div class="shrink-0 rounded-xl bg-white text-slate-900 px-3 py-2 min-w-[150px]">
+      <div class="flex items-center justify-between gap-2"><span class="text-lg font-extrabold">${esc(r.room)}</span><span class="text-xs font-bold text-rose-600">${waitSpan(r)} mnt</span></div>
+      <p class="text-[11px] text-slate-500 truncate">${esc(nameOf(r.assignedTo))}</p><div class="mt-1">${stChip(r.status)}</div></div>`).join('')}</div></section>`;
+}
+
+/* ================= DASHBOARD ================= */
+function kpi(icon,iconCls,lbl,value,sub,x=''){
+  return `<div class="bg-white rounded-2xl ring-1 ring-slate-200/80 shadow-card p-4 flex flex-col gap-3 ${x}">
+    <div class="flex items-center justify-between gap-2"><span class="text-xs font-semibold text-slate-500">${lbl}</span><span class="w-8 h-8 rounded-xl ${iconCls} flex items-center justify-center">${ic(icon,'w-4 h-4')}</span></div>
+    <div><p class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">${value}</p>${sub?`<p class="text-xs text-slate-500 mt-0.5">${sub}</p>`:''}</div></div>`;
+}
+function floorMap(rooms){
+  if(!rooms.length)return '';
+  const by={};rooms.forEach(r=>{(by[floorOf(r)]=by[floorOf(r)]||[]).push(r)});
+  const floors=Object.keys(by).sort((a,b)=>(+b||0)-(+a||0));
+  const legend=Object.keys(ST).map(k=>`<span class="inline-flex items-center gap-1.5 mr-3"><span class="w-2.5 h-2.5 rounded ${ST[k].dot}"></span>${ST[k].l}</span>`).join('');
+  return card(`${cardHead('Peta lantai','Status tiap kamar per lantai',`<div class="hidden md:block text-[11px] text-slate-500">${legend}</div>`)}
+    <div class="px-4 sm:px-5 pb-5 pt-3 space-y-2">${floors.map(f=>`<div class="flex items-start gap-3"><span class="w-11 shrink-0 pt-1.5 text-[11px] font-bold text-slate-500">Lt ${esc(f)}</span>
+      <div class="flex flex-wrap gap-1.5 min-w-0">${by[f].sort(roomSort).map(r=>`<span title="${esc(r.room)} · ${ST[r.status].l} · ${esc(nameOf(r.assignedTo))}${r.arrivalFlag?' · Arrival':''}" class="relative w-12 h-8 rounded-lg ring-1 ring-inset ${ST[r.status].tile} ${isQ(r)?'outline outline-2 outline-offset-1 outline-rose-600':''} text-[11px] font-bold flex items-center justify-center">${esc(r.room)}${isQ(r)?`<span class="absolute -top-1.5 -left-1.5 w-4 h-4 rounded-full bg-rose-600 text-white flex items-center justify-center ring-2 ring-white">${ic('bell','w-2.5 h-2.5')}</span>`:''}${r.arrivalFlag&&r.status!=='COMPLETED'?'<span class="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-fuchsia-500 ring-2 ring-white"></span>':''}</span>`).join('')}</div></div>`).join('')}
+      <p class="md:hidden text-[11px] text-slate-500 pt-2 leading-6">${legend}</p>
+      <p class="text-[11px] text-slate-500"><span class="inline-block w-2 h-2 rounded-full bg-fuchsia-500 mr-1"></span>ada tamu arrival hari ini, belum ready <span class="ml-3 inline-flex items-center gap-1"><span class="inline-flex w-3.5 h-3.5 rounded-full bg-rose-600 text-white items-center justify-center">${ic('bell','w-2 h-2')}</span>tamu sudah menunggu</span></p></div>`);
+}
+function viewDash(){
+  const R=S.rooms,total=R.length,ready=cnt(R,'COMPLETED'),wait=cnt(R,'INSPECTION_READY'),work=cnt(R,'CLEANING')+cnt(R,'PAUSED'),pend=cnt(R,'PENDING');
+  if(!total)return pageHead('',esc(fmtDate(S.today)))+card(empty('inbox','Belum ada kamar hari ini',isAdmin()?'Upload Task Sheet Report pagi ini untuk membagikan kamar ke housekeeper.':'Kamar muncul setelah admin meng-upload task sheet.',isAdmin()?`<button data-act="nav" data-v="upload" class="${bc('primary')}">${ic('upload')} Upload task sheet</button>`:''));
+  const arr=R.filter(r=>r.arrivalFlag&&r.status!=='COMPLETED').sort((a,b)=>ORDER[a.status]-ORDER[b.status]||roomSort(a,b));
+  const hks=hkList().map(h=>{const m=R.filter(r=>r.assignedTo===h.id);const d=m.filter(r=>r.status==='INSPECTION_READY'||r.status==='COMPLETED');const avg=d.length?Math.round(d.reduce((s,r)=>s+mins(netClean(r)),0)/d.length):0;return{h,m,d:d.length,avg,a:m.find(r=>r.status==='CLEANING'),p:m.find(r=>r.status==='PAUSED')}}).filter(x=>x.m.length).sort((a,b)=>(b.d/b.m.length)-(a.d/a.m.length));
+  const since=r=>`<span class="font-mono" data-since="${r.startAt+(r.totalPauseMs||0)}">${timer(nowS()-r.startAt-(r.totalPauseMs||0))}</span>`;
+  const row=(r,right)=>`<div class="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-slate-50"><span class="w-12 font-extrabold text-slate-900">${esc(r.room)}</span><span class="flex-1 min-w-0 text-xs text-slate-500 truncate">${right}</span>`;
+  const Q=queued();
+  return `${pageHead(greet()+', '+esc(S.me.name.split(' ')[0]),esc(fmtDate(S.today)))}
+  ${queueBanner(Q,`${Q.length} tamu sudah menunggu`,isAdmin()?'Housekeeper & supervisor sudah diberi tahu. Batalkan dari menu Kamar bila tamu sudah dipindahkan.':'Prioritaskan kamar ini.')}
+  <div class="hidden lg:flex items-end justify-between mb-5"><div><p class="text-sm text-slate-500">${greet()},</p><p class="text-2xl font-extrabold text-slate-900 tracking-tight">${esc(S.me.name)}</p></div>${isAdmin()?`<button data-act="nav" data-v="upload" class="${bc('ghost')}">${ic('upload')} Upload task sheet</button>`:''}</div>
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-3 sm:gap-4">
+    ${kpi('bed','bg-slate-100 text-slate-600','Total kamar',total,`${R.filter(r=>r.category==='CHECKOUT').length} CO · ${R.filter(r=>r.category==='STAYOVER').length} SO`)}
+    ${kpi('check','bg-emerald-50 text-emerald-600','Ready',ready,`${total?Math.round(ready/total*100):0}% dari total`)}
+    ${kpi('dcheck','bg-sky-50 text-sky-600','Tunggu SPV',wait,'checkout selesai')}
+    ${kpi('clock','bg-amber-50 text-amber-600','Dikerjakan',work,`${cnt(R,'PAUSED')} dijeda`)}
+    ${kpi('inbox','bg-slate-100 text-slate-500','Belum mulai',pend,`${R.filter(r=>!r.assignedTo).length} belum di-assign`,'col-span-2 md:col-span-1')}
+  </div>
+  <div class="grid gap-4 mt-4 md:grid-cols-2 lg:grid-cols-3">
+    ${card(`${cardHead('Progress hotel','Kamar berstatus ready')}<div class="px-5 pb-5 pt-2 flex items-center gap-5">${donut(ready,total,132,14)}
+      <div class="flex-1 space-y-2.5 text-sm">${['COMPLETED','INSPECTION_READY','CLEANING','PAUSED','PENDING'].map(k=>`<div class="flex items-center justify-between gap-2"><span class="flex items-center gap-2 text-slate-600"><span class="w-2.5 h-2.5 rounded-full ${ST[k].dot}"></span>${ST[k].l}</span><span class="font-bold text-slate-900">${cnt(R,k)}</span></div>`).join('')}</div></div>`)}
+    ${card(`${cardHead('Prioritas arrival',`${arr.length} kamar arrival belum ready`)}<div class="px-2 sm:px-3 pb-3 pt-2 max-h-[260px] overflow-y-auto">${arr.length?arr.slice(0,40).map(r=>row(r,esc(nameOf(r.assignedTo)))+stChip(r.status)+'</div>').join(''):empty('check','Semua kamar arrival sudah ready','')}</div>`)}
+    ${card(`${cardHead('Antrean supervisor',`${wait} kamar menunggu verifikasi`,`<button data-act="nav" data-v="inspect" class="${bc('soft','sm')}">Buka</button>`)}<div class="px-2 sm:px-3 pb-3 pt-2 max-h-[260px] overflow-y-auto">${wait?spvQueue().sort((a,b)=>qFirst(a,b)||(b.arrivalFlag?1:0)-(a.arrivalFlag?1:0)||a.finishHkAt-b.finishHkAt).slice(0,40).map(r=>row(r,esc(nameOf(r.assignedTo))+' · selesai '+clk(r.finishHkAt))+(r.arrivalFlag?chip('! Arrival','bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-200'):'')+'</div>').join(''):empty('inbox','Antrean kosong','')}</div>`,'md:col-span-2 lg:col-span-1')}
+  </div>
+  <div class="mt-4">${floorMap(R)}</div>
+  <div class="mt-4">${card(`${cardHead('Kinerja housekeeper',`${hks.length} orang bertugas hari ini`)}
+    <div class="hidden md:block overflow-x-auto mt-3"><table class="w-full text-sm"><thead><tr class="text-left text-xs text-slate-500 border-y border-slate-100 bg-slate-50/60"><th class="font-semibold px-5 py-2.5">Housekeeper</th><th class="font-semibold px-3 py-2.5">Selesai</th><th class="font-semibold px-3 py-2.5 w-[28%]">Progress</th><th class="font-semibold px-3 py-2.5">Rata-rata</th><th class="font-semibold px-5 py-2.5">Saat ini</th></tr></thead>
+      <tbody class="divide-y divide-slate-100">${hks.map(x=>`<tr class="hover:bg-slate-50/60"><td class="px-5 py-3"><div class="flex items-center gap-3">${avatar(x.h.name,'w-8 h-8 text-[11px]')}<span class="font-semibold text-slate-900">${esc(x.h.name)}</span></div></td><td class="px-3 py-3 font-bold text-slate-900">${x.d}<span class="text-slate-400 font-medium">/${x.m.length}</span></td><td class="px-3 py-3">${bar(x.d,x.m.length)}</td><td class="px-3 py-3 text-slate-600">${x.avg?x.avg+' mnt':'–'}</td>
+        <td class="px-5 py-3">${x.a?`<span class="inline-flex items-center gap-1.5 text-amber-700 font-semibold">${ic('clock','w-3.5 h-3.5')} ${esc(x.a.room)} · ${since(x.a)}</span>`:x.p?`<span class="text-orange-700 font-semibold">Jeda di ${esc(x.p.room)}</span>`:'<span class="text-slate-400">—</span>'}</td></tr>`).join('')}</tbody></table></div>
+    <div class="md:hidden px-4 pb-4 pt-3 space-y-3.5">${hks.map(x=>`<div class="flex items-center gap-3">${avatar(x.h.name,'w-9 h-9 text-[11px]')}<div class="flex-1 min-w-0 space-y-1.5"><div class="flex items-center justify-between gap-2"><span class="font-semibold text-sm text-slate-900 truncate">${esc(x.h.name)}</span><span class="text-xs font-bold text-slate-700">${x.d}/${x.m.length}</span></div>${bar(x.d,x.m.length)}
+      ${x.a?`<p class="text-[11px] text-amber-700 font-semibold">Mengerjakan ${esc(x.a.room)} · ${since(x.a)}</p>`:x.p?`<p class="text-[11px] text-orange-700 font-semibold">Jeda di ${esc(x.p.room)}</p>`:''}</div></div>`).join('')||'<p class="text-sm text-slate-500">Belum ada penugasan.</p>'}</div>`)}</div>`;
+}
+
+/* ================= UPLOAD ================= */
+function viewUpload(){
+  const I=S.imp;
+  const drop=card(`<div class="p-4 sm:p-5 space-y-4">
+    <label for="f-pdf" id="drop" class="group flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-brand-200 bg-brand-50/50 hover:bg-brand-50 hover:border-brand-400 transition py-10 px-4 text-center cursor-pointer">
+      <span class="w-14 h-14 rounded-2xl bg-white ring-1 ring-brand-200 shadow-card flex items-center justify-center group-hover:scale-105 transition">${ic('file','w-7 h-7 text-brand-600')}</span>
+      <span class="text-base font-bold text-slate-900">Pilih PDF Task Sheet Report</span><span class="text-sm text-slate-500">atau seret file ke sini · format Opera hsk_tasksheet</span></label>
+    <input type="file" id="f-pdf" accept="application/pdf,.pdf" class="sr-only">
+    <ul class="grid sm:grid-cols-3 gap-3 text-xs text-slate-600">
+      <li class="flex gap-2 rounded-xl bg-slate-50 p-3">${ic('users','w-4 h-4 text-brand-600')}<span>Nama di baris <b>Instructions</b> jadi akun housekeeper</span></li>
+      <li class="flex gap-2 rounded-xl bg-slate-50 p-3">${ic('door','w-4 h-4 text-rose-600')}<span><b>Due Out/Departed</b> = Checkout, dicek supervisor</span></li>
+      <li class="flex gap-2 rounded-xl bg-slate-50 p-3">${ic('bed','w-4 h-4 text-indigo-600')}<span><b>Stayover</b> langsung ready setelah Finish</span></li></ul></div>`);
+  let side='';
+  if(I){
+    if(I.state==='reading')side=card(`<div class="p-5 space-y-3"><p class="font-semibold text-slate-900 flex items-center gap-2">${ic('refresh','w-4 h-4 spin text-brand-600')} Membaca ${esc(I.fileName)}</p>${bar(I.pagesDone,I.pagesTotal||1)}<p class="text-xs text-slate-500">${I.pagesTotal?`Halaman ${I.pagesDone} dari ${I.pagesTotal}`:'Menyiapkan pembaca PDF…'}</p></div>`);
+    else if(I.state==='error')side=`<div class="flex gap-3 rounded-2xl bg-rose-50 ring-1 ring-inset ring-rose-200 p-4 text-sm text-rose-900">${ic('alert','w-5 h-5 mt-0.5')}<div><p class="font-semibold">${esc(I.fileName||'File')}</p><p>${esc(I.error)}</p></div></div>`;
+    else if(I.state==='preview')side=importPreview();
+    else if(I.state==='writing')side=card(`<div class="p-6 flex flex-col items-center text-center gap-3"><span class="w-12 h-12 rounded-2xl bg-brand-50 flex items-center justify-center">${ic('refresh','w-6 h-6 text-brand-600 spin')}</span><p class="font-bold text-slate-900">Menyimpan ${I.parsed.rows.length} kamar ke Google Sheets</p><p class="text-sm text-slate-500">Biasanya 5–20 detik. Jangan tutup halaman ini.</p></div>`);
+    else if(I.state==='done'){const r=I.result;side=card(`<div class="p-5 space-y-4"><div class="flex items-center gap-3"><span class="w-11 h-11 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">${ic('check','w-6 h-6')}</span><div><p class="font-bold text-slate-900">Import selesai</p><p class="text-sm text-slate-500">${esc(fmtDate(r.date))}</p></div></div>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">${[['Baru',r.added],['Diperbarui',r.updated],['Sudah dikerjakan',r.kept],['Dihapus',r.removed]].map(([l,v])=>`<div class="rounded-xl bg-slate-50 p-3"><p class="text-xl font-extrabold text-slate-900">${v}</p><p class="text-[11px] text-slate-500">${l}</p></div>`).join('')}</div>
+      <div class="flex flex-wrap gap-2">${r.newUsers.length?`<button data-act="showNewCreds" class="${bc('ghost')}">${ic('key')} ${r.newUsers.length} akun baru · lihat PIN</button>`:''}<button data-act="nav" data-v="rooms" class="${bc('primary')}">Lihat daftar kamar ${ic('chevron')}</button></div></div>`)}
+  }
+  const hist=S.uploads.length?card(`${cardHead('Riwayat upload','10 upload terakhir')}<div class="px-2 pb-2 pt-2">${S.uploads.map(d=>`<div class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50"><span class="w-9 h-9 rounded-xl bg-slate-100 text-slate-500 flex items-center justify-center shrink-0">${ic('file')}</span><div class="flex-1 min-w-0"><p class="text-sm font-semibold text-slate-900 truncate">${esc(fmtShort(d.date))} · ${d.count} kamar</p><p class="text-xs text-slate-500 truncate">${esc(d.fileName)} · ${esc(d.by)}</p></div><span class="text-[11px] text-slate-400 whitespace-nowrap">${fmtDT(d.importedAt)}</span></div>`).join('')}</div>`):'';
+  return `${pageHead('',VIEWS.upload.d)}<div class="grid gap-4 lg:grid-cols-2 items-start"><div class="space-y-4 min-w-0">${drop}${I?'':hist}</div><div class="space-y-4 min-w-0">${side||card(empty('sparkle','Belum ada file','Pilih PDF untuk melihat pratinjau sebelum disimpan.'))}${I?hist:''}</div></div>`;
+}
+function importPreview(){
+  const I=S.imp,rows=I.parsed.rows;
+  const atts={};for(const r of rows){const k=r.attendant||'(tanpa nama)';const a=atts[k]=atts[k]||{n:0,co:0,so:0};a.n++;r.category==='CHECKOUT'?a.co++:a.so++}
+  const known=new Set(S.users.filter(u=>u.role==='housekeeper').map(u=>norm(u.name)));
+  const isNew=n=>n!=='(tanpa nama)'&&!known.has(norm(n));
+  const newCount=Object.keys(atts).filter(isNew).length,co=rows.filter(r=>r.category==='CHECKOUT').length;
+  const ex=I.date===S.today?S.rooms:(S.report[I.date]||null);
+  const inFile=new Set(rows.map(r=>r.room));
+  const missing=ex?ex.filter(r=>!inFile.has(r.room)&&r.status==='PENDING').length:0;
+  return card(`${cardHead('Pratinjau',esc(I.fileName))}
+    <div class="p-4 sm:p-5 space-y-4">
+      <div class="grid grid-cols-3 gap-2 text-center">
+        <div class="rounded-xl bg-slate-50 p-3"><p class="text-2xl font-extrabold text-slate-900">${rows.length}</p><p class="text-[11px] text-slate-500">kamar</p></div>
+        <div class="rounded-xl bg-rose-50 p-3"><p class="text-2xl font-extrabold text-rose-700">${co}</p><p class="text-[11px] text-rose-700">checkout</p></div>
+        <div class="rounded-xl bg-indigo-50 p-3"><p class="text-2xl font-extrabold text-indigo-700">${rows.length-co}</p><p class="text-[11px] text-indigo-700">stayover</p></div></div>
+      <div class="flex flex-wrap items-center justify-between gap-3"><label for="f-impdate" class="text-sm font-semibold text-slate-700">Tanggal tugas</label><input type="date" id="f-impdate" value="${I.date}" class="${selectCls}"></div>
+      <p class="text-xs text-slate-500">${rows.filter(r=>r.arrivalFlag).length} kamar <b class="text-fuchsia-700">! Arrival</b> · ${rows.filter(r=>r.skip).length} kamar <b>#&nbsp;Skip</b></p>
+      <div><p class="text-sm font-bold text-slate-900 mb-2">${Object.keys(atts).length} attendant${newCount?` <span class="font-medium text-brand-700">· ${newCount} akun baru</span>`:''}</p>
+        <div class="grid sm:grid-cols-2 gap-1.5 max-h-72 overflow-y-auto pr-1">${Object.entries(atts).map(([n,a])=>`<div class="flex items-center gap-2.5 rounded-xl ring-1 ring-inset ring-slate-200 px-2.5 py-2">${avatar(n,'w-7 h-7 text-[10px]')}<span class="flex-1 min-w-0 text-sm font-semibold text-slate-800 truncate">${esc(n)}</span>${isNew(n)?chip('baru','bg-brand-50 text-brand-700 ring-brand-200'):''}<span class="text-xs text-slate-500 whitespace-nowrap"><b class="text-slate-800">${a.n}</b> · <span class="text-rose-600">${a.co}</span>/<span class="text-indigo-600">${a.so}</span></span></div>`).join('')}</div>
+        <p class="text-[11px] text-slate-400 mt-1.5">Total · <span class="text-rose-600">checkout</span>/<span class="text-indigo-600">stayover</span></p></div>
+      ${I.parsed.warnings.length?`<div class="rounded-xl bg-amber-50 ring-1 ring-inset ring-amber-200 p-3 text-xs text-amber-900">${I.parsed.warnings.slice(0,5).map(esc).join('<br>')}</div>`:''}
+      ${ex&&ex.length?`<div class="rounded-xl bg-brand-50 ring-1 ring-inset ring-brand-200 p-3 text-xs text-brand-900 space-y-2"><p>Sudah ada <b>${ex.length}</b> kamar di tanggal ini. Kamar yang sama diperbarui; yang sedang/sudah dikerjakan tidak diubah penugasannya.</p>
+        ${missing?`<label class="flex items-start gap-2"><input type="checkbox" id="f-rmmissing" data-keep class="mt-0.5 accent-brand-600" ${dv('f-rmmissing',false)?'checked':''}> Hapus ${missing} kamar yang belum dimulai dan tidak ada di file ini</label>`:''}</div>`:''}
+      <div class="flex gap-2 pt-1"><button data-act="impCancel" class="${bc('ghost')}">Batal</button><button data-act="impGo" class="${bc('primary','md','flex-1')}">${ic('upload')} Import ${rows.length} kamar</button></div></div>`);
+}
+
+/* ================= KAMAR ================= */
+function viewRooms(){
+  const hks=hkList(),R=S.rooms;
+  const q=dv('f-q','').trim().toUpperCase(),fh=dv('f-qhk',''),fs=dv('f-qst',''),fc=dv('f-qcat','');
+  const list=R.filter(r=>(!q||String(r.room).toUpperCase().startsWith(q))&&(!fh||(fh==='_none'?!r.assignedTo:r.assignedTo===fh))&&(!fs||(fs==='_queue'?isQ(r):r.status===fs))&&(!fc||r.category===fc)).sort((a,b)=>qFirst(a,b)||(fh&&fh!=='_none'?seqSort(a,b):roomSort(a,b)));
+  const qToggle=r=>r.status==='COMPLETED'?`<span class="text-[11px] text-slate-400">${r.queuedAt?'Tamu masuk':'–'}</span>`:`<label class="inline-flex items-center gap-2 cursor-pointer select-none" title="Tandai tamu sudah datang & menunggu"><input type="checkbox" data-queue="${esc(r.room)}" class="peer sr-only" ${isQ(r)?'checked':''}><span class="relative w-9 h-5 rounded-full bg-slate-200 peer-checked:bg-rose-600 transition after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-4 after:h-4 after:rounded-full after:bg-white after:shadow after:transition peer-checked:after:translate-x-4 peer-focus-visible:ring-2 peer-focus-visible:ring-rose-400"></span><span class="text-xs font-semibold ${isQ(r)?'text-rose-700':'text-slate-500'}">${isQ(r)?waitSpan(r)+' mnt':'Queue'}</span></label>`;
+  const LIMIT=80,shown=S.showAll?list:list.slice(0,LIMIT);
+  const hkOpts=sel=>hks.map(h=>`<option value="${h.id}" ${h.id===sel?'selected':''}>${esc(h.name)}</option>`).join('');
+  const assignCell=r=>r.status==='PENDING'?`<select data-reassign="${esc(r.room)}" aria-label="Housekeeper kamar ${esc(r.room)}" class="${selectCls} !py-1.5 !text-xs w-full max-w-[200px]"><option value="" ${!r.assignedTo?'selected':''}>Belum di-assign</option>${hkOpts(r.assignedTo)}</select>`:`<span class="flex items-center gap-2 text-sm text-slate-700 min-w-0">${avatar(nameOf(r.assignedTo),'w-6 h-6 text-[9px]')}<span class="truncate">${esc(nameOf(r.assignedTo))}</span></span>`;
+  const filters=`<div class="grid grid-cols-2 md:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(0,1fr))] gap-2">
+    <div class="col-span-2 md:col-span-1">${searchBox('f-q','Cari nomor kamar')}</div>
+    <select id="f-qhk" data-keep data-rerender aria-label="Filter housekeeper" class="${selectCls} min-w-0"><option value="">Semua staf</option><option value="_none" ${fh==='_none'?'selected':''}>Belum di-assign</option>${hkOpts(fh)}</select>
+    <select id="f-qst" data-keep data-rerender aria-label="Filter status" class="${selectCls} min-w-0"><option value="">Semua status</option><option value="_queue" ${fs==='_queue'?'selected':''}>Tamu menunggu</option>${Object.keys(ST).map(k=>`<option value="${k}" ${fs===k?'selected':''}>${ST[k].l}</option>`).join('')}</select>
+    <select id="f-qcat" data-keep data-rerender aria-label="Filter kategori" class="${selectCls} min-w-0 col-span-2 md:col-span-1"><option value="">Semua kategori</option><option value="CHECKOUT" ${fc==='CHECKOUT'?'selected':''}>Checkout</option><option value="STAYOVER" ${fc==='STAYOVER'?'selected':''}>Stayover</option></select></div>`;
+  const table=`<div class="hidden md:block overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-xs text-slate-500 border-y border-slate-100 bg-slate-50/60"><th class="font-semibold px-5 py-2.5">Kamar</th><th class="font-semibold px-3 py-2.5">Reservasi</th><th class="font-semibold px-3 py-2.5">Housekeeper</th><th class="font-semibold px-3 py-2.5">Status</th><th class="font-semibold px-3 py-2.5">Tamu menunggu</th><th class="font-semibold px-3 py-2.5">Waktu</th><th class="px-5 py-2.5"></th></tr></thead>
+    <tbody class="divide-y divide-slate-100">${shown.map(r=>`<tr class="${isQ(r)?'bg-rose-50/70 hover:bg-rose-50':'hover:bg-slate-50/60'} align-middle"><td class="px-5 py-3 ${isQ(r)?'border-l-4 border-rose-500':''}"><p class="font-extrabold text-slate-900">${esc(r.room)}</p><p class="text-xs text-slate-500">${esc(r.roomType)} · Lt ${esc(floorOf(r))}</p></td>
+      <td class="px-3 py-3"><div class="flex flex-wrap gap-1">${resvChip(r)||catChip(r.category)}${flagChips(r)}</div></td><td class="px-3 py-3">${assignCell(r)}</td><td class="px-3 py-3">${stChip(r.status)}</td><td class="px-3 py-3">${qToggle(r)}</td>
+      <td class="px-3 py-3 text-xs text-slate-500 whitespace-nowrap font-mono">${r.startAt?clk(r.startAt)+(r.finishHkAt?' – '+clk(r.finishHkAt):''):'–'}</td><td class="px-5 py-3 text-right">${r.status==='PENDING'?delBtn('r'+r.room,'delRoom',r.room,'Hapus kamar '+r.room):''}</td></tr>`).join('')}</tbody></table></div>`;
+  const mobile=`<div class="md:hidden divide-y divide-slate-100 border-t border-slate-100">${shown.map(r=>`<div class="px-4 py-3 space-y-2 ${isQ(r)?'bg-rose-50/70 border-l-4 border-rose-500':''}"><div class="flex items-start justify-between gap-3"><div><p class="font-extrabold text-slate-900 text-lg leading-none">${esc(r.room)}</p><p class="text-xs text-slate-500 mt-1">${esc(r.roomType)} · Lt ${esc(floorOf(r))}</p></div><div class="flex flex-col items-end gap-1.5">${stChip(r.status)}${qToggle(r)}</div></div>
+    <div class="flex flex-wrap gap-1">${resvChip(r)||catChip(r.category)}${flagChips(r)}</div><div class="flex items-center gap-2"><div class="flex-1 min-w-0">${assignCell(r)}</div>${r.status==='PENDING'?delBtn('r'+r.room,'delRoom',r.room,'Hapus kamar '+r.room):''}</div></div>`).join('')}</div>`;
+  const people=hks.map(h=>{const m=R.filter(r=>r.assignedTo===h.id);const co=m.filter(r=>r.category==='CHECKOUT').length;const d=m.filter(r=>r.status==='INSPECTION_READY'||r.status==='COMPLETED').length;
+    return `<button data-act="openAssign" data-id="${h.id}" class="text-left rounded-2xl ring-1 ring-inset ring-slate-200 hover:ring-brand-300 hover:bg-brand-50/30 p-3.5 space-y-2.5 transition"><div class="flex items-center gap-3">${avatar(h.name)}<div class="min-w-0 flex-1"><p class="font-semibold text-slate-900 truncate">${esc(h.name)}</p><p class="text-xs text-slate-500">${h.team?catOf(h.team).l+' team':'Tanpa tim'}</p></div><span class="text-sm font-extrabold text-slate-900">${m.length}</span></div>
+      ${bar(d,m.length||1,'bg-brand-500','h-1.5')}<p class="text-[11px] text-slate-500"><span class="text-rose-600 font-semibold">${co} CO</span> · <span class="text-indigo-600 font-semibold">${m.length-co} SO</span> · ${d} selesai</p></button>`}).join('');
+  const Q=queued();
+  return `${pageHead('',`${R.length} kamar · ${R.filter(r=>!r.assignedTo).length} belum di-assign`)}
+  ${Q.length?queueBanner(Q,`${Q.length} tamu sudah menunggu`,'Matikan tombol Queue jika tamu sudah dipindahkan ke kamar lain.'):`<div class="mb-4 flex gap-2 rounded-2xl bg-white ring-1 ring-slate-200/80 px-4 py-3 text-sm text-slate-600">${ic('bell','w-4 h-4 mt-0.5 text-rose-600')}<span>Tamu sudah datang tapi kamarnya belum ready? Nyalakan <b>Queue</b> pada kamarnya. Housekeeper dan supervisor langsung mendapat notifikasi, dan kamar itu dipindah ke urutan paling atas.</span></div>`}
+  <div class="space-y-4">
+  ${card(`<div class="p-4 sm:p-5 pb-3">${filters}</div>
+    ${R.length?(list.length?table+mobile+`<div class="px-5 py-3 border-t border-slate-100 flex items-center justify-between gap-3 text-xs text-slate-500"><span>Menampilkan ${shown.length} dari ${list.length} kamar</span>${list.length>LIMIT?`<button data-act="toggleAll" class="font-semibold text-brand-700">${S.showAll?'Tampilkan lebih sedikit':'Tampilkan semua'}</button>`:''}</div>`
+      :empty('filter','Tidak ada kamar yang cocok','Ubah atau hapus filter.')):empty('inbox','Belum ada kamar hari ini','Upload task sheet atau tambahkan kamar manual.',`<button data-act="nav" data-v="upload" class="${bc('primary')}">${ic('upload')} Upload</button>`)}`)}
+  ${card(`${cardHead('Assign per orang','Ketuk nama untuk memilih kamarnya')}<div class="p-4 sm:p-5 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">${people||'<p class="text-sm text-slate-500">Belum ada housekeeper.</p>'}</div>`)}
+  <details class="bg-white rounded-2xl ring-1 ring-slate-200/80 shadow-card group"><summary class="px-5 py-4 flex items-center gap-2 cursor-pointer font-bold text-slate-900">${ic('plus','w-4 h-4 text-brand-600')} Tambah kamar manual <span class="ml-auto text-slate-400 group-open:rotate-90 transition">${ic('chevron')}</span></summary>
+    <div class="px-5 pb-5 grid gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] items-end">
+      <div>${label('f-rooms','Nomor kamar')}<input id="f-rooms" data-keep type="text" autocomplete="off" placeholder="1005, 1008, 1201-1205" value="${esc(dv('f-rooms',''))}" class="${field}"></div>
+      <div>${label('f-rtype','Tipe')}<input id="f-rtype" data-keep list="room-types" type="text" value="${esc(dv('f-rtype','DBB'))}" class="${field}"><datalist id="room-types">${ROOM_TYPES.map(t=>`<option value="${t}"></option>`).join('')}</datalist></div>
+      <div>${label('f-rcat','Kategori')}<select id="f-rcat" data-keep class="${selectCls} w-full"><option value="CHECKOUT" ${dv('f-rcat','CHECKOUT')==='CHECKOUT'?'selected':''}>Checkout</option><option value="STAYOVER" ${dv('f-rcat','')==='STAYOVER'?'selected':''}>Stayover</option></select></div>
+      <button data-act="addRooms" class="${bc('primary')}">${ic('plus')} Tambah</button></div></details></div>`;
+}
+
+/* ================= INSPEKSI & REKAP ================= */
+function timeline(r,isSO){
+  const step=(t,v,c)=>`<div class="flex-1 min-w-0"><p class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">${t}</p><p class="font-mono font-bold ${c||'text-slate-900'}">${v}</p></div>`;
+  return `<div class="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2.5">${step('Start',clk(r.startAt))}${ic('chevron','w-3.5 h-3.5 text-slate-300')}${step('Finish',clk(r.finishHkAt))}${ic('chevron','w-3.5 h-3.5 text-slate-300')}${step('Verified',isSO?'auto':clk(r.finishSpvAt),'text-brand-700')}</div>`;
+}
+function viewInspect(){
+  const q=dv('f-spvq','').trim().toUpperCase();
+  const all=spvQueue(),queue=all.filter(r=>!q||String(r.room).toUpperCase().startsWith(q)).sort((a,b)=>qFirst(a,b)||(b.arrivalFlag?1:0)-(a.arrivalFlag?1:0)||a.finishHkAt-b.finishHkAt);
+  const Q=queued();
+  const working=cnt(S.rooms,'CLEANING')+cnt(S.rooms,'PAUSED');
+  return `${pageHead('',`${all.length} kamar menunggu · ${working} sedang dibersihkan`)}
+  ${queueBanner(Q,`${Q.length} tamu sudah menunggu`,'Kamar ini tampil paling atas begitu housekeeper menekan Finish. Cek secepatnya.')}
+  <div class="flex flex-col sm:flex-row sm:items-center gap-3 mb-4"><div class="flex-1 flex gap-2 rounded-2xl bg-white ring-1 ring-slate-200/80 px-4 py-3 text-sm text-slate-600">${ic('info','w-4 h-4 mt-0.5 text-brand-600')}<span>Hanya kamar <b>Checkout</b> yang dicek. Stayover otomatis ready. Kamar <b class="text-fuchsia-700">! Arrival</b> tampil paling atas.</span></div><div class="sm:w-64">${searchBox('f-spvq','Cari nomor kamar')}</div></div>
+  ${queue.length?`<div class="grid gap-3 sm:gap-4 md:grid-cols-2 2xl:grid-cols-3">${queue.map(r=>`<article class="bg-white rounded-2xl ${isQ(r)?'ring-2 ring-rose-500':r.arrivalFlag?'ring-1 ring-fuchsia-300':'ring-1 ring-slate-200/80'} shadow-card p-4 sm:p-5 flex flex-col gap-3.5">${isQ(r)?`<div>${qChip(r)}</div>`:''}
+    <div class="flex items-start justify-between gap-3"><div><p class="text-3xl font-extrabold text-slate-900 tracking-tight leading-none">${esc(r.room)}</p><p class="text-xs text-slate-500 mt-1.5">${esc(r.roomType)} · Lt ${esc(floorOf(r))}</p></div><div class="flex flex-wrap justify-end gap-1">${resvChip(r)}${flagChips(r)}</div></div>
+    <div class="flex items-center gap-2.5">${avatar(nameOf(r.assignedTo),'w-8 h-8 text-[10px]')}<div class="text-sm"><p class="font-semibold text-slate-900">${esc(nameOf(r.assignedTo))}</p><p class="text-xs text-slate-500">${mins(netClean(r))} menit bersih${r.totalPauseMs?' · jeda '+mins(r.totalPauseMs)+'m':''}</p></div></div>
+    ${notes(r)}${timeline(r,false)}
+    <button data-act="ask" data-type="approve" data-id="${esc(r.room)}" class="${bc('success','lg','w-full mt-auto')}">${ic('dcheck','w-5 h-5')} Konfirmasi ready</button></article>`).join('')}</div>`
+  :card(empty('dcheck',q?'Tidak ada kamar yang cocok':'Antrean kosong','Kamar checkout muncul di sini begitu housekeeper menekan Finish.'))}`;
+}
+function recapCard(r,undo){
+  const isSO=r.category==='STAYOVER';
+  return `<article class="bg-white rounded-2xl ring-1 ring-slate-200/80 shadow-card p-4 sm:p-5 space-y-3.5">
+    <div class="flex items-start justify-between gap-3"><div class="min-w-0"><div class="flex items-center gap-2"><p class="text-xl font-extrabold text-slate-900">${esc(r.room)}</p>${catChip(r.category)}</div><p class="text-xs text-slate-500 mt-1 truncate">${esc(nameOf(r.assignedTo))}${r.spvId?' · SPV '+esc(nameOf(r.spvId)):''}</p></div>
+      ${undo?`<button data-act="ask" data-type="undo" data-id="${esc(r.room)}" class="${bc('soft','sm')}">${ic('undo','w-3.5 h-3.5')} Undo</button>`:stChip('COMPLETED')}</div>
+    ${timeline(r,isSO)}${r.queuedAt?`<p class="flex items-center gap-1.5 text-xs font-semibold text-rose-700">${ic('bell','w-3.5 h-3.5')} Tamu menunggu ${mins((r.finishSpvAt||nowS())-r.queuedAt)} menit sampai kamar ready</p>`:''}
+    <div class="grid grid-cols-4 gap-2 text-center">${[['Bersih',mins(netClean(r)),'text-amber-600'],['Jeda',mins(r.totalPauseMs),'text-orange-600'],['Cek SPV',isSO?'–':mins(r.finishSpvAt-r.finishHkAt),'text-sky-600'],['Total',mins(r.finishSpvAt-r.startAt),'text-brand-700']].map(([l,v,c])=>`<div class="rounded-xl ring-1 ring-inset ring-slate-100 py-2"><p class="text-lg font-extrabold ${c}">${v}</p><p class="text-[10px] text-slate-500">${l}${v==='–'?'':' mnt'}</p></div>`).join('')}</div></article>`;
+}
+function viewRecap(){
+  const q=dv('f-rq','').trim().toUpperCase();
+  const done=S.rooms.filter(r=>r.status==='COMPLETED'&&(!q||String(r.room).toUpperCase().startsWith(q))).sort((a,b)=>b.finishSpvAt-a.finishSpvAt);
+  const shown=S.showAll?done:done.slice(0,40);
+  return `${pageHead('',`${done.length} kamar ready hari ini`)}<div class="mb-4 sm:w-72">${searchBox('f-rq','Cari nomor kamar')}</div>
+  ${done.length?`<div class="grid gap-3 sm:gap-4 md:grid-cols-2 2xl:grid-cols-3">${shown.map(r=>recapCard(r,true)).join('')}</div>${done.length>40?`<div class="text-center mt-4"><button data-act="toggleAll" class="${bc('ghost')}">${S.showAll?'Tampilkan lebih sedikit':`Tampilkan semua (${done.length})`}</button></div>`:''}`
+  :card(empty('clock','Belum ada kamar ready','Kamar yang sudah diverifikasi muncul di sini.'))}`;
+}
+
+/* ================= LAPORAN ================= */
+function viewReport(){
+  const date=S.reportDate||S.today,all=date===S.today?S.rooms:S.report[date];
+  const head=`<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4"><p class="text-sm text-slate-500 lg:hidden">${VIEWS.report.d}</p><div class="flex items-center gap-2 sm:ml-auto">${ic('calendar','w-4 h-4 text-slate-400')}<input type="date" id="f-rdate" value="${date}" aria-label="Tanggal laporan" class="${selectCls}"></div></div>`;
+  if(!all)return head+skeleton();
+  const done=all.filter(r=>r.status==='COMPLETED').sort(roomSort),co=done.filter(r=>r.category==='CHECKOUT');
+  const avg=a=>a.length?Math.round(a.reduce((s,x)=>s+x,0)/a.length):0;
+  const avgC=avg(done.map(r=>mins(netClean(r)))),avgS=avg(co.map(r=>mins(r.finishSpvAt-r.finishHkAt))),avgT=avg(done.map(r=>mins(r.finishSpvAt-r.startAt)));
+  const per={};done.forEach(r=>{const k=r.assignedTo||'-';const p=per[k]=per[k]||{n:0,c:[],co:0};p.n++;p.c.push(mins(netClean(r)));if(r.category==='CHECKOUT')p.co++});
+  const rows=Object.entries(per).sort((a,b)=>b[1].n-a[1].n);
+  return head+`<div class="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
+    ${kpi('check','bg-emerald-50 text-emerald-600','Kamar ready',done.length,`dari ${all.length} kamar${done.some(r=>r.queuedAt)?` · ${done.filter(r=>r.queuedAt).length} tamu sempat menunggu (rata-rata ${avg(done.filter(r=>r.queuedAt).map(r=>mins(r.finishSpvAt-r.queuedAt)))} mnt)`:''}`)}
+    ${kpi('clock','bg-amber-50 text-amber-600','Rata-rata bersih',avgC+' mnt','tanpa waktu jeda')}
+    ${kpi('dcheck','bg-sky-50 text-sky-600','Rata-rata cek SPV',avgS+' mnt','kamar checkout')}
+    ${kpi('chart','bg-brand-50 text-brand-600','Start → ready',avgT+' mnt','rata-rata total')}</div>
+  <div class="grid gap-4 mt-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] items-start">
+    ${card(`${cardHead('Per housekeeper','Diurutkan dari kamar terbanyak')}<div class="px-2 pb-2 pt-2">${rows.length?rows.map(([id,p])=>`<div class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50">${avatar(nameOf(id),'w-8 h-8 text-[10px]')}<div class="flex-1 min-w-0"><p class="text-sm font-semibold text-slate-900 truncate">${esc(nameOf(id))}</p><p class="text-xs text-slate-500">${p.co} checkout · ${p.n-p.co} stayover</p></div><div class="text-right"><p class="text-sm font-extrabold text-slate-900">${p.n}</p><p class="text-[11px] text-slate-500">${avg(p.c)} mnt/kamar</p></div></div>`).join(''):empty('chart','Belum ada data','')}</div>`)}
+    ${card(`${cardHead('Detail kamar',`${done.length} kamar ready`)}${done.length?`<div class="hidden md:block overflow-x-auto mt-3 max-h-[640px] overflow-y-auto"><table class="w-full text-sm"><thead class="sticky top-0 bg-slate-50"><tr class="text-left text-xs text-slate-500 border-y border-slate-100"><th class="font-semibold px-5 py-2.5">Kamar</th><th class="font-semibold px-3 py-2.5">Housekeeper</th><th class="font-semibold px-3 py-2.5">Start</th><th class="font-semibold px-3 py-2.5">Finish</th><th class="font-semibold px-3 py-2.5">Verified</th><th class="font-semibold px-3 py-2.5 text-right">Bersih</th><th class="font-semibold px-3 py-2.5 text-right">Jeda</th><th class="font-semibold px-3 py-2.5 text-right">Tamu tunggu</th><th class="font-semibold px-5 py-2.5 text-right">Total</th></tr></thead>
+      <tbody class="divide-y divide-slate-100">${done.map(r=>`<tr class="hover:bg-slate-50/60"><td class="px-5 py-2.5 whitespace-nowrap"><span class="font-extrabold text-slate-900">${esc(r.room)}</span> <span class="text-[11px] ${catOf(r.category).text} font-semibold">${r.category==='CHECKOUT'?'CO':'SO'}</span></td><td class="px-3 py-2.5 text-slate-700">${esc(nameOf(r.assignedTo))}</td><td class="px-3 py-2.5 font-mono text-xs">${clk(r.startAt)}</td><td class="px-3 py-2.5 font-mono text-xs">${clk(r.finishHkAt)}</td><td class="px-3 py-2.5 font-mono text-xs">${r.category==='STAYOVER'?'auto':clk(r.finishSpvAt)}</td><td class="px-3 py-2.5 text-right font-semibold">${mins(netClean(r))}</td><td class="px-3 py-2.5 text-right text-slate-500">${mins(r.totalPauseMs)}</td><td class="px-3 py-2.5 text-right ${r.queuedAt?'font-bold text-rose-700':'text-slate-300'}">${r.queuedAt?mins(r.finishSpvAt-r.queuedAt):'–'}</td><td class="px-5 py-2.5 text-right font-bold text-brand-700">${mins(r.finishSpvAt-r.startAt)}</td></tr>`).join('')}</tbody></table></div>
+      <div class="md:hidden p-4 space-y-3">${done.slice(0,S.showAll?9999:30).map(r=>recapCard(r,false)).join('')}${done.length>30&&!S.showAll?`<button data-act="toggleAll" class="${bc('ghost','md','w-full')}">Tampilkan semua (${done.length})</button>`:''}</div>`:empty('inbox','Belum ada kamar ready pada tanggal ini','')}`)}
+  </div>`;
+}
+
+/* ================= HOUSEKEEPER ================= */
+function viewHK(){
+  const mine=S.rooms.filter(r=>r.assignedTo===S.me.id);
+  const done=mine.filter(r=>r.status==='INSPECTION_READY'||r.status==='COMPLETED').length;
+  const active=mine.find(r=>r.status==='CLEANING');
+  const paused=mine.filter(r=>r.status==='PAUSED').sort((a,b)=>qFirst(a,b)||seqSort(a,b)),pending=mine.filter(r=>r.status==='PENDING').sort((a,b)=>qFirst(a,b)||seqSort(a,b));
+  const myQ=mine.filter(isQ);
+  const waiting=mine.filter(r=>r.status==='INSPECTION_READY').sort(seqSort),finished=mine.filter(r=>r.status==='COMPLETED').sort((a,b)=>b.finishSpvAt-a.finishSpvAt);
+  const co=mine.filter(r=>r.category==='CHECKOUT').length,arrP=mine.filter(r=>r.arrivalFlag&&r.status==='PENDING').length;
+  const section=(t,list,open,hint)=>list.length?`<details ${open?'open':''} class="group"><summary class="flex items-center gap-2 py-2 cursor-pointer"><h3 class="text-sm font-bold text-slate-900">${t}</h3><span class="text-xs font-bold text-slate-500 bg-slate-200/70 rounded-full px-2 py-0.5">${list.length}</span><span class="ml-auto text-slate-400 group-open:rotate-90 transition">${ic('chevron')}</span></summary>${hint?`<p class="flex items-center gap-1.5 text-xs text-slate-500 mb-2">${ic('lock','w-3.5 h-3.5')} ${hint}</p>`:''}
+    <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 mt-1 mb-4">${list.map(r=>hkCard(r,active)).join('')}</div></details>`:'';
+  const hero=active?`<section class="relative overflow-hidden rounded-3xl bg-brand-950 text-white p-5 sm:p-6 shadow-lift dots">
+      <div class="flex items-start justify-between gap-4"><div class="min-w-0"><p class="text-xs font-semibold text-brand-300 uppercase tracking-wider flex items-center gap-2"><span class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-amber-400"></span></span>Sedang dibersihkan</p>
+        <p class="text-5xl sm:text-6xl font-extrabold tracking-tight mt-2">${esc(active.room)}</p>${isQ(active)?`<div class="mt-2">${qChip(active)}</div>`:''}<p class="text-sm text-brand-100/80 mt-1">${esc(active.roomType)} · ${catOf(active.category).l}${guestLine(active)?' · '+guestLine(active).replace('text-fuchsia-700','text-fuchsia-300'):''}</p></div>
+        <div class="text-right shrink-0"><p class="text-[11px] text-brand-300">Mulai ${clk(active.startAt)}</p><p class="font-mono text-3xl sm:text-4xl font-bold text-amber-300 mt-1" data-since="${active.startAt+(active.totalPauseMs||0)}">${timer(nowS()-active.startAt-(active.totalPauseMs||0))}</p>${active.totalPauseMs?`<p class="text-[11px] text-brand-300 mt-1">jeda ${mins(active.totalPauseMs)} mnt</p>`:''}</div></div>
+      ${(active.specials||active.instructions)?`<div class="mt-4 rounded-xl bg-white/10 px-3 py-2 text-xs text-brand-50">${esc([active.specials,active.instructions].filter(Boolean).join(' · '))}</div>`:''}
+      <div class="mt-5 grid grid-cols-[auto_1fr_1.6fr] gap-2">
+        <button data-act="ask" data-type="undo" data-id="${esc(active.room)}" class="${bc('glass','md')}" aria-label="Batalkan start">${ic('ban')}</button>
+        <button data-act="ask" data-type="pause" data-id="${esc(active.room)}" class="${bc('warn','md')}">${ic('pause')} Pause</button>
+        <button data-act="ask" data-type="finish" data-id="${esc(active.room)}" class="${bc('success','md')} !bg-emerald-500 hover:!bg-emerald-400">${ic('check','w-5 h-5')} Finish</button></div></section>`:'';
+  return `<div class="space-y-5 max-w-6xl">
+    ${queueBanner(myQ,myQ.length>1?`${myQ.length} tamu sudah menunggu kamar Anda`:`Tamu sudah menunggu kamar ${esc(myQ[0]?myQ[0].room:'')}`,active&&!isQ(active)?`Selesaikan atau pause kamar ${esc(active.room)}, lalu kerjakan kamar ini lebih dulu.`:'Kerjakan kamar ini lebih dulu.').replace('mb-4','')}
+    <section class="bg-white rounded-3xl ring-1 ring-slate-200/80 shadow-card p-5 flex items-center gap-5">
+      ${donut(done,mine.length,104,11)}
+      <div class="flex-1 min-w-0"><p class="text-sm text-slate-500">${greet()},</p><p class="text-xl font-extrabold text-slate-900 truncate">${esc(S.me.name)}</p>
+        <div class="flex flex-wrap gap-1.5 mt-2.5">${chip(co+' checkout',CAT.CHECKOUT.chip)}${chip((mine.length-co)+' stayover',CAT.STAYOVER.chip)}${arrP?chip(arrP+' arrival','bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-200'):''}</div></div></section>
+    ${hero}
+    ${mine.length?section('Dijeda',paused,true,active?`Resume tersedia setelah kamar ${esc(active.room)} selesai atau di-pause.`:'')+section('Berikutnya',pending,true,active?`Selesaikan atau pause kamar ${esc(active.room)} untuk memulai kamar berikutnya.`:'')+section('Menunggu cek supervisor',waiting,!pending.length)+section('Selesai',finished,false)
+      :card(empty('inbox','Belum ada kamar untuk Anda','Kamar muncul otomatis setelah admin meng-upload task sheet. Ketuk muat ulang untuk mengecek.'))}</div>`;
+}
+function hkCard(r,active){
+  const locked=active&&active.room!==r.room;let act='';
+  if(r.status==='PENDING')act=locked?'':`<button data-act="ask" data-type="start" data-id="${esc(r.room)}" class="${bc('dark','md','w-full')}">${ic('play')} Start</button>`;
+  else if(r.status==='PAUSED')act=`<div class="flex items-center justify-between text-xs text-orange-800 bg-orange-50 rounded-xl px-3 py-2"><span>Dijeda sejak ${clk(r.pausedAt)}</span></div>
+    ${locked?'':`<div class="grid grid-cols-[auto_1fr] gap-2"><button data-act="ask" data-type="undo" data-id="${esc(r.room)}" class="${bc('dangerSoft','md')}" aria-label="Batalkan">${ic('ban')}</button><button data-act="ask" data-type="resume" data-id="${esc(r.room)}" class="${bc('primary','md')}">${ic('play')} Resume</button></div>`}`;
+  else if(r.status==='INSPECTION_READY')act=`${timeline(r,false)}<div class="flex items-center gap-2"><span class="flex-1 text-xs text-sky-700 bg-sky-50 rounded-xl px-3 py-2">Menunggu supervisor · ${mins(netClean(r))} mnt</span><button data-act="ask" data-type="undo" data-id="${esc(r.room)}" class="${bc('soft','sm')}">${ic('undo','w-3.5 h-3.5')} Undo</button></div>`;
+  else if(r.status==='COMPLETED')act=`${timeline(r,r.category==='STAYOVER')}<p class="text-xs text-emerald-700 font-semibold">${mins(netClean(r))} menit bersih</p>`;
+  const gl=guestLine(r),extra=resvChip(r)+flagChips(r);
+  return `<article class="bg-white rounded-2xl ${isQ(r)?'ring-2 ring-rose-500':r.arrivalFlag&&r.status==='PENDING'?'ring-1 ring-fuchsia-300':'ring-1 ring-slate-200/80'} shadow-card p-4 flex flex-col gap-3">${isQ(r)?`<div>${qChip(r)}</div>`:''}
+    <div class="flex items-start justify-between gap-3"><div class="min-w-0"><p class="text-2xl font-extrabold text-slate-900 leading-none tracking-tight">${esc(r.room)}</p><p class="text-xs text-slate-500 mt-1.5">${esc(r.roomType)}${gl?' · '+gl:''}</p></div>${r.status==='PENDING'?catChip(r.category):stChip(r.status)}</div>
+    ${extra?`<div class="flex flex-wrap gap-1">${extra}</div>`:''}${notes(r)}<div class="mt-auto space-y-2">${act}</div></article>`;
+}
+
+/* ================= PENGGUNA ================= */
+const ROLE_ORDER=['superadmin','admin','supervisor','housekeeper'];
+function viewUsers(){
+  if(!S.allUsers){loadUsers();return skeleton()}
+  const canManage=u=>u.id!==S.me.id&&(S.me.role==='superadmin'?u.role!=='superadmin':['supervisor','housekeeper'].includes(u.role));
+  const q=norm(dv('f-uq','')),fr=dv('f-ufr','');
+  const list=S.allUsers.filter(u=>(!q||norm(u.name).includes(q)||u.username.includes(q))&&(!fr||u.role===fr)).sort((a,b)=>ROLE_ORDER.indexOf(a.role)-ROLE_ORDER.indexOf(b.role)||(b.active-a.active)||a.name.localeCompare(b.name));
+  const counts={};S.allUsers.forEach(u=>counts[u.role]=(counts[u.role]||0)+1);
+  const teamSel=u=>u.role==='housekeeper'&&canManage(u)?`<select data-uteam="${u.id}" aria-label="Tim ${esc(u.name)}" class="${selectCls} !py-1.5 !text-xs"><option value="" ${!u.team?'selected':''}>Tanpa tim</option><option value="CHECKOUT" ${u.team==='CHECKOUT'?'selected':''}>Checkout</option><option value="STAYOVER" ${u.team==='STAYOVER'?'selected':''}>Stayover</option></select>`:`<span class="text-xs text-slate-500">${u.team?catOf(u.team).l:'–'}</span>`;
+  const actions=(u,justify)=>canManage(u)?`<div class="flex flex-wrap gap-1.5 ${justify}">
+    ${S.me.role==='superadmin'?`<select data-urole="${u.id}" aria-label="Peran ${esc(u.name)}" class="${selectCls} !py-1.5 !text-xs">${['admin','supervisor','housekeeper'].map(r=>`<option value="${r}" ${u.role===r?'selected':''}>${ROLE[r].l}</option>`).join('')}</select>`:''}
+    <button data-act="resetPw" data-id="${u.id}" class="${bc('ghost','sm')}">${ic('key','w-3.5 h-3.5')} Reset</button>
+    <button data-act="toggleActive" data-id="${u.id}" class="${bc(u.active?'dangerSoft':'soft','sm')}">${u.active?'Nonaktifkan':'Aktifkan'}</button></div>`:'';
+  const status=u=>u.active?(u.mustChange?chip('Belum ganti password','bg-amber-50 text-amber-800 ring-amber-200'):chip('Aktif','bg-emerald-50 text-emerald-700 ring-emerald-200','bg-emerald-500')):chip('Nonaktif','bg-slate-100 text-slate-500 ring-slate-200');
+  const tabs=[['','Semua',S.allUsers.length]].concat(['admin','supervisor','housekeeper'].map(r=>[r,ROLE[r].l,counts[r]||0]));
+  const you=u=>u.id===S.me.id?' <span class="text-xs text-brand-600">(Anda)</span>':'';
+  return `${pageHead('',`${S.allUsers.length} akun`)}
+  <div class="flex flex-col md:flex-row md:items-center gap-3 mb-4">
+    <div class="flex gap-1 p-1 rounded-xl bg-slate-200/60 overflow-x-auto no-scrollbar">${tabs.map(([k,l,n])=>`<button data-act="ufilter" data-v="${k}" class="px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap ${fr===k?'bg-white text-slate-900 shadow-card':'text-slate-600 hover:text-slate-900'}">${l} <span class="text-slate-400">${n}</span></button>`).join('')}</div>
+    <div class="flex-1 md:max-w-xs md:ml-auto">${searchBox('f-uq','Cari nama atau username')}</div>
+    <button data-act="openAddUser" class="${bc('primary')}">${ic('plus')} Tambah pengguna</button></div>
+  ${card(list.length?`<div class="hidden md:block overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-xs text-slate-500 border-b border-slate-100 bg-slate-50/60"><th class="font-semibold px-5 py-3">Pengguna</th><th class="font-semibold px-3 py-3">Peran</th><th class="font-semibold px-3 py-3">Tim</th><th class="font-semibold px-3 py-3">Status</th><th class="px-5 py-3"></th></tr></thead>
+      <tbody class="divide-y divide-slate-100">${list.map(u=>`<tr class="hover:bg-slate-50/60 ${u.active?'':'opacity-60'}"><td class="px-5 py-3"><div class="flex items-center gap-3">${avatar(u.name)}<div><p class="font-semibold text-slate-900">${esc(u.name)}${you(u)}</p><p class="text-xs text-slate-500">@${esc(u.username)}</p></div></div></td>
+        <td class="px-3 py-3">${roleChip(u.role)}</td><td class="px-3 py-3">${teamSel(u)}</td><td class="px-3 py-3">${status(u)}</td><td class="px-5 py-3">${actions(u,'justify-end')}</td></tr>`).join('')}</tbody></table></div>
+    <div class="md:hidden divide-y divide-slate-100">${list.map(u=>`<div class="p-4 space-y-3 ${u.active?'':'opacity-60'}"><div class="flex items-center gap-3">${avatar(u.name)}<div class="flex-1 min-w-0"><p class="font-semibold text-slate-900 truncate">${esc(u.name)}${you(u)}</p><p class="text-xs text-slate-500">@${esc(u.username)}</p></div>${roleChip(u.role)}</div>
+      <div class="flex items-center justify-between gap-2">${status(u)}${teamSel(u)}</div>${actions(u,'')}</div>`).join('')}</div>`
+    :empty('users','Tidak ada pengguna yang cocok',''))}`;
+}
+async function loadUsers(){const r=await run(()=>api('listUsers'));if(r){S.allUsers=r;render()}}
+
+/* ================= SISTEM ================= */
+function viewSystem(){
+  if(!S.log){loadSystem();return skeleton()}
+  const st=S.storage||{},lq=norm(dv('f-lq',''));
+  const logs=S.log.filter(l=>!lq||norm(l.user+' '+l.action+' '+l.detail).includes(lq));
+  const health=(st.rooms||0)>30000?['Perlu dibersihkan','bg-rose-50 text-rose-700 ring-rose-200']:(st.rooms||0)>20000?['Mulai penuh','bg-amber-50 text-amber-800 ring-amber-200']:['Sehat','bg-emerald-50 text-emerald-700 ring-emerald-200','bg-emerald-500'];
+  return `${pageHead('',VIEWS.system.d)}
+  <div class="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
+    ${kpi('bed','bg-slate-100 text-slate-600','Baris kamar',(st.rooms||0).toLocaleString('id-ID'),'batas nyaman ±30.000')}
+    ${kpi('calendar','bg-brand-50 text-brand-600','Hari tersimpan',st.days||0,st.oldest?'sejak '+esc(fmtShort(st.oldest)):'')}
+    ${kpi('list','bg-sky-50 text-sky-600','Baris log',(st.logRows||0).toLocaleString('id-ID'),'')}
+    <div class="bg-white rounded-2xl ring-1 ring-slate-200/80 shadow-card p-4 flex flex-col gap-3"><div class="flex items-center justify-between gap-2"><span class="text-xs font-semibold text-slate-500">Kesehatan data</span>${chip(health[0],health[1],health[2])}</div>
+      <div class="flex gap-2 mt-auto"><select id="f-keep" data-keep aria-label="Simpan data" class="${selectCls} !py-2 !text-xs flex-1 min-w-0">${[30,60,90,180].map(d=>`<option value="${d}" ${String(dv('f-keep','60'))===String(d)?'selected':''}>Simpan ${d} hari</option>`).join('')}</select><button data-act="cleanup" class="${bc('danger','sm')}">Bersihkan</button></div></div></div>
+  <div class="mt-4">${card(`${cardHead('Log aktivitas','300 aktivitas terakhir',`<button data-act="reloadSystem" class="${bc('soft','sm')}">${ic('refresh','w-3.5 h-3.5')} Muat ulang</button>`)}
+    <div class="px-4 sm:px-5 pt-3">${searchBox('f-lq','Cari pengguna atau aksi')}</div>
+    <div class="mt-3 max-h-[560px] overflow-y-auto">${logs.length?`<ul class="divide-y divide-slate-100">${logs.map(l=>`<li class="px-4 sm:px-5 py-2.5 flex items-start gap-3 hover:bg-slate-50/60">${avatar(l.user,'w-7 h-7 text-[9px]')}<div class="flex-1 min-w-0 text-sm"><p><span class="font-semibold text-slate-900">${esc(l.user)}</span> <span class="text-slate-600">${esc(l.action.replace(/_/g,' '))}</span></p>${l.detail?`<p class="text-xs text-slate-500 break-words">${esc(l.detail)}</p>`:''}</div><span class="font-mono text-[11px] text-slate-400 whitespace-nowrap">${fmtDT(l.ts)}</span></li>`).join('')}</ul>`:empty('list','Belum ada aktivitas','')}</div>`)}</div>`;
+}
+async function loadSystem(){const [l,s]=await Promise.all([run(()=>api('getLog',300)),run(()=>api('getStorageInfo'))]);S.log=l||[];S.storage=s||{};render()}
+
+/* ================= MODALS (sheet di HP, dialog di layar besar) ================= */
+const sheet=(inner,{close='',size='sm:max-w-md',lbl='Dialog'}={})=>`<div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-950/50 backdrop-blur-[2px] sm:p-4" ${close?`data-act="${close}" data-overlay`:''}>
+  <div role="dialog" aria-modal="true" aria-label="${lbl}" class="sheet-in w-full ${size} bg-white rounded-t-3xl sm:rounded-3xl shadow-lift max-h-[92vh] flex flex-col safe-b" data-stop>
+  <div class="sm:hidden flex justify-center pt-2.5"><span class="w-10 h-1.5 rounded-full bg-slate-200"></span></div>${inner}</div></div>`;
+const sheetHead=(t,s,close)=>`<div class="flex items-start justify-between gap-3 px-5 sm:px-6 pt-4 sm:pt-6 pb-3"><div class="min-w-0"><h3 class="text-lg font-extrabold text-slate-900">${t}</h3>${s?`<p class="text-sm text-slate-500 mt-0.5">${s}</p>`:''}</div>${close?`<button data-act="${close}" class="p-2 -m-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100" aria-label="Tutup">${ic('x','w-5 h-5')}</button>`:''}</div>`;
+function renderModals(){
+  let h='';
+  if(S.more&&S.me){
+    h+=sheet(`${sheetHead('Menu','','closeMore')}<div class="px-3 pb-5 grid grid-cols-3 gap-2">${navItems().map(v=>`<button data-act="nav" data-v="${v}" class="flex flex-col items-center gap-2 p-3 rounded-2xl ${S.view===v?'bg-brand-50 text-brand-700':'hover:bg-slate-50 text-slate-700'}"><span class="w-11 h-11 rounded-2xl ${S.view===v?'bg-brand-100':'bg-slate-100'} flex items-center justify-center">${ic(VIEWS[v].i,'w-5 h-5')}</span><span class="text-xs font-semibold">${VIEWS[v].l}</span></button>`).join('')}
+      <button data-act="acct" class="flex flex-col items-center gap-2 p-3 rounded-2xl hover:bg-slate-50 text-slate-700"><span class="w-11 h-11 rounded-2xl bg-slate-100 flex items-center justify-center">${ic('user','w-5 h-5')}</span><span class="text-xs font-semibold">Akun</span></button></div>`,{close:'closeMore',lbl:'Menu'});
+  }
+  if(S.acct&&S.me){
+    h+=sheet(`${sheetHead('Akun','','closeAcct')}<div class="px-5 sm:px-6 pb-6 space-y-4 overflow-y-auto">
+      <div class="flex items-center gap-3 rounded-2xl bg-slate-50 p-3.5">${avatar(S.me.name,'w-12 h-12 text-sm')}<div class="min-w-0 flex-1"><p class="font-bold text-slate-900 truncate">${esc(S.me.name)}</p><p class="text-sm text-slate-500">@${esc(S.me.username)}</p></div>${roleChip(S.me.role)}</div>
+      <details class="rounded-2xl ring-1 ring-inset ring-slate-200 group"><summary class="px-4 py-3.5 flex items-center gap-2 font-semibold text-slate-800 cursor-pointer">${ic('key','w-4 h-4 text-brand-600')} Ganti password <span class="ml-auto text-slate-400 group-open:rotate-90 transition">${ic('chevron')}</span></summary><div class="px-4 pb-4">${pwForm(false)}</div></details>
+      <button data-act="logout" class="${bc('dangerSoft','md','w-full')}">${ic('logout')} Keluar</button></div>`,{close:'closeAcct',lbl:'Akun'});
+  }
+  if(S.addUser&&S.me){
+    const creatable=S.me.role==='superadmin'?['admin','supervisor','housekeeper']:['supervisor','housekeeper'];
+    const role=creatable.includes(dv('f-urole','housekeeper'))?dv('f-urole','housekeeper'):'housekeeper';
+    h+=sheet(`${sheetHead('Tambah pengguna','Password sementara dibuat otomatis','closeAddUser')}<div class="px-5 sm:px-6 pb-6 space-y-4 overflow-y-auto">
+      <div>${label('f-uname','Nama lengkap')}<input id="f-uname" data-keep type="text" value="${esc(dv('f-uname',''))}" class="${field}" placeholder="Mis. Siti Rahma"></div>
+      <div>${label('f-uuser','Username (opsional)')}<input id="f-uuser" data-keep type="text" autocapitalize="none" value="${esc(dv('f-uuser',''))}" class="${field}" placeholder="dibuat dari nama jika kosong"></div>
+      <fieldset><legend class="block text-xs font-semibold text-slate-600 mb-1.5">Peran</legend><div class="grid gap-2" style="grid-template-columns:repeat(${creatable.length},minmax(0,1fr))">${creatable.map(r=>`<label class="cursor-pointer"><input type="radio" name="f-urole" value="${r}" data-urolepick class="peer sr-only" ${role===r?'checked':''}><span class="block text-center rounded-xl ring-1 ring-inset ring-slate-200 peer-checked:ring-2 peer-checked:ring-brand-500 peer-checked:bg-brand-50 peer-focus-visible:ring-2 peer-focus-visible:ring-brand-500 px-2 py-2.5 text-sm font-semibold text-slate-700">${ROLE[r].l}</span></label>`).join('')}</div></fieldset>
+      ${role==='housekeeper'?`<div>${label('f-uteam','Tim')}<select id="f-uteam" data-keep class="${selectCls} w-full"><option value="">Tanpa tim</option><option value="CHECKOUT" ${dv('f-uteam','')==='CHECKOUT'?'selected':''}>Checkout team</option><option value="STAYOVER" ${dv('f-uteam','')==='STAYOVER'?'selected':''}>Stayover team</option></select></div>`:''}
+      <p class="text-xs text-slate-500">${role==='housekeeper'?'Housekeeper mendapat PIN 6 angka.':'Mendapat password acak 10 karakter.'} Wajib diganti saat login pertama.</p>
+      <div class="flex gap-2"><button data-act="closeAddUser" class="${bc('ghost')}">Batal</button><button data-act="addUser" class="${bc('primary','md','flex-1')}">Buat akun</button></div></div>`,{close:'closeAddUser',lbl:'Tambah pengguna'});
+  }
+  if(S.modal){
+    const hk=hkList().find(u=>u.id===S.modal.hkId);
+    if(hk){
+      const avail=S.rooms.filter(r=>!hk.team||r.category===hk.team).sort(roomSort);
+      h+=sheet(`${sheetHead('Assign · '+esc(hk.name),hk.team?catOf(hk.team).l+' team':'Tanpa tim · semua kamar','closeAssign')}
+        <div class="px-3 sm:px-5 overflow-y-auto flex-1 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 pb-2 content-start">${avail.length?avail.map(r=>{
+          const other=r.assignedTo&&r.assignedTo!==hk.id,busy=r.status!=='PENDING',dis=other||busy,chk=S.modal.sel.has(r.room);
+          return `<label class="relative ${dis?'cursor-not-allowed':'cursor-pointer'}"><input type="checkbox" data-pick="${esc(r.room)}" class="peer sr-only" ${chk?'checked':''} ${dis?'disabled':''}>
+            <span class="block rounded-2xl ring-1 ring-inset ring-slate-200 peer-checked:ring-2 peer-checked:ring-brand-500 peer-checked:bg-brand-50 peer-disabled:bg-slate-50 peer-disabled:opacity-60 peer-focus-visible:ring-2 peer-focus-visible:ring-brand-500 p-3">
+              <span class="flex items-center justify-between"><span class="text-lg font-extrabold text-slate-900">${esc(r.room)}</span><span class="text-[10px] font-bold ${catOf(r.category).text}">${r.category==='CHECKOUT'?'CO':'SO'}</span></span>
+              <span class="flex items-center gap-1 text-[11px] text-slate-500 truncate mt-0.5">${busy?ST[r.status].l:other?ic('lock','w-3 h-3')+' '+esc(nameOf(r.assignedTo)):esc(r.roomType)}</span></span></label>`}).join('')
+          :`<p class="col-span-full text-sm text-slate-500 p-4 text-center">Belum ada kamar${hk.team?' '+catOf(hk.team).l.toLowerCase():''} hari ini.</p>`}</div>
+        <div class="px-5 sm:px-6 py-4 border-t border-slate-100 flex gap-2"><button data-act="closeAssign" class="${bc('ghost')}">Batal</button><button data-act="saveAssign" class="${bc('primary','md','flex-1')}">Simpan penugasan</button></div>`,{close:'closeAssign',size:'sm:max-w-3xl',lbl:'Assign kamar'});
+    }else S.modal=null;
+  }
+  if(S.qAlert&&S.me){
+    const L=S.qAlert;
+    h+=sheet(`<div class="px-6 pt-6 pb-6 text-center"><span class="relative mx-auto w-16 h-16 rounded-2xl bg-rose-600 text-white flex items-center justify-center">${ic('bell','w-8 h-8')}<span class="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-amber-300 animate-ping"></span></span>
+      <h3 class="text-xl font-extrabold text-slate-900 mt-4">Tamu sudah menunggu</h3>
+      <p class="text-sm text-slate-500 mt-1.5">${S.me.role==='housekeeper'?'Kerjakan kamar berikut lebih dulu.':'Kamar berikut harus segera ready.'}</p>
+      <div class="mt-4 space-y-2 text-left max-h-60 overflow-y-auto">${L.map(r=>`<div class="flex items-center gap-3 rounded-xl ring-1 ring-inset ring-rose-200 bg-rose-50 px-3 py-2.5"><span class="text-2xl font-extrabold text-slate-900 w-16">${esc(r.room)}</span><div class="flex-1 min-w-0"><p class="text-xs text-slate-600 truncate">${esc(nameOf(r.assignedTo))}</p>${stChip(r.status)}</div><span class="text-xs font-bold text-rose-700 whitespace-nowrap">${waitSpan(r)} mnt</span></div>`).join('')}</div>
+      <button data-act="qAck" class="${bc('danger','lg','w-full mt-5')}">Oke, saya prioritaskan</button></div>`,{size:'sm:max-w-sm',lbl:'Tamu menunggu'});
+  }
+  if(S.confirm){
+    const C=S.confirm;
+    h+=sheet(`<div class="px-6 pt-6 pb-6 text-center"><span class="mx-auto w-14 h-14 rounded-2xl ${C.iconCls} flex items-center justify-center">${ic(C.icon,'w-7 h-7')}</span>
+      <h3 class="text-lg font-extrabold text-slate-900 mt-4">${C.title}</h3><p class="text-sm text-slate-500 mt-1.5 leading-relaxed">${C.msg}</p>
+      <div class="grid grid-cols-2 gap-2 mt-6"><button data-act="confirmNo" class="${bc('ghost','lg')}">Batal</button><button id="cm-yes" data-act="confirmYes" class="${bc(C.btnV,'lg')}">${C.btn}</button></div></div>`,{close:'confirmNo',size:'sm:max-w-sm',lbl:'Konfirmasi'});
+  }
+  if(S.creds){
+    const text=S.creds.list.map(c=>`${c.name} | username: ${c.username} | ${/^\d+$/.test(c.password)?'PIN':'password'}: ${c.password}`).join('\n');
+    h+=sheet(`${sheetHead(esc(S.creds.title),'Catat atau salin sekarang')}<div class="px-5 sm:px-6 space-y-3 overflow-y-auto flex-1">
+      <div class="flex gap-2 rounded-xl bg-amber-50 ring-1 ring-inset ring-amber-200 p-3 text-xs text-amber-900">${ic('alert','w-4 h-4 mt-0.5')}<span>Password/PIN ini tidak bisa dilihat lagi. Jika hilang, reset dari menu Pengguna. Pemilik akun wajib menggantinya saat login pertama.</span></div>
+      <div class="rounded-2xl ring-1 ring-inset ring-slate-200 divide-y divide-slate-100">${S.creds.list.map(c=>`<div class="flex items-center gap-3 px-3.5 py-2.5">${avatar(c.name,'w-8 h-8 text-[10px]')}<div class="flex-1 min-w-0"><p class="text-sm font-semibold text-slate-900 truncate">${esc(c.name)}</p><p class="text-xs text-slate-500">@${esc(c.username)}</p></div><span class="font-mono text-sm font-bold text-brand-700 bg-brand-50 rounded-lg px-2 py-1 select-all">${esc(c.password)}</span></div>`).join('')}</div>
+      <textarea id="cred-text" readonly class="sr-only" aria-hidden="true">${esc(text)}</textarea></div>
+      <div class="px-5 sm:px-6 py-4 grid grid-cols-2 gap-2"><button data-act="copyCreds" class="${bc('ghost')}">${ic('copy')} Salin semua</button><button data-act="closeCreds" class="${bc('primary')}">Sudah dicatat</button></div>`,{size:'sm:max-w-lg',lbl:'Akun baru'});
+  }
+  document.getElementById('modal-root').innerHTML=h;
+  document.body.style.overflow=h?'hidden':'';
+}
+function askRoom(type,room){
+  const r=S.rooms.find(x=>x.room===room);if(!r)return;
+  const n=esc(r.room);
+  const C={
+    start:['play','bg-brand-50 text-brand-700',`Mulai kamar ${n}?`,(/due out/i.test(r.resv||'')?'Kamar ini masih <b>Due Out</b>; pastikan tamu sudah checkout. ':'')+'Timer pembersihan mulai berjalan.','dark','Start'],
+    pause:['pause','bg-amber-50 text-amber-600',`Jeda kamar ${n}?`,'Timer berhenti sementara. Anda bisa melanjutkan nanti atau memulai kamar lain.','warn','Pause'],
+    resume:['play','bg-brand-50 text-brand-700',`Lanjutkan kamar ${n}?`,'Timer pembersihan berjalan lagi.','primary','Resume'],
+    finish:['check','bg-emerald-50 text-emerald-600',`Selesai kamar ${n}?`,r.category==='STAYOVER'?'Kamar stayover langsung ditandai ready tanpa cek supervisor.':'Pastikan semua area sudah bersih. Kamar dikirim ke supervisor untuk dicek.','success','Finish'],
+    approve:['dcheck','bg-emerald-50 text-emerald-600',`Kamar ${n} ready?`,'Konfirmasi bahwa kamar sudah sesuai standar dan siap dijual.','success','Ya, ready'],
+    undo:['undo','bg-rose-50 text-rose-600',`Batalkan status ${n}?`,{CLEANING:'Kamar kembali ke Belum mulai dan waktu yang tercatat dihapus.',PAUSED:'Kamar kembali ke Belum mulai dan waktu yang tercatat dihapus.',INSPECTION_READY:'Kamar kembali ke Sedang dibersihkan.',COMPLETED:r.category==='STAYOVER'?'Kamar stayover kembali ke Sedang dibersihkan.':'Kamar kembali ke antrean supervisor.'}[r.status]||'','danger','Ya, batalkan']
+  }[type];
+  S.confirm={icon:C[0],iconCls:C[1],title:C[2],msg:C[3],btnV:C[4],btn:C[5],onYes:async()=>{
+    const t0=Date.now();
+    const upd=await run(()=>api('roomAction',S.today,room,type),()=>({start:'Kamar '+room+' dimulai',pause:'Kamar '+room+' dijeda',resume:'Kamar '+room+' dilanjutkan',finish:r.category==='STAYOVER'?'Kamar '+room+' ready':'Kamar '+room+' dikirim ke supervisor',approve:'Kamar '+room+' verified ready',undo:'Kamar '+room+': undo berhasil'}[type]));
+    if(upd){syncClock(upd.updatedAt,t0,Date.now());const i=S.rooms.findIndex(x=>x.room===upd.room);if(i>=0)S.rooms[i]=upd;render()}else refresh(true);
+  }};
+  render();setTimeout(()=>{const b=document.getElementById('cm-yes');b&&b.focus()},40);
+}
+
+/* ================= ACTIONS ================= */
+function parseRooms(s){
+  const out=[];
+  for(const part of s.split(/[\s,;]+/)){
+    if(!part)continue;const m=part.match(/^(\d{1,5})-(\d{1,5})$/);
+    if(m){let a=+m[1],b=+m[2];if(b<a)[a,b]=[b,a];if(b-a>60)return{error:`Rentang ${part} terlalu panjang (maks 60 kamar).`};for(let i=a;i<=b;i++)out.push(String(i))}
+    else if(/^[A-Za-z0-9]{1,6}$/.test(part))out.push(part.toUpperCase());
+    else return{error:`"${part}" bukan nomor kamar yang valid.`};
+  }
+  return{rooms:[...new Set(out)]};
+}
+async function handleFile(f){
+  if(!f)return;
+  if(!/\.pdf$/i.test(f.name)&&f.type!=='application/pdf')return toast('Pilih file PDF Task Sheet Report.');
+  S.imp={state:'reading',fileName:f.name,pagesDone:0,pagesTotal:0};render();
+  let L;try{L=await loadPdfJs()}catch(e){S.imp={state:'error',fileName:f.name,error:'Pembaca PDF gagal dimuat. Periksa koneksi internet lalu coba lagi.'};return render()}
+  try{
+    const doc=await L.getDocument({data:new Uint8Array(await f.arrayBuffer()),isEvalSupported:false,disableFontFace:true}).promise;
+    S.imp.pagesTotal=doc.numPages;const pages=[];
+    for(let n=1;n<=doc.numPages;n++){
+      const p=await doc.getPage(n),vp=p.getViewport({scale:1}),tc=await p.getTextContent();
+      pages.push({items:tc.items.map(it=>({x:it.transform[4],y:vp.height-it.transform[5],w:it.width,str:it.str}))});
+      S.imp.pagesDone=n;render();
+    }
+    const parsed=parseTaskSheet(pages);
+    if(!parsed.rows.length)throw new Error('Tidak ada baris kamar yang terbaca. Pastikan file ini Task Sheet Report dari Opera.');
+    S.imp={state:'preview',fileName:f.name,parsed,date:parsed.date||S.today};delete S.drafts['f-rmmissing'];
+    if(S.imp.date!==S.today&&!S.report[S.imp.date])loadReport(S.imp.date);
+    render();
+  }catch(e){S.imp={state:'error',fileName:f.name,error:(e&&e.message&&!/pdfjs/.test(e.message))?e.message:'File tidak bisa dibaca. Pastikan ini PDF Task Sheet Report lalu coba lagi.'};render()}
+}
+const A={
+  nav(el){S.view=el.dataset.v;S.more=false;S.del='';S.showAll=false;if(S.view==='users')S.allUsers=null;if(S.view==='system')S.log=null;if(S.view==='report'&&S.reportDate&&S.reportDate!==S.today&&!S.report[S.reportDate])loadReport(S.reportDate);render();window.scrollTo(0,0)},
+  openMore(){S.more=true;render()},closeMore(){S.more=false;render()},
+  toggleAll(){S.showAll=!S.showAll;render()},
+  refresh(){refresh()},
+  togglePw(el){const i=document.getElementById(el.dataset.for);if(i)i.type=i.type==='password'?'text':'password'},
+  acct(){S.acct=true;S.more=false;render()},closeAcct(){S.acct=false;render()},
+  async logout(){const t=S.token;doLocalLogout('');try{await call('logout',[t])}catch(e){}},
+  delAsk(el){S.del=el.dataset.id;render()},delCancel(){S.del='';render()},
+  async delRoom(el){S.del='';const r=await run(()=>api('deleteRoom',S.today,el.dataset.id),'Kamar dihapus');if(r){S.rooms=r.rooms;render()}},
+  async addRooms(){
+    const p=parseRooms(dv('f-rooms','').trim());if(p.error)return toast(p.error);if(!p.rooms.length)return toast('Isi minimal satu nomor kamar.');
+    const r=await run(()=>api('addRooms',S.today,p.rooms,dv('f-rtype','DBB'),dv('f-rcat','CHECKOUT')),x=>x.added?`${x.added} kamar ditambahkan`:'Semua kamar itu sudah ada.');
+    if(r){S.rooms=r.rooms;S.drafts['f-rooms']='';render()}
+  },
+  openAssign(el){S.modal={hkId:el.dataset.id,sel:new Set(S.rooms.filter(r=>r.assignedTo===el.dataset.id).map(r=>r.room))};render()},
+  closeAssign(){S.modal=null;render()},
+  async saveAssign(){
+    const {hkId,sel}=S.modal,hk=hkList().find(u=>u.id===hkId);S.modal=null;render();
+    const changes=S.rooms.filter(r=>r.status==='PENDING'&&(!hk.team||r.category===hk.team)).map(r=>{
+      if(sel.has(r.room)&&!r.assignedTo)return[r.room,hkId];
+      if(!sel.has(r.room)&&r.assignedTo===hkId)return[r.room,''];return null}).filter(Boolean);
+    if(!changes.length)return toast('Tidak ada perubahan.');
+    const r=await run(()=>api('assignRooms',S.today,changes),`Penugasan ${hk.name} diperbarui`);if(r){S.rooms=r.rooms;render()}
+  },
+  impCancel(){S.imp=null;render()},
+  async impGo(){
+    const I=S.imp;if(!I||I.state!=='preview')return;
+    S.imp=Object.assign({},I,{state:'writing'});render();
+    try{
+      const res=await api('importTaskSheet',{date:I.date,fileName:I.fileName,removeMissing:!!dv('f-rmmissing',false),rows:I.parsed.rows});
+      S.imp={state:'done',fileName:I.fileName,result:res};
+      if(res.newUsers.length)S.creds={title:res.newUsers.length+' akun housekeeper baru',list:res.newUsers};
+      delete S.report[res.date];await refresh(true);render();
+    }catch(e){S.imp={state:'error',fileName:I.fileName,error:e.message+' Upload ulang file yang sama aman; kamar tidak akan dobel.'};render()}
+  },
+  showNewCreds(){const r=S.imp&&S.imp.result;if(r&&r.newUsers.length){S.creds={title:r.newUsers.length+' akun housekeeper baru',list:r.newUsers};render()}},
+  closeCreds(){S.creds=null;render()},
+  async copyCreds(){const t=document.getElementById('cred-text');try{await navigator.clipboard.writeText(t.value);toast('Disalin ke clipboard.')}catch(e){t.className='w-full h-32 text-xs font-mono rounded-xl ring-1 ring-slate-200 p-2';t.select();toast('Salin manual: tekan lama lalu Salin.')}},
+  confirmNo(){S.confirm=null;render()},
+  qAck(){markSeen(S.qAlert||[]);S.qAlert=null;try{document.title='HK Tracker'}catch(e){}render()},
+  async confirmYes(){const C=S.confirm;S.confirm=null;render();if(C&&C.onYes)await C.onYes()},
+  ask(el){askRoom(el.dataset.type,el.dataset.id)},
+  ufilter(el){S.drafts['f-ufr']=el.dataset.v;render()},
+  openAddUser(){S.addUser=true;render();setTimeout(()=>{const i=document.getElementById('f-uname');i&&i.focus()},60)},
+  closeAddUser(){S.addUser=false;render()},
+  async addUser(){
+    const name=dv('f-uname','').trim();if(!name)return toast('Isi nama dulu.');
+    const role=dv('f-urole','housekeeper');
+    const r=await run(()=>api('saveUser',{name,username:dv('f-uuser','').trim(),role,team:role==='housekeeper'?dv('f-uteam',''):''}));
+    if(r){S.addUser=false;S.creds={title:'Akun baru: '+r.user.name,list:[{name:r.user.name,username:r.user.username,password:r.password}]};S.drafts['f-uname']='';S.drafts['f-uuser']='';S.allUsers=null;refresh(true);render()}
+  },
+  resetPw(el){
+    const u=(S.allUsers||[]).find(x=>x.id===el.dataset.id);if(!u)return;
+    S.confirm={icon:'key',iconCls:'bg-amber-50 text-amber-600',title:`Reset ${u.role==='housekeeper'?'PIN':'password'} ${esc(u.name)}?`,msg:'Password lama langsung tidak berlaku dan pengguna keluar dari semua perangkat.',btnV:'warn',btn:'Reset',
+      onYes:async()=>{const r=await run(()=>api('resetPassword',u.id));if(r){S.creds={title:'Password baru · '+r.name,list:[r]};S.allUsers=null;render()}}};
+    render();
+  },
+  toggleActive(el){
+    const u=(S.allUsers||[]).find(x=>x.id===el.dataset.id);if(!u)return;
+    const go=async()=>{const r=await run(()=>api('saveUser',{id:u.id,active:!u.active}),u.active?u.name+' dinonaktifkan':u.name+' diaktifkan');if(r){S.allUsers=null;refresh(true);render()}};
+    if(!u.active)return go();
+    S.confirm={icon:'ban',iconCls:'bg-rose-50 text-rose-600',title:`Nonaktifkan ${esc(u.name)}?`,msg:'Pengguna tidak bisa login sampai diaktifkan lagi. Riwayat kerjanya tetap tersimpan.',btnV:'danger',btn:'Nonaktifkan',onYes:go};render();
+  },
+  reloadSystem(){S.log=null;render()},
+  cleanup(){
+    const keep=Number(dv('f-keep','60'));
+    S.confirm={icon:'trash',iconCls:'bg-rose-50 text-rose-600',title:'Hapus data lama?',msg:`Data kamar dan log yang lebih lama dari <b>${keep} hari</b> dihapus permanen dari Google Sheets. Backup Sheet dulu jika masih dibutuhkan.`,btnV:'danger',btn:'Hapus',
+      onYes:async()=>{const r=await run(()=>api('cleanupOldData',keep),x=>`${x.removedRooms} baris kamar & ${x.removedLogs} log dihapus`);if(r){S.log=null;render()}}};
+    render();
+  }
+};
+
+/* ================= NOTIFIKASI QUEUE ================= */
+const qKey=r=>S.today+'|'+r.room+'|'+r.queuedAt;
+function seenSet(){try{return new Set(JSON.parse(localStorage.getItem('hk.qseen')||'[]'))}catch(e){return new Set()}}
+function markSeen(list){const s=seenSet();list.forEach(r=>s.add(qKey(r)));try{localStorage.setItem('hk.qseen',JSON.stringify([...s].slice(-300)))}catch(e){}S.qSeenMem=s}
+function relevantQueue(){
+  if(!S.me)return [];
+  if(S.me.role==='housekeeper')return queued().filter(r=>r.assignedTo===S.me.id);
+  if(S.me.role==='supervisor')return queued();
+  return [];
+}
+function checkQueueAlerts(){
+  const rel=relevantQueue();if(!rel.length)return;
+  const seen=S.qSeenMem||seenSet();
+  const fresh=rel.filter(r=>!seen.has(qKey(r)));
+  if(!fresh.length)return;
+  S.qAlert=rel;chime();try{navigator.vibrate&&navigator.vibrate([300,150,300,150,500])}catch(e){}
+  try{document.title='🔔 Tamu menunggu · HK Tracker'}catch(e){}
+}
+let actx=null;
+document.addEventListener('pointerdown',()=>{try{if(!actx){const C=window.AudioContext||window.webkitAudioContext;if(C)actx=new C()}if(actx&&actx.state==='suspended')actx.resume()}catch(e){}},{passive:true});
+function chime(){
+  try{if(!actx)return;const t=actx.currentTime;[[880,0],[660,.22],[880,.44]].forEach(([f,d])=>{const o=actx.createOscillator(),g=actx.createGain();o.type='sine';o.frequency.value=f;g.gain.setValueAtTime(0.0001,t+d);g.gain.exponentialRampToValueAtTime(0.35,t+d+.02);g.gain.exponentialRampToValueAtTime(0.0001,t+d+.2);o.connect(g);g.connect(actx.destination);o.start(t+d);o.stop(t+d+.22)})}catch(e){}
+}
+
+/* ================= RENDER + EVENTS ================= */
+let rq=0;
+function render(){if(rq)return;rq=requestAnimationFrame(()=>{rq=0;doRender()})}
+function doRender(){
+  const a=document.activeElement,fid=a&&a.id;let ss=null,se=null;try{ss=a.selectionStart;se=a.selectionEnd}catch(e){}
+  const app=document.getElementById('app');
+  if(!S.token||!S.me)app.innerHTML=S.token&&!S.me?`<div class="min-h-screen flex items-center justify-center"><span class="text-brand-600">${ic('refresh','w-6 h-6 spin')}</span></div>`:viewLogin();
+  else if(S.me.mustChange)app.innerHTML=viewMustChange();
+  else app.innerHTML=viewShell();
+  renderModals();
+  if(fid){const el=document.getElementById(fid);if(el&&el!==document.activeElement&&el.type!=='password'){el.focus({preventScroll:true});try{if(ss!=null)el.setSelectionRange(ss,se)}catch(e){}}}
+}
+document.addEventListener('submit',e=>{if(e.target.id==='login-form')submitLogin(e);else if(e.target.id==='pw-form')submitPw(e)});
+document.addEventListener('click',e=>{
+  const el=e.target.closest('[data-act]');if(!el)return;
+  if(el.hasAttribute('data-overlay')&&e.target.closest('[data-stop]'))return;
+  const f=A[el.dataset.act];if(f){e.preventDefault();f(el)}
+});
+document.addEventListener('input',e=>{const el=e.target;if(el.hasAttribute('data-keep')){S.drafts[el.id]=el.type==='checkbox'?el.checked:el.value;if(el.hasAttribute('data-live')){S.showAll=false;render()}}});
+document.addEventListener('change',async e=>{
+  const el=e.target;
+  if(el.hasAttribute('data-keep'))S.drafts[el.id]=el.type==='checkbox'?el.checked:el.value;
+  if(el.hasAttribute('data-rerender')){S.showAll=false;render()}
+  else if(el.hasAttribute('data-urolepick')){S.drafts['f-urole']=el.value;render()}
+  else if(el.id==='f-pdf'){handleFile(el.files&&el.files[0]);el.value=''}
+  else if(el.dataset.queue){const room=el.dataset.queue,on=el.checked,r0=S.rooms.find(x=>x.room===room);
+    const upd=await run(()=>api('setQueue',S.today,room,on),()=>on?`Kamar ${room}: tamu menunggu. ${r0&&r0.assignedTo?nameOf(r0.assignedTo)+' & supervisor diberi tahu.':'Kamar ini belum di-assign!'}`:`Queue kamar ${room} dibatalkan`);
+    if(upd){const i=S.rooms.findIndex(x=>x.room===upd.room);if(i>=0)S.rooms[i]=upd}render()}
+  else if(el.dataset.reassign){const room=el.dataset.reassign,to=el.value;const r=await run(()=>api('assignRooms',S.today,[[room,to]]),'Kamar '+room+' → '+nameOf(to));if(r){S.rooms=r.rooms;render()}}
+  else if(el.dataset.uteam){const r=await run(()=>api('saveUser',{id:el.dataset.uteam,team:el.value}),'Tim diperbarui');if(r){S.allUsers=null;refresh(true);render()}}
+  else if(el.dataset.urole){await run(()=>api('saveUser',{id:el.dataset.urole,role:el.value}),'Peran diperbarui');S.allUsers=null;render()}
+  else if(el.dataset.pick&&S.modal){el.checked?S.modal.sel.add(el.dataset.pick):S.modal.sel.delete(el.dataset.pick)}
+  else if(el.id==='f-rdate'&&el.value){S.reportDate=el.value;if(el.value!==S.today&&!S.report[el.value])loadReport(el.value);render()}
+  else if(el.id==='f-impdate'&&el.value&&S.imp){S.imp.date=el.value;if(el.value!==S.today&&!S.report[el.value])loadReport(el.value);render()}
+});
+document.addEventListener('dragover',e=>{const d=e.target.closest&&e.target.closest('#drop');if(d){e.preventDefault();d.classList.add('!border-brand-500','!bg-brand-50')}});
+document.addEventListener('dragleave',e=>{const d=e.target.closest&&e.target.closest('#drop');if(d)d.classList.remove('!border-brand-500','!bg-brand-50')});
+document.addEventListener('drop',e=>{if(e.target.closest&&e.target.closest('#drop')){e.preventDefault();handleFile(e.dataTransfer.files&&e.dataTransfer.files[0])}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&(S.modal||S.confirm||S.acct||S.more||S.addUser||S.qAlert)){if(S.qAlert)markSeen(S.qAlert);Object.assign(S,{modal:null,confirm:null,acct:false,more:false,addUser:false,qAlert:null});render()}});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&S.me&&nowS()-S.lastSync>10000)refresh(true)});
+setInterval(()=>{document.querySelectorAll('[data-since]').forEach(el=>{const s=+el.dataset.since;if(s)el.textContent=timer(nowS()-s)});const c=fmtClock();document.querySelectorAll('[data-clock]').forEach(el=>el.textContent=c);document.querySelectorAll('[data-wait]').forEach(el=>{const s=+el.dataset.wait;if(s)el.textContent=mins(nowS()-s)})},1000);
+/* sinkron jam server saat dibuka & tiap 10 menit (juga di halaman login) */
+async function syncServerTime(){try{const t0=Date.now();const r=await call('getServerTime',[]);syncClock(r.now,t0,Date.now())}catch(e){}}
+syncServerTime();setInterval(syncServerTime,600000);
+/* refresh: tiap 20 detik, atau 10 detik selama ada tamu menunggu */
+setInterval(()=>{if(!S.me||S.me.mustChange||document.hidden||S.busy||S.modal||S.confirm||S.addUser||(S.imp&&S.imp.state==='writing'))return;const every=queued().length?10000:20000;if(nowS()-S.lastSync>=every)refresh(true)},2500);
+
+(async function boot(){
+  render();
+  if(!S.token)return;
+  try{const r=await call('whoAmI',[S.token]);S.me=r.me;S.today=r.today;S.view=defaultView();render();refresh()}
+  catch(e){if(e.code==='AUTH')doLocalLogout('');else{S.token='';S.me=null;S.loginErr=e.message;render()}}
+})();
+</script>
+
+</body>
+</html>
