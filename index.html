@@ -14,7 +14,7 @@
   <script>
     /* Alamat server (Google Apps Script). Ganti jika membuat deployment baru. */
     window.HK_API_URL = 'https://script.google.com/macros/s/AKfycbyyFZ7k-3dElnTu4hKc6IbNF9uVi5FnZiOTJ6N4Wszv9jNoRZQYKMee7GVqjIfr-QEaRA/exec';
-    window.HK_BUILD = '20261105202106';
+    window.HK_BUILD = '20261105203736';
     /* Pengganti google.script.run: memanggil server lewat POST {fn, args} */
     (function () {
       function runner() {
@@ -95,6 +95,7 @@
 
 /* ---------------- ICONS ---------------- */
 const P={
+  unlock:'<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-2"/>',
   layers:'<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>',
   play:'<path d="M7 5l12 7-12 7z" fill="currentColor" stroke="none"/>',
   pause:'<rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none"/>',
@@ -162,7 +163,7 @@ const AV=['bg-brand-100 text-brand-800','bg-sky-100 text-sky-800','bg-amber-100 
 const isAdmin=()=>S.me&&(S.me.role==='superadmin'||S.me.role==='admin');
 
 const S={persist:(()=>{try{return !!localStorage.getItem('hk.token')}catch(e){return false}})(),token:lsGet('hk.token'),me:null,today:'',rooms:[],users:[],uploads:[],loaded:false,view:'',
-  reportDate:'',report:{},allUsers:null,log:null,storage:null,drafts:{},del:'',modal:null,confirm:null,creds:null,acct:false,more:false,addUser:false,imp:null,
+  reportDate:'',report:{},repLoading:{},dayInfo:{},days:[],unclosed:[],closing:null,allUsers:null,log:null,storage:null,drafts:{},del:'',modal:null,confirm:null,creds:null,acct:false,more:false,addUser:false,imp:null,
   showAll:false,busy:0,lastSync:0,loginErr:'',syncErr:'',qAlert:null,editUser:null,soundOn:lsGet('hk.sound')!=='0',wake:lsGet('hk.wake')==='1'};
 
 /* ---------------- SERVER CALLS ---------------- */
@@ -187,14 +188,18 @@ async function run(fn,ok){try{const r=await fn();if(ok)toast(typeof ok==='functi
 let toastT;function toast(m){const el=document.getElementById('toast');document.getElementById('toast-msg').textContent=m;el.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>el.hidden=true,3500)}
 function renderBusy(){document.querySelectorAll('[data-busy]').forEach(el=>el.classList.toggle('spin',!!S.busy))}
 
-const CLIENT_VERSION=6; /* harus sama dengan APP_VERSION di Code.gs */
-async function refresh(silent){
+const CLIENT_VERSION=7; /* harus sama dengan APP_VERSION di Code.gs */
+async function refresh(silent,again){
   if(!S.token||!S.me||S.me.mustChange)return;
   try{
     const t0=Date.now();const st=await api('getState',S.today||'');syncClock(st.serverTime,t0,Date.now());
+    /* hari berganti (ditutup admin atau lewat tengah malam): pindah ke tanggal operasional baru */
+    if(st.date!==st.today&&!again){const old=S.today;S.today=st.today;delete S.report[old];
+      if(old&&S.loaded)toast(st.day&&st.day.closed?`Hari ${fmtShort(old)} sudah ditutup. Tampilan pindah ke ${fmtShort(st.today)}.`:`Tampilan pindah ke ${fmtShort(st.today)}.`);
+      return refresh(silent,true)}
     const prev=(S.loaded&&S.stateDate===st.date)?S.rooms:null;S.stateDate=st.date;
     S.srvVer=+st.version||0;if(S.srvVer>CLIENT_VERSION&&window.HK_API_URL&&reloadOk())return hardReload();
-    S.me=st.me;S.users=st.users;detectEvents(prev,st.rooms);S.rooms=st.rooms;S.uploads=st.uploads||[];S.loaded=true;S.lastSync=nowS();S.syncErr='';
+    S.me=st.me;S.users=st.users;detectEvents(prev,st.rooms);S.rooms=st.rooms;S.uploads=st.uploads||[];S.day=st.day||null;if(st.days)S.days=st.days;S.unclosed=st.unclosed||[];S.dayInfo[st.date]=st.day||null;S.loaded=true;S.lastSync=nowS();S.syncErr='';
     S.today=st.today;if(!S.reportDate)S.reportDate=st.today;
     checkQueueAlerts();
     render();
@@ -217,7 +222,7 @@ async function checkUpdate(){
     if(j&&j.build&&j.build!==window.HK_BUILD){const busy=S.busy||S.modal||S.confirm||S.addUser||S.editUser||S.acct||S.imp||(document.activeElement&&/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName));
       if(!busy&&reloadOk())hardReload(j.build)}}catch(e){}
 }
-async function loadReport(date){const st=await run(()=>api('getState',date));if(st){S.report[date]=st.rooms;render()}}
+async function loadReport(date){const st=await run(()=>api('getState',date));if(st){S.report[date]=st.rooms;S.dayInfo[date]=st.day||null;render()}}
 function doLocalLogout(msg){
   lsDel('hk.token');Object.assign(S,{token:'',me:null,loaded:false,rooms:[],users:[],allUsers:null,log:null,modal:null,confirm:null,creds:null,acct:false,more:false,addUser:false,imp:null,qAlert:null,loginErr:msg||'',view:''});
   render();
@@ -510,6 +515,34 @@ function viewShell(){
 const skeleton=()=>`<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">${[1,2,3,4].map(()=>`<div class="h-28 rounded-2xl bg-white ring-1 ring-slate-200 animate-pulse"></div>`).join('')}</div><div class="mt-4 h-64 rounded-2xl bg-white ring-1 ring-slate-200 animate-pulse"></div>`;
 const pageHead=(title,sub,right)=>`<div class="lg:hidden mb-4 flex items-end justify-between gap-3"><div>${title?`<h2 class="text-lg font-extrabold text-slate-900">${title}</h2>`:''}${sub?`<p class="text-sm text-slate-500">${sub}</p>`:''}</div>${right||''}</div>`;
 
+/* ================= TUTUP HARI ================= */
+const prevDay=k=>{const [y,m,d]=k.split('-').map(Number);return new Date(Date.UTC(y,m-1,d-1)).toISOString().slice(0,10)};
+const jktHour=()=>+new Date(nowS()).toLocaleString('en-GB',{timeZone:'Asia/Jakarta',hour:'2-digit',hour12:false}).slice(0,2);
+/* banner untuk admin: pengingat tutup hari (mulai jam 20.00) dan hari lalu yang belum ditutup */
+function dayBanners(){
+  if(!isAdmin())return '';
+  let h='';
+  (S.unclosed||[]).slice(-3).forEach(d=>{h+=`<div class="mb-3 flex items-center gap-3 rounded-2xl bg-amber-50 ring-1 ring-inset ring-amber-300 px-4 py-3"><span class="w-9 h-9 rounded-xl bg-amber-400 text-amber-950 flex items-center justify-center shrink-0">${ic('alert','w-5 h-5')}</span><div class="flex-1 min-w-0 text-sm text-amber-900"><p class="font-bold">${esc(fmtShort(d))} belum ditutup</p><p class="text-xs">Tutup agar laporannya tersimpan.</p></div><button data-act="openClose" data-d="${d}" class="${bc('warn','sm')} shrink-0">Tutup</button></div>`});
+  if(S.rooms.length&&jktHour()>=20&&!(S.day&&S.day.closed))h+=`<div class="mb-4 flex items-center gap-3 rounded-2xl bg-brand-950 text-white px-4 py-3 shadow-lift"><span class="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center shrink-0">${ic('lock','w-5 h-5')}</span><div class="flex-1 min-w-0 text-sm"><p class="font-bold">Sudah jam ${clk(nowS()).slice(0,2)}.00 — waktunya tutup hari</p><p class="text-xs text-brand-200">Laporan ${esc(fmtShort(S.today))} disimpan, dashboard kosong untuk besok.</p></div><button data-act="openClose" data-d="${S.today}" class="${bc('glass','sm')} shrink-0">Tutup hari</button></div>`;
+  return h;
+}
+function closeSheet(){
+  const d=S.closing.date,rooms=d===S.today?S.rooms:S.report[d];
+  if(!rooms){return sheet(`${sheetHead('Tutup hari',esc(fmtDate(d)),'closeClose')}<div class="px-6 pb-8">${skeleton()}</div>`,{close:'closeClose',lbl:'Tutup hari'})}
+  const total=rooms.length,ready=cnt(rooms,'COMPLETED'),pend=cnt(rooms,'PENDING'),work=cnt(rooms,'CLEANING')+cnt(rooms,'PAUSED'),spv=cnt(rooms,'INSPECTION_READY')+cnt(rooms,'INSPECTING');
+  const left=rooms.filter(r=>r.status!=='COMPLETED').sort(roomSort),pct=total?Math.round(ready/total*100):0;
+  const step=(i,t)=>`<li class="flex items-start gap-2.5"><span class="w-5 h-5 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center shrink-0 mt-0.5">${ic(i,'w-3 h-3')}</span><span>${t}</span></li>`;
+  return sheet(`${sheetHead('Tutup hari',esc(fmtDate(d)),'closeClose')}<div class="px-5 sm:px-6 pb-6 space-y-4 overflow-y-auto">
+    ${total?`<div class="grid grid-cols-2 gap-2.5"><div class="rounded-2xl bg-emerald-50 ring-1 ring-inset ring-emerald-200 p-3.5"><p class="text-xs font-semibold text-emerald-800">Kamar ready</p><p class="text-2xl font-extrabold text-emerald-700 mt-1">${ready}<span class="text-sm text-emerald-600 font-bold"> / ${total}</span></p><p class="text-[11px] text-emerald-700">${pct}% selesai</p></div>
+      <div class="rounded-2xl ${left.length?'bg-amber-50 ring-amber-200':'bg-slate-50 ring-slate-200'} ring-1 ring-inset p-3.5"><p class="text-xs font-semibold ${left.length?'text-amber-800':'text-slate-500'}">Belum ready</p><p class="text-2xl font-extrabold ${left.length?'text-amber-700':'text-slate-400'} mt-1">${left.length}</p><p class="text-[11px] ${left.length?'text-amber-700':'text-slate-400'}">${left.length?[pend&&pend+' belum mulai',work&&work+' dibersihkan',spv&&spv+' di supervisor'].filter(Boolean).join(' · '):'semua kamar selesai'}</p></div></div>`
+      :`<p class="text-sm text-slate-500">Tidak ada kamar pada tanggal ini.</p>`}
+    ${left.length?`<div class="rounded-2xl ring-1 ring-inset ring-amber-200 p-3.5 space-y-2"><p class="text-xs font-semibold text-amber-900 flex items-center gap-1.5">${ic('alert','w-3.5 h-3.5')} Kamar ini tercatat belum ready di laporan</p><div class="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">${left.slice(0,80).map(r=>`<span class="px-2 py-1 rounded-lg text-[11px] font-bold ring-1 ring-inset ${ST[r.status].tile}" title="${esc(ST[r.status].l)} · ${esc(nameOf(r.assignedTo))}">${esc(r.room)}</span>`).join('')}${left.length>80?`<span class="text-[11px] text-slate-500 self-center">+${left.length-80}</span>`:''}</div></div>`:''}
+    <ul class="space-y-2 text-sm text-slate-600">${step('chart','Laporan hari ini disimpan dan bisa dibuka kapan saja di menu <b>Laporan</b>.')}${step('lock','Data hari ini dikunci; tombol Start/Finish tidak bisa dipakai lagi untuk tanggal ini.')}${d===S.today?step('refresh',`Dashboard semua pengguna kosong dan siap untuk <b>${esc(fmtShort(nextDay(d)))}</b>.`):''}</ul>
+    <p id="cl-err" class="text-sm text-rose-600" hidden></p>
+    <div class="grid grid-cols-[auto_1fr] gap-2"><button data-act="closeClose" class="${bc('ghost','lg')}">Batal</button><button id="cl-yes" data-act="doClose" ${total?'':'disabled'} class="${bc(left.length?'danger':'primary','lg')} disabled:opacity-40">${ic('lock','w-4 h-4')} ${left.length?'Tetap tutup hari':'Tutup hari & simpan laporan'}</button></div></div>`,{close:'closeClose',lbl:'Tutup hari'});
+}
+const nextDay=k=>{const [y,m,d]=k.split('-').map(Number);return new Date(Date.UTC(y,m-1,d+1)).toISOString().slice(0,10)};
+
 /* ================= QUEUE BANNER ================= */
 function queueBanner(list,title,sub){
   if(!list.length)return '';
@@ -540,15 +573,19 @@ function floorMap(rooms){
 }
 function viewDash(){
   const R=S.rooms,total=R.length,ready=cnt(R,'COMPLETED'),wait=cnt(R,'INSPECTION_READY'),chk=cnt(R,'INSPECTING'),work=cnt(R,'CLEANING')+cnt(R,'PAUSED'),pend=cnt(R,'PENDING');
-  if(!total)return pageHead('',esc(fmtDate(S.today)))+card(empty('inbox','Belum ada kamar hari ini',isAdmin()?'Upload Task Sheet Report pagi ini untuk membagikan kamar ke housekeeper.':'Kamar muncul setelah admin meng-upload task sheet.',isAdmin()?`<button data-act="nav" data-v="upload" class="${bc('primary')}">${ic('upload')} Upload task sheet</button>`:''));
+  const lastClosed=(S.days||[]).find(d=>d.closed&&d.date<S.today);
+  if(!total)return pageHead('',esc(fmtDate(S.today)))+dayBanners()+(isAdmin()&&lastClosed&&lastClosed.date===prevDay(S.today)?`<div class="mb-4 flex flex-col sm:flex-row sm:items-center gap-3 rounded-2xl bg-emerald-50 ring-1 ring-inset ring-emerald-200 px-4 py-3"><span class="w-9 h-9 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0">${ic('check','w-5 h-5')}</span><div class="flex-1 min-w-0 text-sm text-emerald-900"><p class="font-bold">${esc(fmtShort(lastClosed.date))} sudah ditutup · laporan tersimpan</p><p class="text-xs">${lastClosed.ready} dari ${lastClosed.total} kamar ready${lastClosed.notReady?` · ${lastClosed.notReady} belum ready`:''} · ditutup ${clk(lastClosed.closedAt)} oleh ${esc(lastClosed.closedBy)}</p></div><button data-act="openReportDate" data-d="${lastClosed.date}" class="${bc('soft','sm')} shrink-0">${ic('chart','w-3.5 h-3.5')} Lihat laporan</button></div>`:'')
+    +card(empty('inbox',`Siap untuk ${esc(fmtShort(S.today))}`,isAdmin()?'Dashboard sudah kosong. Upload Task Sheet Report untuk membagikan kamar ke housekeeper.':'Kamar muncul setelah admin meng-upload task sheet.',isAdmin()?`<button data-act="nav" data-v="upload" class="${bc('primary')}">${ic('upload')} Upload task sheet</button>`:''));
   const arr=R.filter(r=>r.arrivalFlag&&r.status!=='COMPLETED').sort((a,b)=>ORDER[a.status]-ORDER[b.status]||roomSort(a,b));
   const hks=hkList().map(h=>{const m=R.filter(r=>r.assignedTo===h.id);const d=m.filter(hkDone);const avg=d.length?Math.round(d.reduce((s,r)=>s+mins(netClean(r)),0)/d.length):0;return{h,m,d:d.length,avg,a:m.find(r=>r.status==='CLEANING'),p:m.find(r=>r.status==='PAUSED')}}).filter(x=>x.m.length).sort((a,b)=>(b.d/b.m.length)-(a.d/a.m.length));
   const since=r=>`<span class="font-mono" data-since="${r.startAt+(r.totalPauseMs||0)}">${timer(nowS()-r.startAt-(r.totalPauseMs||0))}</span>`;
   const row=(r,right)=>`<div class="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-slate-50"><span class="w-12 font-extrabold text-slate-900">${esc(r.room)}</span><span class="flex-1 min-w-0 text-xs text-slate-500 truncate">${right}</span>`;
   const Q=queued();
   return `${pageHead(greet()+', '+esc(S.me.name.split(' ')[0]),esc(fmtDate(S.today)))}
+  ${dayBanners()}
   ${queueBanner(Q,`${Q.length} tamu sudah menunggu`,isAdmin()?'Housekeeper & supervisor sudah diberi tahu. Batalkan dari menu Kamar bila tamu sudah dipindahkan.':'Prioritaskan kamar ini.')}
-  <div class="hidden lg:flex items-end justify-between mb-5"><div><p class="text-sm text-slate-500">${greet()},</p><p class="text-2xl font-extrabold text-slate-900 tracking-tight">${esc(S.me.name)}</p></div>${isAdmin()?`<button data-act="nav" data-v="upload" class="${bc('ghost')}">${ic('upload')} Upload task sheet</button>`:''}</div>
+  ${isAdmin()?`<div class="lg:hidden -mt-1 mb-4 grid grid-cols-2 gap-2"><button data-act="nav" data-v="upload" class="${bc('ghost')}">${ic('upload')} Upload</button><button data-act="openClose" data-d="${S.today}" class="${bc('dark')}">${ic('lock')} Tutup hari</button></div>`:''}
+  <div class="hidden lg:flex items-end justify-between mb-5"><div><p class="text-sm text-slate-500">${greet()},</p><p class="text-2xl font-extrabold text-slate-900 tracking-tight">${esc(S.me.name)}</p></div>${isAdmin()?`<div class="flex gap-2"><button data-act="nav" data-v="upload" class="${bc('ghost')}">${ic('upload')} Upload task sheet</button><button data-act="openClose" data-d="${S.today}" class="${bc('dark')}">${ic('lock')} Tutup hari</button></div>`:''}</div>
   <div class="grid grid-cols-2 md:grid-cols-5 gap-3 sm:gap-4">
     ${kpi('bed','bg-slate-100 text-slate-600','Total kamar',total,`${R.filter(r=>r.category==='CHECKOUT').length} CO · ${R.filter(r=>r.category==='STAYOVER').length} SO`)}
     ${kpi('check','bg-emerald-50 text-emerald-600','Ready',ready,`${total?Math.round(ready/total*100):0}% dari total`)}
@@ -733,21 +770,31 @@ function viewRecap(){
 /* ================= LAPORAN ================= */
 function viewReport(){
   const date=S.reportDate||S.today,all=date===S.today?S.rooms:S.report[date];
-  const hasDone=!!(all&&all.some(r=>r.status==='COMPLETED'));
+  const hasDone=!!(all&&all.length);
+  const info=date===S.today?S.day:S.dayInfo[date];
   const head=`<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4"><p class="text-sm text-slate-500 lg:hidden">${VIEWS.report.d}</p><div class="flex items-center gap-2 sm:ml-auto">${ic('calendar','w-4 h-4 text-slate-400')}<input type="date" id="f-rdate" value="${date}" aria-label="Tanggal laporan" class="${selectCls} flex-1 sm:flex-none">${hasDone?`<button data-act="exportReport" class="${bc('soft','md')} whitespace-nowrap">${ic('file','w-4 h-4')} Unduh Excel</button>`:''}</div></div>`;
-  if(!all)return head+skeleton();
-  const done=all.filter(r=>r.status==='COMPLETED').sort(roomSort),co=done.filter(hasSpv);
+  const days=(S.days||[]).slice(0,14);
+  const strip=days.length?`<div class="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 mb-4">${days.map(x=>`<button data-act="openReportDate" data-d="${x.date}" class="shrink-0 text-left rounded-xl px-3 py-2 ring-1 ring-inset ${x.date===date?'bg-brand-950 text-white ring-brand-950':'bg-white text-slate-700 ring-slate-200 hover:ring-brand-300'}"><span class="flex items-center gap-1 text-xs font-bold">${x.closed?ic('lock','w-3 h-3'):ic('unlock','w-3 h-3')} ${esc(fmtShort(x.date))}</span><span class="block text-[11px] ${x.date===date?'text-brand-200':'text-slate-500'}">${x.ready}/${x.total} ready</span></button>`).join('')}</div>`:'';
+  if(!all){if(!S.repLoading[date]){S.repLoading[date]=1;loadReport(date).finally(()=>{delete S.repLoading[date]})}return head+strip+skeleton()}
+  const status=info&&info.closed
+    ?`<div class="mb-4 flex flex-col sm:flex-row sm:items-center gap-3 rounded-2xl bg-white ring-1 ring-slate-200/80 shadow-card px-4 py-3">${chip('Hari ditutup','bg-emerald-50 text-emerald-700 ring-emerald-200','bg-emerald-500')}<p class="flex-1 text-sm text-slate-600">${esc(fmtDate(date))} · ditutup ${clk(info.closedAt)} oleh <b>${esc(info.closedBy)}</b>. Laporan tersimpan di sheet <b>Laporan Harian</b>.</p>${isAdmin()?`<button data-act="reopenAsk" data-d="${date}" class="${bc('ghost','sm')} shrink-0">${ic('unlock','w-3.5 h-3.5')} Buka kembali</button>`:''}</div>`
+    :all.length?`<div class="mb-4 flex flex-col sm:flex-row sm:items-center gap-3 rounded-2xl bg-white ring-1 ring-slate-200/80 shadow-card px-4 py-3">${chip('Belum ditutup','bg-amber-50 text-amber-800 ring-amber-200','bg-amber-500')}<p class="flex-1 text-sm text-slate-600">${info&&info.reopenedAt?`Dibuka kembali ${fmtDT(info.reopenedAt)} oleh ${esc(info.reopenedBy)}. `:''}Laporan disimpan saat admin menekan <b>Tutup hari</b>.</p>${isAdmin()?`<button data-act="openClose" data-d="${date}" class="${bc('dark','sm')} shrink-0">${ic('lock','w-3.5 h-3.5')} Tutup hari</button>`:''}</div>`:'';
+  if(!all.length)return head+strip+(info?`<div class="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">${kpi('check','bg-emerald-50 text-emerald-600','Kamar ready',info.ready,`dari ${info.total} kamar`)}${kpi('clock','bg-amber-50 text-amber-600','Rata-rata HK',info.avgHk+' mnt','start → selesai')}${kpi('dcheck','bg-violet-50 text-violet-600','Rata-rata cek SPV',info.avgSpvCheck+' mnt',`HK selesai → SPV cek ±${info.avgSpvWait} mnt`)}${kpi('chart','bg-brand-50 text-brand-600','Rata-rata total',info.avgTotal+' mnt','HK start → SPV selesai')}</div><p class="mt-4 text-sm text-slate-500">Detail per kamar untuk tanggal ini sudah dihapus dari database (pembersihan data lama); ringkasan harian tetap tersimpan.</p>`
+    :card(empty('inbox','Tidak ada data pada tanggal ini','Pilih tanggal lain.')));
+  const done=all.filter(r=>r.status==='COMPLETED').sort(roomSort),co=done.filter(hasSpv),left=all.filter(r=>r.status!=='COMPLETED').sort(roomSort);
   const avg=a=>a.length?Math.round(a.reduce((s,x)=>s+x,0)/a.length):0;
   const avgC=avg(done.map(r=>mins(hkSpan(r)))),avgS=avg(co.map(r=>mins(spvCheck(r)))),avgW=avg(co.map(r=>mins(spvWait(r)))),avgT=avg(done.map(r=>mins(totalSpan(r))));
   const per={};done.forEach(r=>{const k=r.assignedTo||'-';const p=per[k]=per[k]||{n:0,c:[],co:0};p.n++;p.c.push(mins(hkSpan(r)));if(r.category==='CHECKOUT')p.co++});
   const rows=Object.entries(per).sort((a,b)=>b[1].n-a[1].n);
-  return head+`<div class="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
+  const leftCard=left.length?`<div class="mt-4">${card(`${cardHead(info&&info.closed?'Belum ready saat hari ditutup':'Belum ready',`${left.length} kamar`)}<div class="p-3 sm:p-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">${left.map(r=>`<div class="flex items-center gap-3 rounded-xl ring-1 ring-inset ring-slate-200/80 px-3 py-2.5"><span class="w-12 text-lg font-extrabold text-slate-900">${esc(r.room)}</span><div class="flex-1 min-w-0 text-xs text-slate-500"><p class="font-semibold text-slate-800 truncate">${esc(nameOf(r.assignedTo))}</p><p>${r.startAt?'start '+clk(r.startAt):'belum mulai'}${r.finishHkAt?' · selesai '+clk(r.finishHkAt):''}</p></div>${stChip(r.status)}</div>`).join('')}</div>`)}</div>`:'';
+  return head+strip+status+`<div class="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
     ${kpi('check','bg-emerald-50 text-emerald-600','Kamar ready',done.length,`dari ${all.length} kamar${done.some(r=>r.queuedAt)?` · ${done.filter(r=>r.queuedAt).length} tamu sempat menunggu (rata-rata ${avg(done.filter(r=>r.queuedAt).map(r=>mins(r.finishSpvAt-r.queuedAt)))} mnt)`:''}`)}
     ${kpi('clock','bg-amber-50 text-amber-600','Rata-rata HK',avgC+' mnt','start → selesai')}
     ${kpi('dcheck','bg-violet-50 text-violet-600','Rata-rata cek SPV',avgS+' mnt',`HK selesai → SPV cek ±${avgW} mnt`)}
     ${kpi('chart','bg-brand-50 text-brand-600','Rata-rata total',avgT+' mnt','HK start → SPV selesai')}</div>
   <div class="mt-4">${card(`${cardHead('Detail waktu per kamar',`${done.length} kamar ready · semua jam waktu server (WIB)`)}${done.length?reportTable(done)+`
       <div class="md:hidden p-4 space-y-3">${done.slice(0,S.showAll?9999:30).map(r=>recapCard(r,false)).join('')}${done.length>30&&!S.showAll?`<button data-act="toggleAll" class="${bc('ghost','md','w-full')}">Tampilkan semua (${done.length})</button>`:''}</div>`:empty('inbox','Belum ada kamar ready pada tanggal ini','')}`)}</div>
+  ${leftCard}
   <div class="mt-4">${card(`${cardHead('Per housekeeper','Diurutkan dari kamar terbanyak')}<div class="p-2 grid sm:grid-cols-2 xl:grid-cols-3">${rows.length?rows.map(([id,p])=>`<div class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50">${avatar(nameOf(id),'w-8 h-8 text-[10px]')}<div class="flex-1 min-w-0"><p class="text-sm font-semibold text-slate-900 truncate">${esc(nameOf(id))}</p><p class="text-xs text-slate-500">${p.co} checkout · ${p.n-p.co} stayover</p></div><div class="text-right"><p class="text-sm font-extrabold text-slate-900">${p.n}</p><p class="text-[11px] text-slate-500">${avg(p.c)} mnt/kamar</p></div></div>`).join(''):empty('chart','Belum ada data','')}</div>`)}</div>`;
 }
 function reportTable(done){
@@ -768,11 +815,12 @@ function reportTable(done){
 /* Unduh laporan sebagai CSV (dibuka di Excel / Google Sheets). Durasi dalam menit agar bisa dihitung. */
 function exportReport(){
   const date=S.reportDate||S.today,all=(date===S.today?S.rooms:S.report[date])||[];
-  const done=all.filter(r=>r.status==='COMPLETED').sort(roomSort);
-  if(!done.length){toast('Belum ada kamar ready untuk diunduh.');return}
+  const done=all.slice().sort((a,b)=>(a.status==='COMPLETED'?0:1)-(b.status==='COMPLETED'?0:1)||roomSort(a,b));
+  if(!done.length){toast('Tidak ada data untuk diunduh.');return}
   const M=v=>v==null?'':mins(v);
-  const head=['Tanggal','Kamar','Kategori','Housekeeper','Jam HK start','Jam HK selesai','Waktu HK start-selesai (menit)','Jam SPV cek','Jam SPV selesai cek','Waktu pengecekan SPV (menit)','Waktu HK selesai - SPV cek (menit)','Total HK start - SPV selesai (menit)','Supervisor','Jeda/pause (menit)','Tamu menunggu (menit)'];
-  const rows=done.map(r=>{const t=timesOf(r);return [date,r.room,isSO(r)?'Stayover':'Checkout',nameOf(r.assignedTo),t.hkStart.replace('.',':'),t.hkEnd.replace('.',':'),M(t.hkDur),t.spvStart.replace('.',':'),t.spvEnd.replace('.',':'),M(t.spvDur),M(t.wait),M(t.total),r.spvId&&!isSO(r)?nameOf(r.spvId):'',mins(r.totalPauseMs),r.queuedAt?mins(r.finishSpvAt-r.queuedAt):'']});
+  const head=['Tanggal','Kamar','Kategori','Status','Housekeeper','Jam HK start','Jam HK selesai','Waktu HK start-selesai (menit)','Jam SPV cek','Jam SPV selesai cek','Waktu pengecekan SPV (menit)','Waktu HK selesai - SPV cek (menit)','Total HK start - SPV selesai (menit)','Supervisor','Jeda/pause (menit)','Tamu menunggu (menit)'];
+  const T=x=>x==='--.--'||x==='–'?'':x.replace('.',':');
+  const rows=done.map(r=>{const t=timesOf(r),ok=r.status==='COMPLETED';return [date,r.room,isSO(r)?'Stayover':'Checkout',ok?'Ready':ST[r.status].l,nameOf(r.assignedTo),T(t.hkStart),T(t.hkEnd),r.finishHkAt?M(t.hkDur):'',ok?T(t.spvStart):(r.spvStartAt?T(clk(r.spvStartAt)):''),ok?T(t.spvEnd):'',M(t.spvDur),M(t.wait),ok?M(t.total):'',r.spvId&&!isSO(r)?nameOf(r.spvId):'',mins(r.totalPauseMs),r.queuedAt?mins(r.finishSpvAt-r.queuedAt):'']});
   const q=v=>{v=String(v==null?'':v);return /[;"\n,]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
   const csv='﻿sep=;\r\n'+[head].concat(rows).map(a=>a.map(q).join(';')).join('\r\n');
   const name='Laporan-HK-'+date+'.csv';
@@ -983,6 +1031,7 @@ function renderModals(){
       <div class="mt-4 space-y-2 text-left max-h-60 overflow-y-auto">${L.map(r=>`<div class="flex items-center gap-3 rounded-xl ring-1 ring-inset ring-rose-200 bg-rose-50 px-3 py-2.5"><span class="text-2xl font-extrabold text-slate-900 w-16">${esc(r.room)}</span><div class="flex-1 min-w-0"><p class="text-xs text-slate-600 truncate">${esc(nameOf(r.assignedTo))}</p>${stChip(r.status)}</div><span class="text-xs font-bold text-rose-700 whitespace-nowrap">${waitSpan(r)} mnt</span></div>`).join('')}</div>
       <button data-act="qAck" class="${bc('danger','lg','w-full mt-5')}">Oke, saya prioritaskan</button></div>`,{size:'sm:max-w-sm',lbl:'Tamu menunggu'});
   }
+  if(S.closing&&S.me)h+=closeSheet();
   if(S.confirm){
     const C=S.confirm;
     h+=sheet(`<div class="px-6 pt-6 pb-6 text-center"><span class="mx-auto w-14 h-14 rounded-2xl ${C.iconCls} flex items-center justify-center">${ic(C.icon,'w-7 h-7')}</span>
@@ -1056,6 +1105,16 @@ const A={
   openMore(){S.more=true;render()},closeMore(){S.more=false;render()},
   toggleAll(){S.showAll=!S.showAll;render()},
   hardReload(){hardReload()},
+  openClose(el){const d=el.dataset.d||S.today;S.closing={date:d};if(d!==S.today&&!S.report[d])loadReport(d);render()},
+  closeClose(){S.closing=null;render()},
+  async doClose(){const d=S.closing&&S.closing.date;if(!d)return;const b=document.getElementById('cl-yes');if(b){b.disabled=true;b.innerHTML='Menyimpan…'}
+    try{const r=await api('closeDay',d);S.closing=null;delete S.report[d];S.dayInfo[d]=r.day;S.reportDate=d;
+      toast(`${fmtShort(d)} ditutup. Laporan tersimpan (${r.day.ready}/${r.day.total} ready).`);await refresh(true);render()}
+    catch(e){if(b){b.disabled=false;b.textContent='Coba lagi'}const x=document.getElementById('cl-err');if(x&&e.code!=='AUTH'){x.textContent=e.message;x.hidden=false}}},
+  reopenAsk(el){const d=el.dataset.d;S.confirm={icon:'unlock',iconCls:'bg-amber-50 text-amber-600',title:`Buka kembali ${esc(fmtShort(d))}?`,
+    msg:`Data tanggal ini bisa diubah lagi${d<S.today?'':' dan dashboard kembali menampilkan tanggal ini'}. Tutup hari lagi setelah selesai agar laporannya diperbarui.`,btnV:'warn',btn:'Buka kembali',
+    onYes:async()=>{const r=await run(()=>api('reopenDay',d),`${fmtShort(d)} dibuka kembali.`);if(r){S.dayInfo[d]=r.day;delete S.report[d];await refresh(true);if(d!==S.today)loadReport(d);render()}}};render()},
+  openReportDate(el){S.reportDate=el.dataset.d;S.view='report';if(S.reportDate!==S.today&&!S.report[S.reportDate])loadReport(S.reportDate);render();window.scrollTo(0,0)},
   spvScope(el){S.spvAllFloors=el.dataset.v==='all';render()},
   flTog(el){const a=S.floorDraft[el.dataset.id],f=el.dataset.f,i=a.indexOf(f);if(i>=0)a.splice(i,1);else{a.push(f);a.sort(cmpFloor)}render()},
   flClear(el){S.floorDraft[el.dataset.id]=[];render()},
