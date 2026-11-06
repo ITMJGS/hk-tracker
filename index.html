@@ -14,7 +14,7 @@
   <script>
     /* Alamat server (Google Apps Script). Ganti jika membuat deployment baru. */
     window.HK_API_URL = 'https://script.google.com/macros/s/AKfycbyyFZ7k-3dElnTu4hKc6IbNF9uVi5FnZiOTJ6N4Wszv9jNoRZQYKMee7GVqjIfr-QEaRA/exec';
-    window.HK_BUILD = '20261106082246';
+    window.HK_BUILD = '20261106083306';
     /* Pengganti google.script.run: memanggil server lewat POST {fn, args} */
     (function () {
       function runner() {
@@ -145,6 +145,8 @@ const myFloors=()=>S.me&&S.me.role==='supervisor'&&S.me.floors?new Set(floorsOf(
 const onMyFloor=r=>{const f=myFloors();return !f||f.has(floorOf(r))};
 const spvOfFloor=f=>(S.users||[]).filter(u=>u.role==='supervisor'&&u.active&&(!u.floors||floorsOf(u).includes(f)));
 const fmtFloors=a=>a.length?'Lt '+a.join(', '):'Semua lantai';
+/* "2,3,4,6" -> "2-4, 6" */
+const fmtRange=a=>{const n=a.filter(x=>/^\d+$/.test(x)).map(Number).sort((x,y)=>x-y),o=[];let i=0;while(i<n.length){let j=i;while(j+1<n.length&&n[j+1]===n[j]+1)j++;o.push(j>i?n[i]+'-'+n[j]:String(n[i]));i=j+1}return o.concat(a.filter(x=>!/^\d+$/.test(x))).join(', ')};
 const greet=()=>{const h=new Date().getHours();return h<11?'Selamat pagi':h<15?'Selamat siang':h<18?'Selamat sore':'Selamat malam'};
 
 const ST={
@@ -189,7 +191,7 @@ async function run(fn,ok){try{const r=await fn();if(ok)toast(typeof ok==='functi
 let toastT;function toast(m){const el=document.getElementById('toast');document.getElementById('toast-msg').textContent=m;el.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>el.hidden=true,3500)}
 function renderBusy(){document.querySelectorAll('[data-busy]').forEach(el=>el.classList.toggle('spin',!!S.busy))}
 
-const CLIENT_VERSION=9; /* harus sama dengan APP_VERSION di Code.gs */
+const CLIENT_VERSION=10; /* harus sama dengan APP_VERSION di Code.gs */
 async function refresh(silent,again){
   if(!S.token||!S.me||S.me.mustChange)return;
   try{
@@ -200,7 +202,7 @@ async function refresh(silent,again){
       return refresh(silent,true)}
     const prev=(S.loaded&&S.stateDate===st.date)?S.rooms:null;S.stateDate=st.date;
     S.srvVer=+st.version||0;if(S.srvVer>CLIENT_VERSION&&window.HK_API_URL&&reloadOk())return hardReload();
-    S.me=st.me;S.users=st.users;detectEvents(prev,st.rooms);S.rooms=st.rooms;S.uploads=st.uploads||[];S.day=st.day||null;if(st.days)S.days=st.days;S.unclosed=st.unclosed||[];S.dayInfo[st.date]=st.day||null;S.loaded=true;S.lastSync=nowS();S.syncErr='';
+    S.me=st.me;S.users=st.users;detectEvents(prev,st.rooms);S.rooms=st.rooms;S.uploads=st.uploads||[];S.day=st.day||null;if(st.days)S.days=st.days;if(st.floors)S.hotelFloors=st.floors;S.unclosed=st.unclosed||[];S.dayInfo[st.date]=st.day||null;S.loaded=true;S.lastSync=nowS();S.syncErr='';
     S.today=st.today;if(!S.reportDate)S.reportDate=st.today;
     checkQueueAlerts();
     render();
@@ -937,10 +939,12 @@ function floorCard(){
   if(!spvs.length)return '';
   if(!S.floorDraft){S.floorDraft={};spvs.forEach(u=>S.floorDraft[u.id]=floorsOf(u))}
   const D=S.floorDraft;spvs.forEach(u=>{if(!D[u.id])D[u.id]=floorsOf(u)});
-  const set=new Set((S.rooms||[]).map(floorOf).filter(f=>f!=='Lain'));spvs.forEach(u=>D[u.id].concat(floorsOf(u)).forEach(f=>set.add(f)));(S.extraFloors||[]).forEach(f=>set.add(f));
+  /* daftar lantai tetap dari server (sheet Pengaturan), ditambah lantai yang sedang dipilih dan lantai baru yang belum disimpan */
+  const set=new Set(S.hotelFloors||[]);(S.rooms||[]).map(floorOf).filter(f=>f!=='Lain').forEach(f=>set.add(f));spvs.forEach(u=>D[u.id].concat(floorsOf(u)).forEach(f=>set.add(f)));(S.extraFloors||[]).forEach(f=>set.add(f));
   const floors=[...set].sort(cmpFloor);
   const roomsOn=f=>(S.rooms||[]).filter(r=>floorOf(r)===f).length;
-  const dirty=spvs.some(u=>D[u.id].join(',')!==floorsOf(u).join(','));
+  const newFloors=floors.filter(f=>!(S.hotelFloors||[]).includes(f));
+  const dirty=spvs.some(u=>D[u.id].join(',')!==floorsOf(u).join(','))||newFloors.length>0;
   const anyAll=spvs.some(u=>!D[u.id].length);
   const uncovered=anyAll?[]:floors.filter(f=>!spvs.some(u=>D[u.id].includes(f)));
   const shared=floors.filter(f=>spvs.filter(u=>D[u.id].includes(f)).length>1);
@@ -954,8 +958,11 @@ function floorCard(){
       ${shared.length?`<p class="mt-2 text-xs text-slate-500">${fmtFloors(shared)} di-handle lebih dari satu supervisor; keduanya mendapat notifikasi.</p>`:''}
       <div class="mt-3 flex flex-col sm:flex-row sm:items-center gap-2">
         <div class="flex gap-2 sm:w-64"><input id="f-flnew" type="text" inputmode="numeric" placeholder="Tambah lantai (mis. 11-14)" aria-label="Tambah lantai" class="${field} !py-2 !text-sm"><button data-act="flAdd" class="${bc('soft','sm')} shrink-0">${ic('plus','w-3.5 h-3.5')}</button></div>
-        <p class="text-[11px] text-slate-400 sm:flex-1">${floors.length?floors.map(f=>'Lt '+esc(f)+': '+roomsOn(f)).join(' · ')+' kamar hari ini':''}</p>
-        ${dirty?`<button data-act="flReset" class="${bc('ghost','sm')}">Batal</button>`:''}<button data-act="flSave" ${dirty?'':'disabled'} class="${bc('primary','sm')} disabled:opacity-40 disabled:cursor-not-allowed">Simpan pembagian</button></div></div>`)}</div>`;
+        <p class="text-[11px] text-slate-400 sm:flex-1">${newFloors.length?`<span class="text-amber-700 font-semibold">${fmtFloors(newFloors)} baru, tersimpan saat Simpan.</span> `:''}${(S.rooms||[]).length?floors.filter(roomsOn).map(f=>'Lt '+esc(f)+': '+roomsOn(f)).join(' · ')+' kamar hari ini':''}</p>
+        ${dirty?`<button data-act="flReset" class="${bc('ghost','sm')}">Batal</button>`:''}<button data-act="flSave" ${dirty?'':'disabled'} class="${bc('primary','sm')} disabled:opacity-40 disabled:cursor-not-allowed">Simpan pembagian</button></div>
+      <details class="mt-3 rounded-xl bg-slate-50 group"><summary class="px-3 py-2.5 text-xs font-semibold text-slate-600 cursor-pointer flex items-center gap-1.5">${ic('layers','w-3.5 h-3.5')} Daftar lantai hotel: ${esc(fmtRange(S.hotelFloors||[]))||'belum ada'}<span class="ml-auto text-slate-400 group-open:rotate-90 transition">${ic('chevron','w-3.5 h-3.5')}</span></summary>
+        <div class="px-3 pb-3 space-y-2"><p class="text-xs text-slate-500">Pilihan lantai di atas selalu tampil dari daftar ini, walaupun hari ini belum ada kamar. Lantai baru dari task sheet ditambahkan otomatis.</p>
+          <div class="flex gap-2"><input id="f-hfloors" type="text" value="${esc(fmtRange(S.hotelFloors||[]))}" placeholder="mis. 2-12" aria-label="Daftar lantai hotel" class="${field} !py-2 !text-sm"><button data-act="saveHotelFloors" class="${bc('dark','sm')} shrink-0">Simpan daftar</button></div></div></details></div>`)}</div>`;
 }
 
 /* ================= SISTEM ================= */
@@ -1160,8 +1167,12 @@ const A={
   flAdd(){const i=document.getElementById('f-flnew');const v=String(i&&i.value||'').toUpperCase().trim();if(!v)return;
     const out=[];for(const t of v.split(/[,;\s]+/).filter(Boolean)){const m=t.match(/^(\d{1,3})-(\d{1,3})$/);if(m){let a=+m[1],b=+m[2];if(a>b)[a,b]=[b,a];if(b-a>60)return toast('Rentang terlalu panjang.');for(let x=a;x<=b;x++)out.push(String(x))}else{const z=t.replace(/^(LT|L)\.?(?=\d)/,'');if(!/^[0-9A-Z]{1,4}$/.test(z))return toast('Lantai tidak valid: '+t);out.push(/^\d+$/.test(z)?String(+z):z)}}
     S.extraFloors=[...new Set((S.extraFloors||[]).concat(out))];render()},
-  async flSave(){const D=S.floorDraft||{},map={};(S.allUsers||[]).filter(u=>u.role==='supervisor'&&D[u.id]&&D[u.id].join(',')!==floorsOf(u).join(',')).forEach(u=>map[u.id]=D[u.id].join(','));
-    if(!Object.keys(map).length)return;
+  async saveHotelFloors(){const v=(document.getElementById('f-hfloors')||{}).value||'';
+    const r=await run(()=>api('setHotelFloors',v),'Daftar lantai disimpan.');if(r){S.hotelFloors=r.floors;S.extraFloors=[];render()}},
+  async flSave(){const D=S.floorDraft||{},map={};
+    const extra=(S.extraFloors||[]).filter(f=>!(S.hotelFloors||[]).includes(f));
+    if(extra.length){const r=await run(()=>api('setHotelFloors',(S.hotelFloors||[]).concat(extra).join(',')));if(!r)return;S.hotelFloors=r.floors}(S.allUsers||[]).filter(u=>u.role==='supervisor'&&D[u.id]&&D[u.id].join(',')!==floorsOf(u).join(',')).forEach(u=>map[u.id]=D[u.id].join(','));
+    if(!Object.keys(map).length){S.extraFloors=[];toast('Daftar lantai disimpan.');render();return}
     const r=await run(()=>api('setSpvFloors',map),r=>`Pembagian lantai disimpan (${r.changed} supervisor).`);
     if(r){S.allUsers=null;S.floorDraft=null;S.extraFloors=[];refresh(true);render()}},
   exportReport(){exportReport()},
