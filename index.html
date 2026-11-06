@@ -14,7 +14,7 @@
   <script>
     /* Alamat server (Google Apps Script). Ganti jika membuat deployment baru. */
     window.HK_API_URL = 'https://script.google.com/macros/s/AKfycbyyFZ7k-3dElnTu4hKc6IbNF9uVi5FnZiOTJ6N4Wszv9jNoRZQYKMee7GVqjIfr-QEaRA/exec';
-    window.HK_BUILD = '20261106084531';
+    window.HK_BUILD = '20261106093545';
     /* Pengganti google.script.run: memanggil server lewat POST {fn, args} */
     (function () {
       function runner() {
@@ -191,7 +191,7 @@ async function run(fn,ok){try{const r=await fn();if(ok)toast(typeof ok==='functi
 let toastT;function toast(m){const el=document.getElementById('toast');document.getElementById('toast-msg').textContent=m;el.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>el.hidden=true,3500)}
 function renderBusy(){document.querySelectorAll('[data-busy]').forEach(el=>el.classList.toggle('spin',!!S.busy))}
 
-const CLIENT_VERSION=12; /* harus sama dengan APP_VERSION di Code.gs */
+const CLIENT_VERSION=13; /* harus sama dengan APP_VERSION di Code.gs */
 async function refresh(silent,again){
   if(!S.token||!S.me||S.me.mustChange)return;
   try{
@@ -817,7 +817,7 @@ function viewReport(){
   const status=info&&info.closed
     ?`<div class="mb-4 flex flex-col sm:flex-row sm:items-center gap-3 rounded-2xl bg-white ring-1 ring-slate-200/80 shadow-card px-4 py-3">${chip('Hari ditutup','bg-emerald-50 text-emerald-700 ring-emerald-200','bg-emerald-500')}<p class="flex-1 text-sm text-slate-600">${esc(fmtDate(date))} · ${closedTxt(info)}. Laporan tersimpan di sheet <b>Laporan Harian</b>.</p>${isAdmin()?`<button data-act="reopenAsk" data-d="${date}" class="${bc('ghost','sm')} shrink-0">${ic('unlock','w-3.5 h-3.5')} Buka kembali</button>`:''}</div>`
     :all.length?`<div class="mb-4 flex flex-col sm:flex-row sm:items-center gap-3 rounded-2xl bg-white ring-1 ring-slate-200/80 shadow-card px-4 py-3">${chip('Belum ditutup','bg-amber-50 text-amber-800 ring-amber-200','bg-amber-500')}<p class="flex-1 text-sm text-slate-600">${info&&info.reopenedAt?`Dibuka kembali ${fmtDT(info.reopenedAt)} oleh ${esc(info.reopenedBy)}. `:''}Laporan disimpan saat admin menekan <b>Tutup hari</b>, atau otomatis pukul 00.00.</p>${isAdmin()?`<button data-act="openClose" data-d="${date}" class="${bc('dark','sm')} shrink-0">${ic('lock','w-3.5 h-3.5')} Tutup hari</button>`:''}</div>`:'';
-  if(!all.length)return head+strip+(info?`<div class="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">${kpi('check','bg-emerald-50 text-emerald-600','Kamar ready',info.ready,`dari ${info.total} kamar${info.checkout||info.stayover?` · CO ${info.readyCheckout}/${info.checkout} · SO ${info.readyStayover}/${info.stayover}`:''}`)}${kpi('clock','bg-amber-50 text-amber-600','Rata-rata HK',info.avgHk+' mnt','start → selesai')}${kpi('dcheck','bg-violet-50 text-violet-600','Rata-rata cek SPV',info.avgSpvCheck+' mnt',`HK selesai → SPV cek ±${info.avgSpvWait} mnt`)}${kpi('chart','bg-brand-50 text-brand-600','Rata-rata total',info.avgTotal+' mnt','HK start → SPV selesai')}</div><p class="mt-4 text-sm text-slate-500">Detail per kamar untuk tanggal ini sudah dihapus dari database (pembersihan data lama); ringkasan harian tetap tersimpan.</p>`
+  if(!all.length)return head+strip+(info?`<div class="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">${kpi('check','bg-emerald-50 text-emerald-600','Kamar ready',info.ready,`dari ${info.total} kamar${info.checkout||info.stayover?` · CO ${info.readyCheckout}/${info.checkout} · SO ${info.readyStayover}/${info.stayover}`:''}`)}${kpi('clock','bg-amber-50 text-amber-600','Rata-rata HK',info.avgHk+' mnt','start → selesai')}${kpi('dcheck','bg-violet-50 text-violet-600','Rata-rata cek SPV',info.avgSpvCheck+' mnt',`HK selesai → SPV cek ±${info.avgSpvWait} mnt`)}${kpi('chart','bg-brand-50 text-brand-600','Rata-rata total',info.avgTotal+' mnt','HK start → SPV selesai')}</div>${queueReport((info.detail&&info.detail.queued)||[],info.closedAt)}<p class="mt-4 text-sm text-slate-500">Detail per kamar untuk tanggal ini sudah dihapus dari database (pembersihan data lama); ringkasan harian tetap tersimpan.</p>`
     :card(empty('inbox','Tidak ada data pada tanggal ini','Pilih tanggal lain.')));
   const done=all.filter(r=>r.status==='COMPLETED').sort(roomSort),co=done.filter(hasSpv),left=all.filter(r=>r.status!=='COMPLETED').sort(roomSort);
   const avg=a=>a.length?Math.round(a.reduce((s,x)=>s+x,0)/a.length):0;
@@ -826,14 +826,30 @@ function viewReport(){
   const rows=Object.entries(per).sort((a,b)=>b[1].n-a[1].n);
   const leftCard=left.length?`<div class="mt-4">${card(`${cardHead(info&&info.closed?'Belum ready saat hari ditutup':'Belum ready',`${left.length} kamar`)}<div class="p-3 sm:p-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">${left.map(r=>`<div class="flex items-center gap-3 rounded-xl ring-1 ring-inset ring-slate-200/80 px-3 py-2.5"><span class="w-12 text-lg font-extrabold text-slate-900">${esc(r.room)}</span><div class="flex-1 min-w-0 text-xs text-slate-500"><p class="font-semibold text-slate-800 truncate">${esc(nameOf(r.assignedTo))}</p><p>${isDnd(r)?`${esc(dndLbl(r))} sejak ${clk(r.dndAt)} · dicek ${(r.dndChecks||0)+1}x`:r.startAt?'start '+clk(r.startAt):'belum mulai'}${r.finishHkAt?' · selesai '+clk(r.finishHkAt):''}</p></div>${rStChip(r)}</div>`).join('')}</div>`)}</div>`:'';
   return head+strip+status+`<div class="mb-4">${progressCard(all)}</div><div class="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
-    ${kpi('check','bg-emerald-50 text-emerald-600','Kamar ready',done.length,`dari ${all.length} kamar${done.some(r=>r.queuedAt)?` · ${done.filter(r=>r.queuedAt).length} tamu sempat menunggu (rata-rata ${avg(done.filter(r=>r.queuedAt).map(r=>mins(r.finishSpvAt-r.queuedAt)))} mnt)`:''}`)}
+    ${kpi('check','bg-emerald-50 text-emerald-600','Kamar ready',done.length,`dari ${all.length} kamar`)}
     ${kpi('clock','bg-amber-50 text-amber-600','Rata-rata HK',avgC+' mnt','start → selesai')}
     ${kpi('dcheck','bg-violet-50 text-violet-600','Rata-rata cek SPV',avgS+' mnt',`HK selesai → SPV cek ±${avgW} mnt`)}
     ${kpi('chart','bg-brand-50 text-brand-600','Rata-rata total',avgT+' mnt','HK start → SPV selesai')}</div>
   <div class="mt-4">${card(`${cardHead('Detail waktu per kamar',`${done.length} kamar ready · semua jam waktu server (WIB)`)}${done.length?reportTable(done)+`
       <div class="md:hidden p-4 space-y-3">${done.slice(0,S.showAll?9999:30).map(r=>recapCard(r,false)).join('')}${done.length>30&&!S.showAll?`<button data-act="toggleAll" class="${bc('ghost','md','w-full')}">Tampilkan semua (${done.length})</button>`:''}</div>`:empty('inbox','Belum ada kamar ready pada tanggal ini','')}`)}</div>
+  ${queueReport(all.filter(r=>r.queuedAt).map(r=>({room:r.room,hk:nameOf(r.assignedTo),status:r.status,queuedAt:r.queuedAt,readyAt:r.status==='COMPLETED'?r.finishSpvAt:0,by:r.queuedBy?nameOf(r.queuedBy):''})),info&&info.closed?info.closedAt:0)}
   ${leftCard}
   <div class="mt-4">${card(`${cardHead('Per housekeeper','Diurutkan dari kamar terbanyak')}<div class="p-2 grid sm:grid-cols-2 xl:grid-cols-3">${rows.length?rows.map(([id,p])=>`<div class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50">${avatar(nameOf(id),'w-8 h-8 text-[10px]')}<div class="flex-1 min-w-0"><p class="text-sm font-semibold text-slate-900 truncate">${esc(nameOf(id))}</p><p class="text-xs text-slate-500">${p.co} checkout · ${p.n-p.co} stayover</p></div><div class="text-right"><p class="text-sm font-extrabold text-slate-900">${p.n}</p><p class="text-[11px] text-slate-500">${avg(p.c)} mnt/kamar</p></div></div>`).join(''):empty('chart','Belum ada data','')}</div>`)}</div>`;
+}
+/* Laporan tamu menunggu (queue): kamar apa saja, mulai queue → ready, total/rata-rata/terlama */
+function queueReport(list,endRef){
+  const live=!endRef,now=nowS();
+  const W=q=>Math.max(0,((q.readyAt||endRef||now)-q.queuedAt));
+  const L=list.slice().sort((a,b)=>a.queuedAt-b.queuedAt),mins_=L.map(q=>mins(W(q)));
+  const tot=mins_.reduce((a,b)=>a+b,0),avg=L.length?Math.round(tot/L.length):0,max=L.length?Math.max(...mins_):0,waiting=L.filter(q=>!q.readyAt).length;
+  const tile=(l,v,sub,c)=>`<div class="rounded-2xl ring-1 ring-inset ring-slate-200/80 p-3.5"><p class="text-xs font-semibold text-slate-500">${l}</p><p class="text-2xl font-extrabold ${c||'text-slate-900'} mt-1">${v}</p>${sub?`<p class="text-[11px] text-slate-500 mt-0.5">${sub}</p>`:''}</div>`;
+  return `<div class="mt-4">${card(`${cardHead(`<span class="inline-flex items-center gap-2">${ic('bell','w-4 h-4 text-rose-600')} Tamu menunggu (Queue)</span>`,L.length?`${L.length} kamar di-queue · waktu dihitung dari mulai queue sampai kamar ready`:'Tidak ada kamar yang di-queue pada tanggal ini')}
+    ${L.length?`<div class="p-4 sm:p-5 grid grid-cols-2 lg:grid-cols-4 gap-2.5">${tile('Total kamar queue',L.length,L.map(q=>q.room).join(', '),'text-rose-600')}${tile('Total waktu tunggu',dur(tot*60000),'semua tamu dijumlahkan')}${tile('Rata-rata tunggu',dur(avg*60000),'per kamar')}${tile('Tunggu terlama',dur(max*60000),waiting?`${waiting} belum ready${live?' (masih menunggu)':' saat hari ditutup'}`:'semua sudah ready')}</div>
+    <div class="hidden md:block overflow-x-auto border-t border-slate-100"><table class="w-full text-sm"><thead><tr class="text-left text-xs text-slate-500 bg-slate-50/60"><th class="font-semibold px-5 py-2.5">Kamar</th><th class="font-semibold px-3 py-2.5">Housekeeper</th><th class="font-semibold px-3 py-2.5">Mulai queue</th><th class="font-semibold px-3 py-2.5">Kamar ready</th><th class="font-semibold px-3 py-2.5 text-right">Waktu tunggu tamu</th><th class="font-semibold px-3 py-2.5">Di-queue oleh</th><th class="font-semibold px-5 py-2.5">Status</th></tr></thead>
+      <tbody class="divide-y divide-slate-100">${L.map(q=>`<tr class="hover:bg-slate-50/60"><td class="px-5 py-2.5 font-extrabold text-slate-900">${esc(q.room)}</td><td class="px-3 py-2.5 text-slate-700">${esc(q.hk||'–')}</td><td class="px-3 py-2.5 font-mono text-xs">${clk(q.queuedAt)}</td><td class="px-3 py-2.5 font-mono text-xs">${q.readyAt?clk(q.readyAt):'<span class="text-rose-600 font-sans font-semibold">belum ready</span>'}</td><td class="px-3 py-2.5 text-right font-bold ${q.readyAt?'text-slate-900':'text-rose-600'}">${dur(W(q))}${!q.readyAt&&live?' <span class="text-[11px] font-semibold">· masih menunggu</span>':''}</td><td class="px-3 py-2.5 text-slate-600">${esc(q.by||'–')}</td><td class="px-5 py-2.5">${q.readyAt?chip('Ready','bg-emerald-50 text-emerald-700 ring-emerald-200','bg-emerald-500'):stChip(q.status)}</td></tr>`).join('')}
+      <tr class="bg-slate-50/80 font-bold"><td class="px-5 py-2.5" colspan="4">Total ${L.length} kamar</td><td class="px-3 py-2.5 text-right text-rose-700">${dur(tot*60000)}</td><td colspan="2" class="px-5 py-2.5 text-xs font-semibold text-slate-500">rata-rata ${dur(avg*60000)}</td></tr></tbody></table></div>
+    <div class="md:hidden border-t border-slate-100 divide-y divide-slate-100">${L.map(q=>`<div class="px-4 py-3 flex items-center gap-3"><span class="w-12 text-lg font-extrabold text-slate-900">${esc(q.room)}</span><div class="flex-1 min-w-0 text-xs text-slate-500"><p class="truncate">${esc(q.hk||'–')}</p><p>queue ${clk(q.queuedAt)} → ${q.readyAt?'ready '+clk(q.readyAt):'<span class="text-rose-600 font-semibold">belum ready</span>'}</p></div><span class="text-sm font-extrabold ${q.readyAt?'text-slate-900':'text-rose-600'}">${dur(W(q))}</span></div>`).join('')}
+      <div class="px-4 py-3 flex items-center justify-between bg-slate-50/80 text-sm font-bold"><span>Total ${L.length} kamar</span><span class="text-rose-700">${dur(tot*60000)}</span></div></div>`:''}`)}</div>`;
 }
 function reportTable(done){
   const th=(t,cls)=>`<th class="font-semibold px-3 py-2 whitespace-nowrap ${cls||''}">${t}</th>`;
@@ -856,9 +872,10 @@ function exportReport(){
   const done=all.slice().sort((a,b)=>(a.status==='COMPLETED'?0:1)-(b.status==='COMPLETED'?0:1)||roomSort(a,b));
   if(!done.length){toast('Tidak ada data untuk diunduh.');return}
   const M=v=>v==null?'':mins(v);
-  const head=['Tanggal','Kamar','Kategori','Status','Housekeeper','Jam HK start','Jam HK selesai','Waktu HK start-selesai (menit)','Jam SPV cek','Jam SPV selesai cek','Waktu pengecekan SPV (menit)','Waktu HK selesai - SPV cek (menit)','Total HK start - SPV selesai (menit)','Supervisor','Jeda/pause (menit)','Tamu menunggu (menit)','Skip DND/Double Sign'];
+  const head=['Tanggal','Kamar','Kategori','Status','Housekeeper','Jam HK start','Jam HK selesai','Waktu HK start-selesai (menit)','Jam SPV cek','Jam SPV selesai cek','Waktu pengecekan SPV (menit)','Waktu HK selesai - SPV cek (menit)','Total HK start - SPV selesai (menit)','Supervisor','Jeda/pause (menit)','Jam mulai queue','Tamu menunggu sampai ready (menit)','Skip DND/Double Sign'];
   const T=x=>x==='--.--'||x==='–'?'':x.replace('.',':');
-  const rows=done.map(r=>{const t=timesOf(r),ok=r.status==='COMPLETED';return [date,r.room,isSO(r)?'Stayover':'Checkout',ok?'Ready':isDnd(r)?dndLbl(r):ST[r.status].l,nameOf(r.assignedTo),T(t.hkStart),T(t.hkEnd),r.finishHkAt?M(t.hkDur):'',ok?T(t.spvStart):(r.spvStartAt?T(clk(r.spvStartAt)):''),ok?T(t.spvEnd):'',M(t.spvDur),M(t.wait),ok?M(t.total):'',r.spvId&&!isSO(r)?nameOf(r.spvId):'',mins(r.totalPauseMs),r.queuedAt?mins(r.finishSpvAt-r.queuedAt):'',r.dndReason?`${dndLbl(r)} ${T(clk(r.dndAt))}${r.dndClearAt?'-'+T(clk(r.dndClearAt)):''} (cek ${(r.dndChecks||0)+1}x)`:'']});
+  const di=date===S.today?S.day:S.dayInfo[date],qEnd=di&&di.closed?di.closedAt:nowS();
+  const rows=done.map(r=>{const t=timesOf(r),ok=r.status==='COMPLETED';return [date,r.room,isSO(r)?'Stayover':'Checkout',ok?'Ready':isDnd(r)?dndLbl(r):ST[r.status].l,nameOf(r.assignedTo),T(t.hkStart),T(t.hkEnd),r.finishHkAt?M(t.hkDur):'',ok?T(t.spvStart):(r.spvStartAt?T(clk(r.spvStartAt)):''),ok?T(t.spvEnd):'',M(t.spvDur),M(t.wait),ok?M(t.total):'',r.spvId&&!isSO(r)?nameOf(r.spvId):'',mins(r.totalPauseMs),r.queuedAt?T(clk(r.queuedAt)):'',r.queuedAt?mins((ok?r.finishSpvAt:qEnd)-r.queuedAt):'',r.dndReason?`${dndLbl(r)} ${T(clk(r.dndAt))}${r.dndClearAt?'-'+T(clk(r.dndClearAt)):''} (cek ${(r.dndChecks||0)+1}x)`:'']});
   const q=v=>{v=String(v==null?'':v);return /[;"\n,]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
   const csv='﻿sep=;\r\n'+[head].concat(rows).map(a=>a.map(q).join(';')).join('\r\n');
   const name='Laporan-HK-'+date+'.csv';
