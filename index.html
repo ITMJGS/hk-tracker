@@ -14,7 +14,7 @@
   <script>
     /* Alamat server (Google Apps Script). Ganti jika membuat deployment baru. */
     window.HK_API_URL = 'https://script.google.com/macros/s/AKfycbyyFZ7k-3dElnTu4hKc6IbNF9uVi5FnZiOTJ6N4Wszv9jNoRZQYKMee7GVqjIfr-QEaRA/exec';
-    window.HK_BUILD = '20261106121751';
+    window.HK_BUILD = '20261106135412';
     /* Pengganti google.script.run: memanggil server lewat POST {fn, args} */
     (function () {
       function runner() {
@@ -853,15 +853,16 @@ function queueReport(list,endRef){
   const live=!endRef,now=nowS();
   const W=q=>Math.max(0,((q.readyAt||endRef||now)-q.queuedAt));
   const L=list.slice().sort((a,b)=>a.queuedAt-b.queuedAt),mins_=L.map(q=>mins(W(q)));
-  const tot=mins_.reduce((a,b)=>a+b,0),avg=L.length?Math.round(tot/L.length):0,max=L.length?Math.max(...mins_):0,waiting=L.filter(q=>!q.readyAt).length;
+  const tot=mins_.reduce((a,b)=>a+b,0),avg=L.length?Math.round(tot/L.length):0,max=L.length?Math.max(...mins_):0,min=L.length?Math.min(...mins_):0,waiting=L.filter(q=>!q.readyAt).length;
+  const fastest=L[mins_.indexOf(min)],slowest=L[mins_.indexOf(max)];
   const tile=(l,v,sub,c)=>`<div class="rounded-2xl ring-1 ring-inset ring-slate-200/80 p-3.5"><p class="text-xs font-semibold text-slate-500">${l}</p><p class="text-2xl font-extrabold ${c||'text-slate-900'} mt-1">${v}</p>${sub?`<p class="text-[11px] text-slate-500 mt-0.5">${sub}</p>`:''}</div>`;
   return `<div class="mt-4">${card(`${cardHead(`<span class="inline-flex items-center gap-2">${ic('bell','w-4 h-4 text-rose-600')} Tamu menunggu (Queue)</span>`,L.length?`${L.length} kamar di-queue · waktu dihitung dari mulai queue sampai kamar ready`:'Tidak ada kamar yang di-queue pada tanggal ini')}
-    ${L.length?`<div class="p-4 sm:p-5 grid grid-cols-2 lg:grid-cols-4 gap-2.5">${tile('Total kamar queue',L.length,L.map(q=>q.room).join(', '),'text-rose-600')}${tile('Total waktu tunggu',dur(tot*60000),'semua tamu dijumlahkan')}${tile('Rata-rata tunggu',dur(avg*60000),'per kamar')}${tile('Tunggu terlama',dur(max*60000),waiting?`${waiting} belum ready${live?' (masih menunggu)':' saat hari ditutup'}`:'semua sudah ready')}</div>
+    ${L.length?`<div class="p-4 sm:p-5 grid grid-cols-2 lg:grid-cols-4 gap-2.5">${tile('Total kamar queue',L.length,L.map(q=>q.room).join(', '),'text-rose-600')}${tile('Rata-rata tunggu',dur(avg*60000),'per kamar')}${tile('Tunggu tercepat',dur(min*60000),fastest?'kamar '+esc(fastest.room):'','text-emerald-600')}${tile('Tunggu terlama',dur(max*60000),(slowest?'kamar '+esc(slowest.room):'')+(waiting?` · ${waiting} belum ready${live?' (masih menunggu)':' saat hari ditutup'}`:''),'text-rose-600')}</div>
     <div class="hidden md:block overflow-x-auto border-t border-slate-100"><table class="w-full text-sm"><thead><tr class="text-left text-xs text-slate-500 bg-slate-50/60"><th class="font-semibold px-5 py-2.5">Kamar</th><th class="font-semibold px-3 py-2.5">Housekeeper</th><th class="font-semibold px-3 py-2.5">Mulai queue</th><th class="font-semibold px-3 py-2.5">Kamar ready</th><th class="font-semibold px-3 py-2.5 text-right">Waktu tunggu tamu</th><th class="font-semibold px-3 py-2.5">Di-queue oleh</th><th class="font-semibold px-5 py-2.5">Status</th></tr></thead>
       <tbody class="divide-y divide-slate-100">${L.map(q=>`<tr class="hover:bg-slate-50/60"><td class="px-5 py-2.5 font-extrabold text-slate-900">${esc(q.room)}</td><td class="px-3 py-2.5 text-slate-700">${esc(q.hk||'–')}</td><td class="px-3 py-2.5 font-mono text-xs">${clk(q.queuedAt)}</td><td class="px-3 py-2.5 font-mono text-xs">${q.readyAt?clk(q.readyAt):'<span class="text-rose-600 font-sans font-semibold">belum ready</span>'}</td><td class="px-3 py-2.5 text-right font-bold ${q.readyAt?'text-slate-900':'text-rose-600'}">${dur(W(q))}${!q.readyAt&&live?' <span class="text-[11px] font-semibold">· masih menunggu</span>':''}</td><td class="px-3 py-2.5 text-slate-600">${esc(q.by||'–')}</td><td class="px-5 py-2.5">${q.readyAt?chip('Ready','bg-emerald-50 text-emerald-700 ring-emerald-200','bg-emerald-500'):stChip(q.status)}</td></tr>`).join('')}
-      <tr class="bg-slate-50/80 font-bold"><td class="px-5 py-2.5" colspan="4">Total ${L.length} kamar</td><td class="px-3 py-2.5 text-right text-rose-700">${dur(tot*60000)}</td><td colspan="2" class="px-5 py-2.5 text-xs font-semibold text-slate-500">rata-rata ${dur(avg*60000)}</td></tr></tbody></table></div>
+      <tr class="bg-slate-50/80 font-bold"><td class="px-5 py-2.5" colspan="4">${L.length} kamar</td><td class="px-3 py-2.5 text-right text-slate-900">rata-rata ${dur(avg*60000)}</td><td colspan="2" class="px-5 py-2.5 text-xs font-semibold text-slate-500">tercepat ${dur(min*60000)} · terlama ${dur(max*60000)}</td></tr></tbody></table></div>
     <div class="md:hidden border-t border-slate-100 divide-y divide-slate-100">${L.map(q=>`<div class="px-4 py-3 flex items-center gap-3"><span class="w-12 text-lg font-extrabold text-slate-900">${esc(q.room)}</span><div class="flex-1 min-w-0 text-xs text-slate-500"><p class="truncate">${esc(q.hk||'–')}</p><p>queue ${clk(q.queuedAt)} → ${q.readyAt?'ready '+clk(q.readyAt):'<span class="text-rose-600 font-semibold">belum ready</span>'}</p></div><span class="text-sm font-extrabold ${q.readyAt?'text-slate-900':'text-rose-600'}">${dur(W(q))}</span></div>`).join('')}
-      <div class="px-4 py-3 flex items-center justify-between bg-slate-50/80 text-sm font-bold"><span>Total ${L.length} kamar</span><span class="text-rose-700">${dur(tot*60000)}</span></div></div>`:''}`)}</div>`;
+      <div class="px-4 py-3 bg-slate-50/80 text-xs font-semibold text-slate-600 flex flex-wrap justify-between gap-1"><span class="text-sm font-bold text-slate-900">${L.length} kamar</span><span>rata-rata ${dur(avg*60000)} · tercepat ${dur(min*60000)} · terlama ${dur(max*60000)}</span></div></div>`:''}`)}</div>`;
 }
 function spvReportCard(all,live){
   const st=spvStats(all,false,S.reportDate||S.today).filter(x=>x.checked||(x.handle&&x.duty));if(!st.length)return '';
