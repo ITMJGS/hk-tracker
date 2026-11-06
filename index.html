@@ -14,7 +14,7 @@
   <script>
     /* Alamat server (Google Apps Script). Ganti jika membuat deployment baru. */
     window.HK_API_URL = 'https://script.google.com/macros/s/AKfycbyyFZ7k-3dElnTu4hKc6IbNF9uVi5FnZiOTJ6N4Wszv9jNoRZQYKMee7GVqjIfr-QEaRA/exec';
-    window.HK_BUILD = '20261106135412';
+    window.HK_BUILD = '20261106140050';
     /* Pengganti google.script.run: memanggil server lewat POST {fn, args} */
     (function () {
       function runner() {
@@ -1461,13 +1461,31 @@ function relevantQueue(){
   if(S.me.role==='supervisor')return meOnDuty()?queued().filter(onMyFloor):[];
   return [];
 }
-/* Pengingat cek ulang DND / Double Sign tiap 1 jam (berbunyi lagi tiap 15 menit selama belum dicek) */
+/* Pengingat cek ulang DND / Double Sign untuk RA: tiap 1 jam sejak cek terakhir, berulang tiap jam sampai dicek ulang */
 const dndSeen=new Set();
 function checkDndAlerts(){
   if(!S.me||S.me.role!=='housekeeper'||!S.loaded)return;
-  const fresh=S.rooms.filter(r=>r.assignedTo===S.me.id&&dndLate(r)).filter(r=>{const k=r.room+'|'+(r.dndCheckAt||r.dndAt)+'|'+Math.floor((nowS()-dndDue(r))/900000);if(dndSeen.has(k))return false;dndSeen.add(k);return true});
+  const fresh=S.rooms.filter(r=>r.assignedTo===S.me.id&&dndLate(r)).filter(r=>{const k=r.room+'|'+(r.dndCheckAt||r.dndAt)+'|'+Math.floor((nowS()-dndDue(r))/3600000);if(dndSeen.has(k))return false;dndSeen.add(k);return true});
   if(!fresh.length)return;
-  notify('alarm','Waktunya cek ulang kamar '+fresh.map(r=>r.room).join(', '),'Sudah 1 jam. Cek apakah sign '+[...new Set(fresh.map(dndLbl))].join(' / ')+' sudah hilang.','dnd');render();
+  const h=Math.max(1,Math.floor((nowS()-Math.min(...fresh.map(r=>r.dndCheckAt||r.dndAt)))/3600000));
+  const t='Waktunya cek ulang kamar '+fresh.map(r=>r.room).join(', '),m=`Sudah ${h} jam sejak dicek. Cek apakah sign ${[...new Set(fresh.map(dndLbl))].join(' / ')} sudah hilang.`;
+  notify('alarm',t,m,'dnd');toast(t+' · '+m);render();
+}
+/* Pengingat tamu menunggu (queue): RA pemegang kamar & supervisor incharge di lantainya, setiap 10 menit sampai kamar ready */
+const QUEUE_REMIND_MS=600000,qRemindSeen=new Set();
+function checkQueueReminders(){
+  if(!S.me||!S.loaded)return;
+  const role=S.me.role;let list=[];
+  if(role==='housekeeper')list=queued().filter(r=>r.assignedTo===S.me.id);
+  else if(role==='supervisor')list=meOnDuty()?queued().filter(onMyFloor):[];
+  else return;
+  const now=nowS();
+  const fresh=list.filter(r=>r.status!=='COMPLETED'&&r.queuedAt).filter(r=>{const k=Math.floor((now-r.queuedAt)/QUEUE_REMIND_MS);if(k<1)return false;const key=r.room+'|'+r.queuedAt+'|'+k;if(qRemindSeen.has(key))return false;qRemindSeen.add(key);return true});
+  if(!fresh.length)return;
+  const longest=Math.max(...fresh.map(r=>mins(now-r.queuedAt)));
+  const t=`Tamu masih menunggu: kamar ${fresh.map(r=>r.room).join(', ')}`;
+  const m=fresh.length===1?`Sudah ${longest} menit. Status: ${isDnd(fresh[0])?dndLbl(fresh[0]):ST[fresh[0].status].l}.${role==='housekeeper'?' Kerjakan lebih dulu.':' Segera cek.'}`:`Terlama ${longest} menit.${role==='housekeeper'?' Kerjakan lebih dulu.':' Segera cek.'}`;
+  notify('alarm',t,m,'queue-remind');toast(t+' · '+m);
 }
 function checkQueueAlerts(){
   const rel=relevantQueue();if(!rel.length)return;
@@ -1593,7 +1611,7 @@ setInterval(()=>{document.querySelectorAll('[data-dnd]').forEach(el=>{const d=+e
 async function syncServerTime(){try{const t0=Date.now();const r=await call('getServerTime',[]);syncClock(r.now,t0,Date.now())}catch(e){}}
 syncServerTime();setInterval(syncServerTime,600000);
 /* refresh: tiap 20 detik, atau 10 detik selama ada tamu menunggu */
-setInterval(()=>{checkUpdate();checkDndAlerts();if(!S.me||S.me.mustChange||S.busy||S.modal||S.confirm||S.addUser||S.editUser||(S.imp&&S.imp.state==='writing'))return;const every=document.hidden?30000:queued().length?10000:20000;if(nowS()-S.lastSync>=every)refresh(true)},2500);
+setInterval(()=>{checkUpdate();checkDndAlerts();checkQueueReminders();if(!S.me||S.me.mustChange||S.busy||S.modal||S.confirm||S.addUser||S.editUser||(S.imp&&S.imp.state==='writing'))return;const every=document.hidden?30000:queued().length?10000:20000;if(nowS()-S.lastSync>=every)refresh(true)},2500);
 
 (async function boot(){
   render();
