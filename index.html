@@ -14,7 +14,7 @@
   <script>
     /* Alamat server (Google Apps Script). Ganti jika membuat deployment baru. */
     window.HK_API_URL = 'https://script.google.com/macros/s/AKfycbyyFZ7k-3dElnTu4hKc6IbNF9uVi5FnZiOTJ6N4Wszv9jNoRZQYKMee7GVqjIfr-QEaRA/exec';
-    window.HK_BUILD = '20261106120828';
+    window.HK_BUILD = '20261106121203';
     /* Pengganti google.script.run: memanggil server lewat POST {fn, args} */
     (function () {
       function runner() {
@@ -192,7 +192,7 @@ async function run(fn,ok){try{const r=await fn();if(ok)toast(typeof ok==='functi
 let toastT;function toast(m){const el=document.getElementById('toast');document.getElementById('toast-msg').textContent=m;el.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>el.hidden=true,3500)}
 function renderBusy(){document.querySelectorAll('[data-busy]').forEach(el=>el.classList.toggle('spin',!!S.busy))}
 
-const CLIENT_VERSION=16; /* harus sama dengan APP_VERSION di Code.gs */
+const CLIENT_VERSION=15; /* versi Code.gs yang dibutuhkan tampilan ini. Naikkan HANYA jika Code.gs ikut berubah (harus sama dengan APP_VERSION di Code.gs) */
 async function refresh(silent,again){
   if(!S.token||!S.me||S.me.mustChange)return;
   try{
