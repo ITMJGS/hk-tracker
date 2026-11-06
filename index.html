@@ -14,7 +14,7 @@
   <script>
     /* Alamat server (Google Apps Script). Ganti jika membuat deployment baru. */
     window.HK_API_URL = 'https://script.google.com/macros/s/AKfycbyyFZ7k-3dElnTu4hKc6IbNF9uVi5FnZiOTJ6N4Wszv9jNoRZQYKMee7GVqjIfr-QEaRA/exec';
-    window.HK_BUILD = '20261106093545';
+    window.HK_BUILD = '20261106093927';
     /* Pengganti google.script.run: memanggil server lewat POST {fn, args} */
     (function () {
       function runner() {
@@ -191,7 +191,7 @@ async function run(fn,ok){try{const r=await fn();if(ok)toast(typeof ok==='functi
 let toastT;function toast(m){const el=document.getElementById('toast');document.getElementById('toast-msg').textContent=m;el.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>el.hidden=true,3500)}
 function renderBusy(){document.querySelectorAll('[data-busy]').forEach(el=>el.classList.toggle('spin',!!S.busy))}
 
-const CLIENT_VERSION=13; /* harus sama dengan APP_VERSION di Code.gs */
+const CLIENT_VERSION=14; /* harus sama dengan APP_VERSION di Code.gs */
 async function refresh(silent,again){
   if(!S.token||!S.me||S.me.mustChange)return;
   try{
@@ -488,7 +488,7 @@ function navItems(){
   if(r==='superadmin')return ['dash','upload','rooms','inspect','report','users','recap','system'];
   if(r==='admin')return ['dash','upload','rooms','inspect','report','users','recap'];
   if(r==='supervisor')return ['inspect','dash','recap','users'];
-  if(r==='frontoffice')return ['fo'];
+  if(r==='frontoffice')return ['fo','report']; /* laporan: hanya lihat, tidak bisa tutup/buka hari */
   return ['hk'];
 }
 const defaultView=()=>S.me?navItems()[0]:'';
