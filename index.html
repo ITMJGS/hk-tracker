@@ -14,7 +14,7 @@
   <script>
     /* Alamat server (Google Apps Script). Ganti jika membuat deployment baru. */
     window.HK_API_URL = 'https://script.google.com/macros/s/AKfycbyyFZ7k-3dElnTu4hKc6IbNF9uVi5FnZiOTJ6N4Wszv9jNoRZQYKMee7GVqjIfr-QEaRA/exec';
-    window.HK_BUILD = '20261106140050';
+    window.HK_BUILD = '20261106142457';
     /* Pengganti google.script.run: memanggil server lewat POST {fn, args} */
     (function () {
       function runner() {
@@ -98,6 +98,7 @@ const P={
   unlock:'<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-2"/>',
   skip:'<path d="M5 5l9 7-9 7z"/><path d="M18 5v14"/>',
   activity:'<path d="M3 12h4l3-8 4 16 3-8h4"/>',
+  phone:'<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/>',
   layers:'<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>',
   play:'<path d="M7 5l12 7-12 7z" fill="currentColor" stroke="none"/>',
   pause:'<rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none"/>',
@@ -166,7 +167,7 @@ const ST={
 };
 const CAT={CHECKOUT:{l:'Checkout',chip:'bg-rose-50 text-rose-700 ring-rose-200',text:'text-rose-600'},STAYOVER:{l:'Stayover',chip:'bg-indigo-50 text-indigo-700 ring-indigo-200',text:'text-indigo-600'}};
 const catOf=c=>CAT[c]||CAT.CHECKOUT;
-const ROLE={superadmin:{l:'PENGUASA',chip:'bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-200'},admin:{l:'Admin',chip:'bg-brand-50 text-brand-700 ring-brand-200'},supervisor:{l:'Supervisor',chip:'bg-amber-50 text-amber-800 ring-amber-200'},housekeeper:{l:'Housekeeper',chip:'bg-sky-50 text-sky-700 ring-sky-200'},frontoffice:{l:'Front Office',chip:'bg-indigo-50 text-indigo-700 ring-indigo-200'}};
+const ROLE={superadmin:{l:'PENGUASA',chip:'bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-200'},admin:{l:'Admin',chip:'bg-brand-50 text-brand-700 ring-brand-200'},supervisor:{l:'Supervisor',chip:'bg-amber-50 text-amber-800 ring-amber-200'},housekeeper:{l:'Housekeeper',chip:'bg-sky-50 text-sky-700 ring-sky-200'},frontoffice:{l:'Front Office',chip:'bg-indigo-50 text-indigo-700 ring-indigo-200'},operator:{l:'Operator',chip:'bg-cyan-50 text-cyan-700 ring-cyan-200'}};
 const ORDER={CLEANING:0,PAUSED:1,PENDING:2,INSPECTION_READY:3,INSPECTING:4,COMPLETED:5};
 const ROOM_TYPES=['DBA','DBB','DBE','TWA','TWB','SKA','S2D','CA1A','CA2A','CA2P'];
 const AV=['bg-brand-100 text-brand-800','bg-sky-100 text-sky-800','bg-amber-100 text-amber-800','bg-rose-100 text-rose-800','bg-indigo-100 text-indigo-800','bg-emerald-100 text-emerald-800','bg-fuchsia-100 text-fuchsia-800','bg-orange-100 text-orange-800'];
@@ -198,7 +199,7 @@ async function run(fn,ok){try{const r=await fn();if(ok)toast(typeof ok==='functi
 let toastT;function toast(m){const el=document.getElementById('toast');document.getElementById('toast-msg').textContent=m;el.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>el.hidden=true,3500)}
 function renderBusy(){document.querySelectorAll('[data-busy]').forEach(el=>el.classList.toggle('spin',!!S.busy))}
 
-const CLIENT_VERSION=16; /* versi Code.gs yang dibutuhkan tampilan ini. Naikkan HANYA jika Code.gs ikut berubah (harus sama dengan APP_VERSION di Code.gs) */
+const CLIENT_VERSION=17; /* versi Code.gs yang dibutuhkan tampilan ini. Naikkan HANYA jika Code.gs ikut berubah (harus sama dengan APP_VERSION di Code.gs) */
 async function refresh(silent,again){
   if(!S.token||!S.me||S.me.mustChange)return;
   try{
@@ -325,7 +326,8 @@ function timesOf(r){const so=isSO(r),spv=hasSpv(r);
 const isQ=r=>!!r.queued&&r.status!=='COMPLETED';
 const queued=()=>S.rooms.filter(isQ).sort((a,b)=>(a.queuedAt||0)-(b.queuedAt||0));
 const waitSpan=r=>`<span data-wait="${r.queuedAt||0}">${mins(nowS()-(r.queuedAt||nowS()))}</span>`;
-const queueToggle=r=>r.status==='COMPLETED'?`<span class="text-[11px] text-slate-400">${r.queuedAt?'Tamu masuk':'–'}</span>`:`<label class="inline-flex items-center gap-2 cursor-pointer select-none" title="Tandai tamu sudah datang & menunggu"><input type="checkbox" data-queue="${esc(r.room)}" class="peer sr-only" ${isQ(r)?'checked':''}><span class="relative w-9 h-5 rounded-full bg-slate-200 peer-checked:bg-rose-600 transition after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-4 after:h-4 after:rounded-full after:bg-white after:shadow after:transition peer-checked:after:translate-x-4 peer-focus-visible:ring-2 peer-focus-visible:ring-rose-400"></span><span class="text-xs font-semibold ${isQ(r)?'text-rose-700':'text-slate-500'}">${isQ(r)?waitSpan(r)+' mnt':'Queue'}</span></label>`;
+const canQueue=()=>isAdmin()||(S.me&&S.me.role==='frontoffice');
+const queueToggle=r=>!canQueue()?(isQ(r)?`<span class="text-xs font-semibold text-rose-700">Tamu menunggu ${waitSpan(r)} mnt</span>`:''):r.status==='COMPLETED'?`<span class="text-[11px] text-slate-400">${r.queuedAt?'Tamu masuk':'–'}</span>`:`<label class="inline-flex items-center gap-2 cursor-pointer select-none" title="Tandai tamu sudah datang & menunggu"><input type="checkbox" data-queue="${esc(r.room)}" class="peer sr-only" ${isQ(r)?'checked':''}><span class="relative w-9 h-5 rounded-full bg-slate-200 peer-checked:bg-rose-600 transition after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-4 after:h-4 after:rounded-full after:bg-white after:shadow after:transition peer-checked:after:translate-x-4 peer-focus-visible:ring-2 peer-focus-visible:ring-rose-400"></span><span class="text-xs font-semibold ${isQ(r)?'text-rose-700':'text-slate-500'}">${isQ(r)?waitSpan(r)+' mnt':'Queue'}</span></label>`;
 const qChip=r=>isQ(r)?chip(ic('bell','w-3 h-3')+' Tamu menunggu · '+waitSpan(r)+' mnt','bg-rose-600 text-white ring-rose-700'):'';
 const qFirst=(a,b)=>(isQ(b)?1:0)-(isQ(a)?1:0);
 
@@ -345,7 +347,20 @@ const stChip=st=>{const s=ST[st]||ST.PENDING;return chip(s.l,s.chip,s.dot+(st===
 const DND_MIN=60,DNDL={DND:'DND',DOUBLE:'Double Sign'};
 const isDnd=r=>r.status==='PENDING'&&!!r.dndReason&&!r.dndClearAt;
 const dndDue=r=>(r.dndCheckAt||r.dndAt||0)+DND_MIN*60000;
-const dndLate=r=>isDnd(r)&&nowS()>=dndDue(r);
+/* Courtesy operator: CALLED (sudah courtesy) | PMR (tamu minta dibersihkan pada csPmrAt) | NOSERVICE (tidak ingin dibersihkan) */
+const CSL={CALLED:'Sudah courtesy',PMR:'Minta dibersihkan',NOSERVICE:'Tidak ingin dibersihkan'};
+const csRes=r=>isDnd(r)?(r.csResult||''):'';
+const pmrDue=r=>csRes(r)==='PMR'&&nowS()>=(r.csPmrAt||0);
+/* pengingat cek ulang tiap jam berhenti bila tamu sudah merespon (PMR / tidak ingin dibersihkan) */
+const dndLate=r=>isDnd(r)&&!['PMR','NOSERVICE'].includes(r.csResult)&&nowS()>=dndDue(r);
+const opName=r=>r.csBy&&usersById()[r.csBy]?nameOf(r.csBy):'operator';
+const pmrTxt=r=>{const t=r.csPmrAt||0;return t-(r.csAt||0)<120000?'secepatnya (sejak '+clk(t)+')':'pukul '+clk(t)};
+function csLine(r){const c=csRes(r);if(!c)return isDnd(r)?'<span class="text-amber-700 font-semibold">Belum di-courtesy operator</span>':'';
+  const by=opName(r);
+  return {CALLED:`Sudah courtesy ${clk(r.csAt)} oleh ${esc(by)}${(r.csCount||1)>1?` (${r.csCount}x)`:''} · menunggu respon tamu`,
+    PMR:`<b class="text-emerald-700">Tamu minta dibersihkan ${pmrTxt(r)}</b> · info ${esc(by)} ${clk(r.csAt)}`,
+    NOSERVICE:`<b class="text-slate-700">Tamu tidak ingin dibersihkan</b> · info ${esc(by)} ${clk(r.csAt)}`}[c]+(r.csNote?` · <i>"${esc(r.csNote)}"</i>`:'');}
+const csChip=r=>{const c=csRes(r);return c==='PMR'?chip('PMR '+clk(r.csPmrAt),pmrDue(r)?'bg-emerald-600 text-white ring-emerald-600':'bg-emerald-50 text-emerald-700 ring-emerald-200'):c==='NOSERVICE'?chip('No service','bg-slate-100 text-slate-600 ring-slate-300'):c==='CALLED'?chip('Courtesy ✓','bg-cyan-50 text-cyan-700 ring-cyan-200'):''};
 const dndLbl=r=>DNDL[r.dndReason]||'DND';
 const dndChip=r=>chip(dndLbl(r),dndLate(r)?'bg-rose-600 text-white ring-rose-600':'bg-slate-800 text-white ring-slate-800','bg-white');
 const rStChip=r=>isDnd(r)?dndChip(r):stChip(r.status);
@@ -489,20 +504,23 @@ const VIEWS={
   users:{l:'Pengguna',i:'users',d:'Akun, role, dan password'},
   system:{l:'Sistem',i:'shield',d:'Log aktivitas & penyimpanan'},
   hk:{l:'Tugas Saya',i:'list',d:'Kamar yang ditugaskan kepada Anda'},
-  fo:{l:'Progress Kamar',i:'bed',d:'Status kamar & tamu menunggu untuk Front Office'}
+  fo:{l:'Progress Kamar',i:'bed',d:'Status kamar & tamu menunggu untuk Front Office'},
+  op:{l:'Courtesy',i:'phone',d:'Courtesy tamu kamar DND / Double Sign'}
 };
 function navItems(){
   const r=S.me.role;
-  if(r==='superadmin')return ['dash','upload','rooms','inspect','spv','report','users','recap','system'];
-  if(r==='admin')return ['dash','upload','rooms','inspect','spv','report','users','recap'];
+  if(r==='superadmin')return ['dash','upload','rooms','inspect','spv','op','report','users','recap','system'];
+  if(r==='admin')return ['dash','upload','rooms','inspect','spv','op','report','users','recap'];
   if(r==='supervisor')return ['inspect','dash','recap','users'];
-  if(r==='frontoffice')return ['fo','report']; /* laporan: hanya lihat, tidak bisa tutup/buka hari */
+  if(r==='frontoffice')return ['fo','op','report']; /* laporan: hanya lihat, tidak bisa tutup/buka hari */
+  if(r==='operator')return ['op','fo'];
   return ['hk'];
 }
 const defaultView=()=>S.me?navItems()[0]:'';
 function navBadge(v){
   if(!S.loaded)return 0;
   if(v==='inspect')return meOnDuty()?spvQueue().filter(onMyFloor).length:0;
+  if(v==='op')return S.rooms.filter(r=>isDnd(r)&&!r.csResult).length;
   if(v==='dash')return queued().length;
   if(v==='rooms')return S.rooms.filter(r=>!r.assignedTo).length;
   if(v==='hk')return S.rooms.filter(r=>r.assignedTo===S.me.id&&r.status==='PENDING').length;
@@ -543,7 +561,7 @@ function viewShell(){
   const nav=navItems();if(!nav.includes(S.view))S.view=nav[0];
   let body;
   if(!S.loaded)body=S.syncErr?card(empty('alert','Data belum bisa dimuat',esc(S.syncErr),`<button data-act="refresh" class="${bc('primary')}">Coba lagi</button>`)):skeleton();
-  else body={dash:viewDash,upload:viewUpload,rooms:viewRooms,inspect:viewInspect,recap:viewRecap,report:viewReport,users:viewUsers,system:viewSystem,hk:viewHK,fo:viewFO,spv:viewSpv}[S.view]();
+  else body={dash:viewDash,upload:viewUpload,rooms:viewRooms,inspect:viewInspect,recap:viewRecap,report:viewReport,users:viewUsers,system:viewSystem,hk:viewHK,fo:viewFO,spv:viewSpv,op:viewOp}[S.view]();
   return `${sidebar(nav)}<div class="lg:pl-72 min-h-screen">${topbar()}
     <main class="px-safe pt-5 pb-28 lg:pb-12 max-w-[1400px]">
       ${S.loaded&&S.srvVer!==CLIENT_VERSION?verBanner():''}
@@ -557,7 +575,7 @@ const pageHead=(title,sub,right)=>`<div class="lg:hidden mb-4 flex items-end jus
 function dndCard(R){
   const L=R.filter(isDnd).sort((a,b)=>dndDue(a)-dndDue(b));if(!L.length)return '';
   const late=L.filter(dndLate).length;
-  return `<div class="mt-4">${card(`${cardHead('DND / Double Sign',`${L.length} kamar di-skip housekeeper${late?` · <b class="text-rose-600">${late} terlambat dicek ulang</b>`:''}`)}<div class="p-3 sm:p-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">${L.map(r=>`<div class="flex items-center gap-3 rounded-xl ring-1 ring-inset ${dndLate(r)?'ring-rose-300 bg-rose-50/60':'ring-slate-200/80'} px-3 py-2.5"><span class="w-12 text-lg font-extrabold text-slate-900">${esc(r.room)}</span><div class="flex-1 min-w-0 text-xs text-slate-500"><p class="font-semibold text-slate-800 truncate">${esc(nameOf(r.assignedTo))}</p><p>sejak ${clk(r.dndAt)} · dicek ${(r.dndChecks||0)+1}x</p><p class="${dndLate(r)?'text-rose-700 font-semibold':''}">cek ulang ${clk(dndDue(r))} <span data-dnd="${dndDue(r)}">· ${dndLeft(r)}</span></p></div>${dndChip(r)}</div>`).join('')}</div>`)}</div>`;
+  return `<div class="mt-4">${card(`${cardHead('DND / Double Sign',`${L.length} kamar di-skip housekeeper${late?` · <b class="text-rose-600">${late} terlambat dicek ulang</b>`:''}`)}<div class="p-3 sm:p-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">${L.map(r=>`<div class="flex items-center gap-3 rounded-xl ring-1 ring-inset ${dndLate(r)?'ring-rose-300 bg-rose-50/60':'ring-slate-200/80'} px-3 py-2.5"><span class="w-12 text-lg font-extrabold text-slate-900">${esc(r.room)}</span><div class="flex-1 min-w-0 text-xs text-slate-500"><p class="font-semibold text-slate-800 truncate">${esc(nameOf(r.assignedTo))}</p><p>sejak ${clk(r.dndAt)} · dicek ${(r.dndChecks||0)+1}x${r.csResult?' · '+(r.csResult==='PMR'?'PMR '+clk(r.csPmrAt):CSL[r.csResult]):' · belum courtesy'}</p><p class="${dndLate(r)?'text-rose-700 font-semibold':''}">cek ulang ${clk(dndDue(r))} <span data-dnd="${dndDue(r)}">· ${dndLeft(r)}</span></p></div>${dndChip(r)}</div>`).join('')}</div>`)}</div>`;
 }
 /* ================= TUTUP HARI ================= */
 const closedTxt=x=>x.closedBy==='Otomatis'?'ditutup <b>otomatis</b> pukul 00.00':`ditutup ${clk(x.closedAt)} oleh <b>${esc(x.closedBy)}</b>`;
@@ -835,7 +853,7 @@ function viewReport(){
   const avgC=avg(done.map(r=>mins(hkSpan(r)))),avgS=avg(co.map(r=>mins(spvCheck(r)))),avgW=avg(co.map(r=>mins(spvWait(r)))),avgT=avg(done.map(r=>mins(totalSpan(r))));
   const per={};done.forEach(r=>{const k=r.assignedTo||'-';const p=per[k]=per[k]||{n:0,c:[],co:0};p.n++;p.c.push(mins(hkSpan(r)));if(r.category==='CHECKOUT')p.co++});
   const rows=Object.entries(per).sort((a,b)=>b[1].n-a[1].n);
-  const leftCard=left.length?`<div class="mt-4">${card(`${cardHead(info&&info.closed?'Belum ready saat hari ditutup':'Belum ready',`${left.length} kamar`)}<div class="p-3 sm:p-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">${left.map(r=>`<div class="flex items-center gap-3 rounded-xl ring-1 ring-inset ring-slate-200/80 px-3 py-2.5"><span class="w-12 text-lg font-extrabold text-slate-900">${esc(r.room)}</span><div class="flex-1 min-w-0 text-xs text-slate-500"><p class="font-semibold text-slate-800 truncate">${esc(nameOf(r.assignedTo))}</p><p>${isDnd(r)?`${esc(dndLbl(r))} sejak ${clk(r.dndAt)} · dicek ${(r.dndChecks||0)+1}x`:r.startAt?'start '+clk(r.startAt):'belum mulai'}${r.finishHkAt?' · selesai '+clk(r.finishHkAt):''}</p></div>${rStChip(r)}</div>`).join('')}</div>`)}</div>`:'';
+  const leftCard=left.length?`<div class="mt-4">${card(`${cardHead(info&&info.closed?'Belum ready saat hari ditutup':'Belum ready',`${left.length} kamar`)}<div class="p-3 sm:p-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">${left.map(r=>`<div class="flex items-center gap-3 rounded-xl ring-1 ring-inset ring-slate-200/80 px-3 py-2.5"><span class="w-12 text-lg font-extrabold text-slate-900">${esc(r.room)}</span><div class="flex-1 min-w-0 text-xs text-slate-500"><p class="font-semibold text-slate-800 truncate">${esc(nameOf(r.assignedTo))}</p><p>${isDnd(r)?`${esc(dndLbl(r))} sejak ${clk(r.dndAt)} · dicek ${(r.dndChecks||0)+1}x${r.csResult?' · '+(r.csResult==='PMR'?'PMR '+clk(r.csPmrAt):CSL[r.csResult]):''}`:r.startAt?'start '+clk(r.startAt):'belum mulai'}${r.finishHkAt?' · selesai '+clk(r.finishHkAt):''}</p></div>${rStChip(r)}</div>`).join('')}</div>`)}</div>`:'';
   return head+strip+status+`<div class="mb-4">${progressCard(all)}</div><div class="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
     ${kpi('check','bg-emerald-50 text-emerald-600','Kamar ready',done.length,`dari ${all.length} kamar`)}
     ${kpi('clock','bg-amber-50 text-amber-600','Rata-rata HK',avgC+' mnt','start → selesai')}
@@ -889,10 +907,10 @@ function exportReport(){
   const done=all.slice().sort((a,b)=>(a.status==='COMPLETED'?0:1)-(b.status==='COMPLETED'?0:1)||roomSort(a,b));
   if(!done.length){toast('Tidak ada data untuk diunduh.');return}
   const M=v=>v==null?'':mins(v);
-  const head=['Tanggal','Kamar','Kategori','Status','Housekeeper','Jam HK start','Jam HK selesai','Waktu HK start-selesai (menit)','Jam SPV cek','Jam SPV selesai cek','Waktu pengecekan SPV (menit)','Waktu HK selesai - SPV cek (menit)','Total HK start - SPV selesai (menit)','Supervisor','Jeda/pause (menit)','Jam mulai queue','Tamu menunggu sampai ready (menit)','Skip DND/Double Sign'];
+  const head=['Tanggal','Kamar','Kategori','Status','Housekeeper','Jam HK start','Jam HK selesai','Waktu HK start-selesai (menit)','Jam SPV cek','Jam SPV selesai cek','Waktu pengecekan SPV (menit)','Waktu HK selesai - SPV cek (menit)','Total HK start - SPV selesai (menit)','Supervisor','Jeda/pause (menit)','Jam mulai queue','Tamu menunggu sampai ready (menit)','Skip DND/Double Sign','Courtesy operator'];
   const T=x=>x==='--.--'||x==='–'?'':x.replace('.',':');
   const di=date===S.today?S.day:S.dayInfo[date],qEnd=di&&di.closed?di.closedAt:nowS();
-  const rows=done.map(r=>{const t=timesOf(r),ok=r.status==='COMPLETED';return [date,r.room,isSO(r)?'Stayover':'Checkout',ok?'Ready':isDnd(r)?dndLbl(r):ST[r.status].l,nameOf(r.assignedTo),T(t.hkStart),T(t.hkEnd),r.finishHkAt?M(t.hkDur):'',ok?T(t.spvStart):(r.spvStartAt?T(clk(r.spvStartAt)):''),ok?T(t.spvEnd):'',M(t.spvDur),M(t.wait),ok?M(t.total):'',r.spvId&&!isSO(r)?nameOf(r.spvId):'',mins(r.totalPauseMs),r.queuedAt?T(clk(r.queuedAt)):'',r.queuedAt?mins((ok?r.finishSpvAt:qEnd)-r.queuedAt):'',r.dndReason?`${dndLbl(r)} ${T(clk(r.dndAt))}${r.dndClearAt?'-'+T(clk(r.dndClearAt)):''} (cek ${(r.dndChecks||0)+1}x)`:'']});
+  const rows=done.map(r=>{const t=timesOf(r),ok=r.status==='COMPLETED';return [date,r.room,isSO(r)?'Stayover':'Checkout',ok?'Ready':isDnd(r)?dndLbl(r):ST[r.status].l,nameOf(r.assignedTo),T(t.hkStart),T(t.hkEnd),r.finishHkAt?M(t.hkDur):'',ok?T(t.spvStart):(r.spvStartAt?T(clk(r.spvStartAt)):''),ok?T(t.spvEnd):'',M(t.spvDur),M(t.wait),ok?M(t.total):'',r.spvId&&!isSO(r)?nameOf(r.spvId):'',mins(r.totalPauseMs),r.queuedAt?T(clk(r.queuedAt)):'',r.queuedAt?mins((ok?r.finishSpvAt:qEnd)-r.queuedAt):'',r.dndReason?`${dndLbl(r)} ${T(clk(r.dndAt))}${r.dndClearAt?'-'+T(clk(r.dndClearAt)):''} (cek ${(r.dndChecks||0)+1}x)`:'',r.csResult?`${CSL[r.csResult]} ${T(clk(r.csAt))}${r.csResult==='PMR'?' (bersih '+T(clk(r.csPmrAt))+')':''}${r.csBy?' - '+opName(r):''}`:'']});
   const q=v=>{v=String(v==null?'':v);return /[;"\n,]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
   const csv='﻿sep=;\r\n'+[head].concat(rows).map(a=>a.map(q).join(';')).join('\r\n');
   const name='Laporan-HK-'+date+'.csv';
@@ -987,12 +1005,38 @@ function spvDashCard(R){
     <div class="mt-2 divide-y divide-slate-100 border-t border-slate-100">${st.map(row).join('')}</div>`)}</div>`;
 }
 
+/* ================= OPERATOR: COURTESY DND / DOUBLE SIGN ================= */
+function viewOp(){
+  const R=S.rooms,act=R.filter(isDnd);
+  const need=act.filter(r=>!r.csResult).sort((a,b)=>a.dndAt-b.dndAt),wait=act.filter(r=>r.csResult==='CALLED').sort((a,b)=>a.csAt-b.csAt);
+  const pmr=act.filter(r=>r.csResult==='PMR').sort((a,b)=>a.csPmrAt-b.csPmrAt),nos=act.filter(r=>r.csResult==='NOSERVICE');
+  const done=R.filter(r=>r.dndReason&&r.dndClearAt&&r.csResult).sort((a,b)=>b.dndClearAt-a.dndClearAt);
+  const can=['superadmin','admin','frontoffice','operator'].includes(S.me.role);
+  const btn=(r,res,l,v)=>`<button data-act="${res==='PMR'?'openPmr':'csSet'}" data-id="${esc(r.room)}" data-res="${res}" class="${bc(v,'sm')}">${l}</button>`;
+  const cardR=r=>{const c=r.csResult||'';
+    return `<article class="bg-white rounded-2xl ${c===''?'ring-2 ring-amber-300':c==='PMR'?'ring-1 ring-emerald-300':'ring-1 ring-slate-200/80'} shadow-card p-4 flex flex-col gap-3">
+      <div class="flex items-start justify-between gap-3"><div class="min-w-0"><p class="text-2xl font-extrabold text-slate-900 leading-none">${esc(r.room)}</p><p class="text-xs text-slate-500 mt-1.5">${esc(r.roomType)} · Lt ${esc(floorOf(r))} · RA ${esc(nameOf(r.assignedTo))}</p></div><div class="flex flex-col items-end gap-1">${dndChip(r)}${csChip(r)}</div></div>
+      <p class="text-xs text-slate-500">${esc(dndLbl(r))} sejak ${clk(r.dndAt)} · RA sudah cek ${(r.dndChecks||0)+1}x${isQ(r)?' · <b class="text-rose-600">tamu lain menunggu kamar ini</b>':''}</p>
+      <p class="text-xs rounded-xl bg-slate-50 px-3 py-2">${csLine(r)}</p>
+      ${can?`<div class="flex flex-wrap gap-2 mt-auto">${c===''?btn(r,'CALLED',ic('phone','w-3.5 h-3.5')+' Sudah courtesy','dark'):c==='CALLED'?btn(r,'CALLED',ic('phone','w-3.5 h-3.5')+' Courtesy lagi','ghost'):''}
+        ${c==='PMR'?btn(r,'PMR','Ubah jam','ghost'):btn(r,'PMR','Ingin dibersihkan (PMR)','success')}${c==='NOSERVICE'?'':btn(r,'NOSERVICE','Tidak ingin dibersihkan','soft')}${c?`<button data-act="csSet" data-id="${esc(r.room)}" data-res="RESET" class="text-xs font-semibold text-slate-500 hover:text-slate-800 px-2">Batalkan</button>`:''}</div>`:''}</article>`};
+  const sec=(t,hint,list,tone)=>list.length?`<section class="mt-5"><div class="flex items-center gap-2 mb-2"><h3 class="text-sm font-bold ${tone||'text-slate-900'}">${t}</h3><span class="text-xs font-bold text-slate-500 bg-slate-200/70 rounded-full px-2 py-0.5">${list.length}</span></div>${hint?`<p class="text-xs text-slate-500 mb-2">${hint}</p>`:''}<div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">${list.map(cardR).join('')}</div></section>`:'';
+  const kp=`<div class="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">${kpi('phone','bg-amber-50 text-amber-600','Perlu courtesy',need.length,'kamar DND / Double Sign baru')}${kpi('clock','bg-cyan-50 text-cyan-600','Menunggu respon',wait.length,'sudah di-courtesy')}${kpi('check','bg-emerald-50 text-emerald-600','PMR',pmr.length,pmr.length?'berikutnya '+clk(pmr[0].csPmrAt):'tamu minta dibersihkan')}${kpi('ban','bg-slate-100 text-slate-500','Tidak ingin dibersihkan',nos.length,'tamu menolak hari ini')}</div>`;
+  return `${pageHead('',esc(fmtDate(S.today)))}${kp}
+    ${act.length?'':`<div class="mt-4">${card(empty('phone','Tidak ada kamar DND / Double Sign','Kamar yang di-skip RA otomatis muncul di sini.'))}</div>`}
+    ${sec('Perlu courtesy','Hubungi tamu, lalu tekan Sudah courtesy. Jika tamu langsung menjawab, pilih Ingin dibersihkan atau Tidak ingin dibersihkan.',need,'text-amber-700')}
+    ${sec('Menunggu respon tamu','',wait)}
+    ${sec('Tamu minta dibersihkan (PMR)','RA sudah diberi tahu dan diingatkan saat jamnya tiba.',pmr,'text-emerald-700')}
+    ${sec('Tidak ingin dibersihkan','Pengingat cek ulang untuk RA dihentikan.',nos)}
+    ${done.length?`<section class="mt-6">${card(`${cardHead('Sudah ditangani hari ini',`${done.length} kamar · sign hilang / RA sudah mulai membersihkan`)}<div class="mt-2 divide-y divide-slate-100 border-t border-slate-100">${done.map(r=>`<div class="flex items-center gap-3 px-4 sm:px-5 py-2.5 text-sm"><span class="w-14 font-extrabold text-slate-900">${esc(r.room)}</span><span class="flex-1 min-w-0 text-xs text-slate-500 truncate">${esc(dndLbl(r))} ${clk(r.dndAt)} → mulai dibersihkan ${clk(r.dndClearAt)} · ${esc(CSL[r.csResult]||'')}${r.csResult==='PMR'?' '+clk(r.csPmrAt):''}</span>${rStChip(r)}</div>`).join('')}</div>`)}</section>`:''}`;
+}
+
 /* ================= FRONT OFFICE ================= */
 /* Front Office: melihat progress kamar (tanpa mengubah status) dan menandai tamu menunggu (queue) */
 const FO_RANK={INSPECTING:0,INSPECTION_READY:1,CLEANING:2,PAUSED:3,PENDING:4,COMPLETED:5}; /* yang paling dekat ready tampil di atas */
 function foLine(r){
   const hk=r.assignedTo?esc(nameOf(r.assignedTo)):'';
-  if(isDnd(r))return `${esc(dndLbl(r))} sejak ${clk(r.dndAt)}${hk?' · '+hk:''}`;
+  if(isDnd(r))return `${esc(dndLbl(r))} sejak ${clk(r.dndAt)}${hk?' · '+hk:''}${r.csResult?' · '+(r.csResult==='PMR'?'PMR '+clk(r.csPmrAt):CSL[r.csResult]):' · belum courtesy'}`;
   return {PENDING:hk?'Belum mulai · '+hk:'Belum di-assign',
     CLEANING:`Dibersihkan ${hk} · mulai ${clk(r.startAt)}`,
     PAUSED:`Dijeda sejak ${clk(r.pausedAt)} · ${hk}`,
@@ -1037,7 +1081,7 @@ function viewHK(){
   const mine=S.rooms.filter(r=>r.assignedTo===S.me.id);
   const done=mine.filter(hkDone).length;
   const active=mine.find(r=>r.status==='CLEANING');
-  const paused=mine.filter(r=>r.status==='PAUSED').sort((a,b)=>qFirst(a,b)||seqSort(a,b)),pending=mine.filter(r=>r.status==='PENDING'&&!isDnd(r)).sort((a,b)=>qFirst(a,b)||seqSort(a,b)),dnds=mine.filter(isDnd).sort((a,b)=>dndDue(a)-dndDue(b));
+  const paused=mine.filter(r=>r.status==='PAUSED').sort((a,b)=>qFirst(a,b)||seqSort(a,b)),pending=mine.filter(r=>r.status==='PENDING'&&!isDnd(r)).sort((a,b)=>qFirst(a,b)||seqSort(a,b)),dnds=mine.filter(isDnd).sort((a,b)=>(pmrDue(b)-pmrDue(a))||((a.csResult==='NOSERVICE')-(b.csResult==='NOSERVICE'))||((a.csResult==='PMR'?a.csPmrAt:dndDue(a))-(b.csResult==='PMR'?b.csPmrAt:dndDue(b))));
   const myQ=mine.filter(isQ);
   const waiting=mine.filter(r=>r.status==='INSPECTION_READY'||r.status==='INSPECTING').sort(seqSort),finished=mine.filter(r=>r.status==='COMPLETED').sort((a,b)=>b.finishSpvAt-a.finishSpvAt);
   const co=mine.filter(r=>r.category==='CHECKOUT').length,arrP=mine.filter(r=>r.arrivalFlag&&r.status==='PENDING').length;
@@ -1060,12 +1104,17 @@ function viewHK(){
         <p class="text-xs text-slate-500 mt-1">Keseluruhan: ${done} dari ${mine.length} kamar selesai${arrP?` · <span class="text-fuchsia-700 font-semibold">${arrP} arrival</span>`:''}</p></div></div>
       ${mine.length?`<div class="grid grid-cols-2 gap-3">${progSplit(mine,hkDone).slice(1).map(p=>`<div class="rounded-2xl ring-1 ring-inset ${p.k==='CHECKOUT'?'ring-rose-100 bg-rose-50/40':'ring-indigo-100 bg-indigo-50/40'} p-3"><div class="flex items-baseline justify-between gap-2"><span class="text-xs font-bold ${catOf(p.k).text}">${p.l}</span><span class="text-xs font-semibold text-slate-500">${p.pct}%</span></div><p class="text-xl font-extrabold text-slate-900 mt-0.5">${p.done}<span class="text-sm text-slate-400 font-bold"> / ${p.total}</span></p><div class="mt-2 h-1.5 rounded-full bg-white overflow-hidden ring-1 ring-inset ring-slate-100"><div class="h-full rounded-full" style="width:${p.pct}%;background:${p.color}"></div></div></div>`).join('')}</div>`:''}</section>
     ${hero}
-    ${mine.length?section(`DND / Double Sign${dnds.some(dndLate)?' · waktunya cek ulang':''}`,dnds,true,'Cek ulang setiap 1 jam. Jika sign sudah hilang, tekan Start.')+section('Dijeda',paused,true,active?`Resume tersedia setelah kamar ${esc(active.room)} selesai atau di-pause.`:'')+section('Berikutnya',pending,true,active?`Selesaikan atau pause kamar ${esc(active.room)} untuk memulai kamar berikutnya.`:'')+section('Menunggu cek supervisor',waiting,!pending.length)+section('Selesai',finished,false)
+    ${mine.length?section(`DND / Double Sign${dnds.some(pmrDue)?' · tamu minta dibersihkan':dnds.some(dndLate)?' · waktunya cek ulang':''}`,dnds,true,'Cek ulang setiap 1 jam. Jika sign sudah hilang atau tamu minta dibersihkan (PMR), tekan Start.')+section('Dijeda',paused,true,active?`Resume tersedia setelah kamar ${esc(active.room)} selesai atau di-pause.`:'')+section('Berikutnya',pending,true,active?`Selesaikan atau pause kamar ${esc(active.room)} untuk memulai kamar berikutnya.`:'')+section('Menunggu cek supervisor',waiting,!pending.length)+section('Selesai',finished,false)
       :card(empty('inbox','Belum ada kamar untuk Anda','Kamar muncul otomatis setelah admin meng-upload task sheet. Ketuk muat ulang untuk mengecek.'))}</div>`;
 }
 function hkCard(r,active){
   const locked=active&&active.room!==r.room;let act='';
-  if(isDnd(r)){const late=dndLate(r);act=`<div class="rounded-xl ring-1 ring-inset ${late?'bg-rose-50 ring-rose-300 text-rose-900':'bg-slate-100 ring-slate-200 text-slate-700'} px-3 py-2.5 text-xs">
+  if(isDnd(r)&&(r.csResult==='PMR'||r.csResult==='NOSERVICE')){const pm=r.csResult==='PMR',due=pm&&pmrDue(r);
+    act=`<div class="rounded-xl ring-1 ring-inset ${pm?(due?'bg-emerald-600 text-white ring-emerald-600':'bg-emerald-50 ring-emerald-200 text-emerald-900'):'bg-slate-100 ring-slate-200 text-slate-700'} px-3 py-2.5 text-xs">
+      <p class="font-bold flex items-center gap-1.5">${ic(pm?'bell':'ban','w-3.5 h-3.5')} ${pm?(due?'Tamu minta dibersihkan sekarang':'Tamu minta dibersihkan pukul '+clk(r.csPmrAt)):'Tamu tidak ingin dibersihkan'}</p>
+      <p class="mt-0.5 ${due?'text-emerald-50':''}">Info ${esc(opName(r))} ${clk(r.csAt)}${r.csNote?` · "${esc(r.csNote)}"`:''}${pm?'':' · tidak perlu cek ulang'}</p></div>
+    ${locked?`<p class="text-[11px] text-slate-500 text-center">Selesaikan kamar ${esc(active.room)} dulu untuk Start</p>`:`<button data-act="ask" data-type="start" data-id="${esc(r.room)}" class="${bc(due?'success':'dark','md','w-full')}">${ic('play')} Start</button>`}`}
+  else if(isDnd(r)){const late=dndLate(r);act=`${r.csResult==='CALLED'?`<p class="text-[11px] text-cyan-800 bg-cyan-50 rounded-xl px-3 py-2">Operator sudah courtesy ${clk(r.csAt)} · menunggu respon tamu</p>`:''}<div class="rounded-xl ring-1 ring-inset ${late?'bg-rose-50 ring-rose-300 text-rose-900':'bg-slate-100 ring-slate-200 text-slate-700'} px-3 py-2.5 text-xs">
       <p class="font-bold flex items-center gap-1.5">${ic(late?'bell':'clock','w-3.5 h-3.5')} ${late?'Waktunya cek ulang':'Cek ulang '+clk(dndDue(r))} <span class="font-semibold ${late?'text-rose-700':'text-slate-500'}" data-dnd="${dndDue(r)}">· ${dndLeft(r)}</span></p>
       <p class="mt-0.5">${esc(dndLbl(r))} sejak ${clk(r.dndAt)} · sudah dicek ${(r.dndChecks||0)+1}x · terakhir ${clk(r.dndCheckAt||r.dndAt)}</p></div>
     <div class="grid grid-cols-2 gap-2"><button data-act="ask" data-type="recheck" data-id="${esc(r.room)}" class="${bc(late?'danger':'soft','md')}">${ic('refresh','w-4 h-4')} Masih ${esc(dndLbl(r))}</button>${locked?`<span class="text-[11px] text-slate-500 self-center text-center leading-tight">Selesaikan kamar ${esc(active.room)} dulu untuk Start</span>`:`<button data-act="ask" data-type="start" data-id="${esc(r.room)}" class="${bc('dark','md')}">${ic('play')} Start</button>`}</div>
@@ -1077,16 +1126,16 @@ function hkCard(r,active){
   else if(r.status==='INSPECTING')act=`${timeline(r,false)}<p class="text-xs text-violet-800 bg-violet-50 rounded-xl px-3 py-2">Sedang dicek ${esc(nameOf(r.spvId))} sejak ${clk(r.spvStartAt)}</p>`;
   else if(r.status==='COMPLETED')act=`${timeline(r,r.category==='STAYOVER')}<p class="text-xs text-emerald-700 font-semibold">${mins(netClean(r))} menit bersih</p>`;
   const gl=guestLine(r),extra=resvChip(r)+flagChips(r);
-  return `<article class="bg-white rounded-2xl ${isQ(r)?'ring-2 ring-rose-500':dndLate(r)?'ring-2 ring-rose-300':isDnd(r)?'ring-1 ring-slate-400':r.arrivalFlag&&r.status==='PENDING'?'ring-1 ring-fuchsia-300':'ring-1 ring-slate-200/80'} shadow-card p-4 flex flex-col gap-3">${isQ(r)?`<div>${qChip(r)}</div>`:''}
-    <div class="flex items-start justify-between gap-3"><div class="min-w-0"><p class="text-2xl font-extrabold text-slate-900 leading-none tracking-tight">${esc(r.room)}</p><p class="text-xs text-slate-500 mt-1.5">${esc(r.roomType)}${gl?' · '+gl:''}</p></div>${isDnd(r)?dndChip(r):r.status==='PENDING'?catChip(r.category):rStChip(r)}</div>
+  return `<article class="bg-white rounded-2xl ${isQ(r)?'ring-2 ring-rose-500':pmrDue(r)?'ring-2 ring-emerald-500':dndLate(r)?'ring-2 ring-rose-300':isDnd(r)?'ring-1 ring-slate-400':r.arrivalFlag&&r.status==='PENDING'?'ring-1 ring-fuchsia-300':'ring-1 ring-slate-200/80'} shadow-card p-4 flex flex-col gap-3">${isQ(r)?`<div>${qChip(r)}</div>`:''}
+    <div class="flex items-start justify-between gap-3"><div class="min-w-0"><p class="text-2xl font-extrabold text-slate-900 leading-none tracking-tight">${esc(r.room)}</p><p class="text-xs text-slate-500 mt-1.5">${esc(r.roomType)}${gl?' · '+gl:''}</p></div>${isDnd(r)?`<div class="flex flex-col items-end gap-1">${dndChip(r)}${csChip(r)}</div>`:r.status==='PENDING'?catChip(r.category):rStChip(r)}</div>
     ${extra?`<div class="flex flex-wrap gap-1">${extra}</div>`:''}${notes(r)}<div class="mt-auto space-y-2">${act}</div></article>`;
 }
 
 /* ================= PENGGUNA ================= */
-const ROLE_ORDER=['superadmin','admin','supervisor','frontoffice','housekeeper'];
+const ROLE_ORDER=['superadmin','admin','supervisor','frontoffice','operator','housekeeper'];
 /* hak ubah akun (sama dengan aturan di server) */
 function rights(t){
-  const u=S.me,self=u.id===t.id,m=['supervisor','housekeeper','frontoffice'].includes(t.role);
+  const u=S.me,self=u.id===t.id,m=['supervisor','housekeeper','frontoffice','operator'].includes(t.role);
   return {name:u.role==='superadmin'||(u.role==='admin'&&(m||self)),username:u.role==='superadmin',
     password:!self&&((u.role==='superadmin'&&t.role!=='superadmin')||(u.role==='admin'&&m)||(u.role==='supervisor'&&t.role==='housekeeper')),
     floors:(u.role==='superadmin'||u.role==='admin')&&t.role==='supervisor',role:u.role==='superadmin'&&!self&&t.role!=='superadmin',active:!self&&((u.role==='superadmin'&&t.role!=='superadmin')||(u.role==='admin'&&m))};
@@ -1099,7 +1148,7 @@ function viewUsers(){
   const counts={};S.allUsers.forEach(u=>counts[u.role]=(counts[u.role]||0)+1);
   const actions=(u,justify)=>{const R=rights(u);if(!(R.name||R.username||R.password||R.role||R.active))return '';
     return `<div class="flex flex-wrap gap-1.5 ${justify}">
-    ${R.role?`<select data-urole="${u.id}" aria-label="Role ${esc(u.name)}" class="${selectCls} !py-1.5 !text-xs">${['admin','supervisor','frontoffice','housekeeper'].map(r=>`<option value="${r}" ${u.role===r?'selected':''}>${ROLE[r].l}</option>`).join('')}</select>`:''}
+    ${R.role?`<select data-urole="${u.id}" aria-label="Role ${esc(u.name)}" class="${selectCls} !py-1.5 !text-xs">${['admin','supervisor','frontoffice','operator','housekeeper'].map(r=>`<option value="${r}" ${u.role===r?'selected':''}>${ROLE[r].l}</option>`).join('')}</select>`:''}
     ${(R.name||R.username||R.password)?`<button data-act="openEditUser" data-id="${u.id}" class="${bc('ghost','sm')}">${ic(R.name||R.username?'edit':'key','w-3.5 h-3.5')} ${R.name||R.username?'Edit':'Ganti password'}</button>`:''}
     ${R.active?`<button data-act="toggleActive" data-id="${u.id}" class="${bc(u.active?'dangerSoft':'soft','sm')}">${u.active?'Nonaktifkan':'Aktifkan'}</button>`:''}</div>`};
   const status=u=>u.active?chip('Aktif','bg-emerald-50 text-emerald-700 ring-emerald-200','bg-emerald-500'):chip('Nonaktif','bg-slate-100 text-slate-500 ring-slate-200');
@@ -1197,7 +1246,7 @@ function renderModals(){
       <button data-act="logout" class="${bc('dangerSoft','md','w-full')}">${ic('logout')} Keluar</button></div>`,{close:'closeAcct',lbl:'Akun'});
   }
   if(S.addUser&&S.me){
-    const creatable=S.me.role==='superadmin'?['admin','supervisor','frontoffice','housekeeper']:['supervisor','frontoffice','housekeeper'];
+    const creatable=S.me.role==='superadmin'?['admin','supervisor','frontoffice','operator','housekeeper']:['supervisor','frontoffice','operator','housekeeper'];
     const role=creatable.includes(dv('f-urole','housekeeper'))?dv('f-urole','housekeeper'):'housekeeper';
     h+=sheet(`${sheetHead('Tambah pengguna','','closeAddUser')}<div class="px-5 sm:px-6 pb-6 space-y-4 overflow-y-auto">
       <div>${label('f-uname','Nama lengkap')}<input id="f-uname" data-keep type="text" value="${esc(dv('f-uname',''))}" class="${field}" placeholder="Mis. Siti Rahma"></div>
@@ -1248,6 +1297,15 @@ function renderModals(){
       <button data-act="qAck" class="${bc('danger','lg','w-full mt-5')}">Oke, saya prioritaskan</button></div>`,{size:'sm:max-w-sm',lbl:'Tamu menunggu'});
   }
   if(S.closing&&S.me)h+=closeSheet();
+  if(S.pmr&&S.me){const r=S.rooms.find(x=>x.room===S.pmr.room);
+    if(r){const mode=S.pmr.mode||'now';const def=(()=>{const d=new Date(nowS()+30*60000);const p=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Jakarta',hour:'2-digit',minute:'2-digit',hour12:false}).format(d);return p})();
+      h+=sheet(`${sheetHead('Tamu minta dibersihkan · '+esc(r.room),'PMR · RA langsung diberi tahu','closePmr')}<div class="px-5 sm:px-6 pb-6 space-y-3 overflow-y-auto">
+        <div class="grid grid-cols-2 gap-2">${[['now','Sekarang','RA diberi tahu saat ini'],['at','Pada jam','pilih jam yang diminta tamu']].map(([k,l,d])=>`<label class="cursor-pointer"><input type="radio" name="pmrmode" value="${k}" data-pmrmode class="peer sr-only" ${mode===k?'checked':''}><span class="block rounded-2xl ring-1 ring-inset ring-slate-200 peer-checked:ring-2 peer-checked:ring-emerald-500 peer-checked:bg-emerald-50 p-3"><span class="block text-sm font-bold text-slate-900">${l}</span><span class="block text-[11px] text-slate-500">${d}</span></span></label>`).join('')}</div>
+        ${mode==='at'?`<div>${label('pmr-time','Jam dibersihkan')}<input id="pmr-time" type="time" value="${esc(S.pmr.time||def)}" class="${field}"></div>`:''}
+        <div>${label('pmr-note','Catatan (opsional)')}<input id="pmr-note" type="text" maxlength="200" placeholder="mis. tamu keluar jam 15.00" class="${field}"></div>
+        <p id="pmr-err" class="text-sm text-rose-600" hidden></p>
+        <div class="grid grid-cols-[auto_1fr] gap-2"><button data-act="closePmr" class="${bc('ghost','lg')}">Batal</button><button data-act="savePmr" class="${bc('success','lg')}">${ic('check','w-4 h-4')} Simpan & beri tahu RA</button></div></div>`,{close:'closePmr',lbl:'PMR'});}
+    else S.pmr=null;}
   if(S.skip&&S.me){const r=S.rooms.find(x=>x.room===S.skip.room);
     if(r){const pick=S.skip.reason||'';const opt=(k,t,d,i)=>`<label class="cursor-pointer"><input type="radio" name="skipr" value="${k}" data-skippick class="peer sr-only" ${pick===k?'checked':''}><span class="flex items-center gap-3 rounded-2xl ring-1 ring-inset ring-slate-200 peer-checked:ring-2 peer-checked:ring-slate-900 peer-checked:bg-slate-50 peer-focus-visible:ring-2 peer-focus-visible:ring-brand-500 p-3.5"><span class="w-11 h-11 rounded-xl bg-slate-900 text-white flex items-center justify-center text-[11px] font-extrabold shrink-0">${i}</span><span class="min-w-0"><span class="block text-sm font-bold text-slate-900">${t}</span><span class="block text-xs text-slate-500">${d}</span></span></span></label>`;
     h+=sheet(`${sheetHead('Skip kamar '+esc(r.room),'Kenapa kamar belum bisa dibersihkan?','closeSkip')}<div class="px-5 sm:px-6 pb-6 space-y-3 overflow-y-auto">
@@ -1331,6 +1389,21 @@ const A={
   openMore(){S.more=true;render()},closeMore(){S.more=false;render()},
   toggleAll(){S.showAll=!S.showAll;render()},
   hardReload(){hardReload()},
+  openPmr(el){S.pmr={room:el.dataset.id,mode:'now'};render()},
+  closePmr(){S.pmr=null;render()},
+  async savePmr(){const k=S.pmr;if(!k)return;let at=0;
+    if(k.mode==='at'){const v=(document.getElementById('pmr-time')||{}).value||'';if(!/^\d{2}:\d{2}$/.test(v)){const e=document.getElementById('pmr-err');if(e){e.textContent='Pilih jamnya dulu.';e.hidden=false}return}
+      at=new Date(S.today+'T'+v+':00+07:00').getTime();if(at<nowS()-5*60000)at+=86400000}
+    const note=(document.getElementById('pmr-note')||{}).value||'';
+    try{const upd=await api('courtesy',S.today,k.room,{result:'PMR',pmrAt:at,note});S.pmr=null;const i=S.rooms.findIndex(x=>x.room===upd.room);if(i>=0)S.rooms[i]=upd;
+      toast(`Kamar ${upd.room}: PMR ${at?'pukul '+clk(upd.csPmrAt):'sekarang'}. ${nameOf(upd.assignedTo)} diberi tahu.`);render()}
+    catch(e){const x=document.getElementById('pmr-err');if(x&&e.code!=='AUTH'){x.textContent=e.message;x.hidden=false}}},
+  csSet(el){const room=el.dataset.id,res=el.dataset.res,r=S.rooms.find(x=>x.room===room);if(!r)return;
+    const go=async()=>{const upd=await run(()=>api('courtesy',S.today,room,{result:res}),{CALLED:`Kamar ${room}: sudah courtesy`,NOSERVICE:`Kamar ${room}: tamu tidak ingin dibersihkan. Pengingat RA dihentikan.`,RESET:`Status courtesy kamar ${room} dibatalkan`}[res]);
+      if(upd){const i=S.rooms.findIndex(x=>x.room===upd.room);if(i>=0)S.rooms[i]=upd;render()}};
+    if(res==='CALLED')return go();
+    S.confirm={icon:res==='RESET'?'undo':'ban',iconCls:'bg-slate-100 text-slate-600',title:res==='RESET'?`Batalkan status courtesy ${esc(room)}?`:`Tamu kamar ${esc(room)} tidak ingin dibersihkan?`,
+      msg:res==='RESET'?'Kamar kembali ke daftar Perlu courtesy.':`Kamar tetap tercatat ${esc(dndLbl(r))} dan tidak dibersihkan hari ini. Pengingat cek ulang untuk ${esc(nameOf(r.assignedTo))} dihentikan.`,btnV:'dark',btn:res==='RESET'?'Ya, batalkan':'Ya, simpan',onYes:go};render()},
   spvToday(){S.spvDate='';render()},
   fofilter(el){S.drafts['f-fof']=el.dataset.v;S.showAll=false;render()},
   openSkip(el){S.skip={room:el.dataset.id,reason:''};render()},
@@ -1472,6 +1545,19 @@ function checkDndAlerts(){
   notify('alarm',t,m,'dnd');toast(t+' · '+m);render();
 }
 /* Pengingat tamu menunggu (queue): RA pemegang kamar & supervisor incharge di lantainya, setiap 10 menit sampai kamar ready */
+/* RA: pengingat PMR saat jam yang diminta tamu tiba, lalu tiap 10 menit sampai Start. Operator: kamar yang belum di-courtesy tiap 15 menit */
+const pmrSeen=new Set(),csSeen=new Set();
+function checkCourtesyReminders(){
+  if(!S.me||!S.loaded)return;const now=nowS();
+  if(S.me.role==='housekeeper'){
+    const due=S.rooms.filter(r=>r.assignedTo===S.me.id&&pmrDue(r)).filter(r=>{const k=r.room+'|'+r.csPmrAt+'|'+Math.floor((now-r.csPmrAt)/600000);if(pmrSeen.has(k))return false;pmrSeen.add(k);return true});
+    if(due.length){const t=`Waktunya membersihkan kamar ${due.map(r=>r.room).join(', ')}`,m='Permintaan tamu (PMR) dari operator. Tekan Start saat mulai.';notify('alarm',t,m,'pmr');toast(t+' · '+m);render()}
+  }
+  if(S.me.role==='operator'){
+    const need=S.rooms.filter(r=>isDnd(r)&&!r.csResult&&now-r.dndAt>=900000).filter(r=>{const k=r.room+'|'+r.dndAt+'|'+Math.floor((now-r.dndAt)/900000);if(csSeen.has(k))return false;csSeen.add(k);return true});
+    if(need.length){const t=`Belum di-courtesy: kamar ${need.map(r=>r.room).join(', ')}`;notify('alarm',t,'Hubungi tamu lalu update statusnya.','courtesy');toast(t)}
+  }
+}
 const QUEUE_REMIND_MS=600000,qRemindSeen=new Set();
 function checkQueueReminders(){
   if(!S.me||!S.loaded)return;
@@ -1550,6 +1636,16 @@ function detectEvents(prev,next){
     const added=next.filter(r=>r.assignedTo===me.id&&r.status!=='COMPLETED'&&!(P.get(r.room)&&P.get(r.room).assignedTo===me.id));
     if(added.length)notify('info',added.length===1?'Kamar baru: '+added[0].room:added.length+' kamar baru untuk Anda',added.length>1?added.slice(0,8).map(r=>r.room).join(', '):'','assign');
   }
+  if(me.role==='housekeeper'){
+    const pm=next.filter(r=>r.assignedTo===me.id&&isDnd(r)&&r.csResult==='PMR'&&P.get(r.room)&&(P.get(r.room).csResult!=='PMR'||P.get(r.room).csPmrAt!==r.csPmrAt));
+    pm.forEach(r=>{const t=`Kamar ${r.room}: tamu minta dibersihkan ${pmrTxt(r)}`;notify(nowS()>=r.csPmrAt?'alarm':'info',t,r.csNote||'Info dari operator','pmr');if(nowS()>=r.csPmrAt)toast(t)});
+    const ns=next.filter(r=>r.assignedTo===me.id&&isDnd(r)&&r.csResult==='NOSERVICE'&&P.get(r.room)&&P.get(r.room).csResult!=='NOSERVICE');
+    if(ns.length)notify('info',`Kamar ${ns.map(r=>r.room).join(', ')}: tamu tidak ingin dibersihkan`,'Tidak perlu cek ulang lagi.','pmr');
+  }
+  if(me.role==='operator'){
+    const nw=next.filter(r=>isDnd(r)&&!r.csResult&&!(P.get(r.room)&&isDnd(P.get(r.room))));
+    if(nw.length){const t=`Perlu courtesy: kamar ${nw.map(r=>r.room).join(', ')}`;notify('alarm',t,[...new Set(nw.map(dndLbl))].join(' / ')+' · hubungi tamu','courtesy');toast(t)}
+  }
   if(me.role==='supervisor'&&meOnDuty()){
     const ready=next.filter(r=>r.status==='INSPECTION_READY'&&r.category==='CHECKOUT'&&onMyFloor(r)&&P.get(r.room)&&P.get(r.room).status!=='INSPECTION_READY');
     if(ready.length)notify('info',ready.length===1?'Kamar '+ready[0].room+' siap dicek':ready.length+' kamar siap dicek',ready.slice(0,6).map(r=>r.room+' ('+nameOf(r.assignedTo)+')').join(', '),'inspect');
@@ -1587,6 +1683,7 @@ document.addEventListener('change',async e=>{
   else if(el.dataset.incharge){const id=el.dataset.incharge,x=S.incharge;const base=x&&x.set?x.ids.slice():(S.users||[]).filter(u=>u.role==='supervisor'&&u.active).map(u=>u.id);
     const ids=el.checked?[...new Set(base.concat(id))]:base.filter(v=>v!==id);
     const r=await run(()=>api('setIncharge',S.today,ids),()=>`${nameOf(id)} ${el.checked?'incharge':'tidak incharge'} hari ini.`);if(r)S.incharge=r;render()}
+  else if(el.hasAttribute('data-pmrmode')){if(S.pmr){S.pmr.mode=el.value;render()}}
   else if(el.hasAttribute('data-skippick')){if(S.skip){S.skip.reason=el.value;render()}}
   else if(el.id==='f-pdf'){handleFile(el.files&&el.files[0]);el.value=''}
   else if(el.dataset.queue){const room=el.dataset.queue,on=el.checked,r0=S.rooms.find(x=>x.room===room);
@@ -1611,7 +1708,7 @@ setInterval(()=>{document.querySelectorAll('[data-dnd]').forEach(el=>{const d=+e
 async function syncServerTime(){try{const t0=Date.now();const r=await call('getServerTime',[]);syncClock(r.now,t0,Date.now())}catch(e){}}
 syncServerTime();setInterval(syncServerTime,600000);
 /* refresh: tiap 20 detik, atau 10 detik selama ada tamu menunggu */
-setInterval(()=>{checkUpdate();checkDndAlerts();checkQueueReminders();if(!S.me||S.me.mustChange||S.busy||S.modal||S.confirm||S.addUser||S.editUser||(S.imp&&S.imp.state==='writing'))return;const every=document.hidden?30000:queued().length?10000:20000;if(nowS()-S.lastSync>=every)refresh(true)},2500);
+setInterval(()=>{checkUpdate();checkDndAlerts();checkQueueReminders();checkCourtesyReminders();if(!S.me||S.me.mustChange||S.busy||S.modal||S.confirm||S.addUser||S.editUser||(S.imp&&S.imp.state==='writing'))return;const every=document.hidden?30000:queued().length?10000:20000;if(nowS()-S.lastSync>=every)refresh(true)},2500);
 
 (async function boot(){
   render();
