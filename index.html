@@ -14,7 +14,7 @@
   <script>
     /* Alamat server (Google Apps Script). Ganti jika membuat deployment baru. */
     window.HK_API_URL = 'https://script.google.com/macros/s/AKfycbyyFZ7k-3dElnTu4hKc6IbNF9uVi5FnZiOTJ6N4Wszv9jNoRZQYKMee7GVqjIfr-QEaRA/exec';
-    window.HK_BUILD = '20261106163310';
+    window.HK_BUILD = '20261106164116';
     /* Pengganti google.script.run: memanggil server lewat POST {fn, args} */
     (function () {
       function runner() {
@@ -590,6 +590,10 @@ function viewShell(){
 const skeleton=()=>`<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">${[1,2,3,4].map(()=>`<div class="h-28 rounded-2xl bg-white ring-1 ring-slate-200 animate-pulse"></div>`).join('')}</div><div class="mt-4 h-64 rounded-2xl bg-white ring-1 ring-slate-200 animate-pulse"></div>`;
 const pageHead=(title,sub,right)=>`<div class="lg:hidden mb-4 flex items-end justify-between gap-3"><div>${title?`<h2 class="text-lg font-extrabold text-slate-900">${title}</h2>`:''}${sub?`<p class="text-sm text-slate-500">${sub}</p>`:''}</div>${right||''}</div>`;
 
+function refusedCard(R){
+  const L=R.filter(r=>r.status==='REFUSED').sort((a,b)=>b.refusedAt-a.refusedAt);if(!L.length)return '';
+  return `<div class="mt-4">${card(`${cardHead('Service Refused',`${L.length} kamar stayover · tamu menolak dibersihkan · tidak dihitung ready`)}<div class="p-3 sm:p-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">${L.map(r=>`<div class="flex items-center gap-3 rounded-xl ring-1 ring-inset ring-stone-200 bg-stone-50/70 px-3 py-2.5"><span class="w-12 text-lg font-extrabold text-slate-900">${esc(r.room)}</span><div class="flex-1 min-w-0 text-xs text-slate-500"><p class="font-semibold text-slate-800 truncate">${esc(nameOf(r.assignedTo))}</p><p class="truncate">${clk(r.refusedAt)} · ${r.refusedVia==='COURTESY'?'hasil courtesy '+esc(opName(r)):'dilaporkan RA'}${r.csNote?` · "${esc(r.csNote)}"`:''}</p></div>${stChip('REFUSED')}</div>`).join('')}</div>`)}</div>`;
+}
 function dndCard(R){
   const L=R.filter(isDnd).sort((a,b)=>dndDue(a)-dndDue(b));if(!L.length)return '';
   const late=L.filter(dndLate).length;
@@ -668,7 +672,8 @@ function viewDash(){
   if(!total)return pageHead('',esc(fmtDate(S.today)))+dayBanners()+(isAdmin()&&lastClosed&&lastClosed.date===prevDay(S.today)?`<div class="mb-4 flex flex-col sm:flex-row sm:items-center gap-3 rounded-2xl bg-emerald-50 ring-1 ring-inset ring-emerald-200 px-4 py-3"><span class="w-9 h-9 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0">${ic('check','w-5 h-5')}</span><div class="flex-1 min-w-0 text-sm text-emerald-900"><p class="font-bold">${esc(fmtShort(lastClosed.date))} sudah ditutup · laporan tersimpan</p><p class="text-xs">${lastClosed.ready} dari ${lastClosed.total} kamar ready${lastClosed.notReady?` · ${lastClosed.notReady} belum ready`:''} · ${closedTxt(lastClosed)}</p></div><button data-act="openReportDate" data-d="${lastClosed.date}" class="${bc('soft','sm')} shrink-0">${ic('chart','w-3.5 h-3.5')} Lihat laporan</button></div>`:'')
     +card(empty('inbox',`Siap untuk ${esc(fmtShort(S.today))}`,isAdmin()?'Dashboard sudah kosong. Upload Task Sheet Report untuk membagikan kamar ke housekeeper.':'Kamar muncul setelah admin meng-upload task sheet.',isAdmin()?`<button data-act="nav" data-v="upload" class="${bc('primary')}">${ic('upload')} Upload task sheet</button>`:''));
   const arr=R.filter(r=>r.arrivalFlag&&r.status!=='COMPLETED').sort((a,b)=>ORDER[a.status]-ORDER[b.status]||roomSort(a,b));
-  const hks=hkList().map(h=>{const m=R.filter(r=>r.assignedTo===h.id);const d=m.filter(hkDone);const avgCO=avgOf(d.filter(r=>r.category==='CHECKOUT').map(r=>mins(netClean(r)))),avgSO=avgOf(d.filter(r=>r.category==='STAYOVER').map(r=>mins(netClean(r))));return{h,m,d:d.length,avgCO,avgSO,a:m.find(r=>r.status==='CLEANING'),p:m.find(r=>r.status==='PAUSED')}}).filter(x=>x.m.length).sort((a,b)=>(b.d/b.m.length)-(a.d/a.m.length));
+  const hks=hkList().map(h=>{const m=R.filter(r=>r.assignedTo===h.id);const d=m.filter(hkDone);const cl=d.filter(r=>r.startAt&&r.finishHkAt); /* Service Refused tidak dibersihkan → tidak masuk rata-rata */
+    const avgCO=avgOf(cl.filter(r=>r.category==='CHECKOUT').map(r=>mins(netClean(r)))),avgSO=avgOf(cl.filter(r=>r.category==='STAYOVER').map(r=>mins(netClean(r))));return{h,m,d:d.length,avgCO,avgSO,a:m.find(r=>r.status==='CLEANING'),p:m.find(r=>r.status==='PAUSED')}}).filter(x=>x.m.length).sort((a,b)=>(b.d/b.m.length)-(a.d/a.m.length));
   const since=r=>`<span class="font-mono" data-since="${r.startAt+(r.totalPauseMs||0)}">${timer(nowS()-r.startAt-(r.totalPauseMs||0))}</span>`;
   const row=(r,right)=>`<div class="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-slate-50"><span class="w-12 font-extrabold text-slate-900">${esc(r.room)}</span><span class="flex-1 min-w-0 text-xs text-slate-500 truncate">${right}</span>`;
   const Q=queued();
@@ -677,12 +682,13 @@ function viewDash(){
   ${queueBanner(Q,`${Q.length} tamu sudah menunggu`,isAdmin()?'Housekeeper & supervisor sudah diberi tahu. Batalkan dari menu Kamar bila tamu sudah dipindahkan.':'Prioritaskan kamar ini.')}
   ${isAdmin()?`<div class="lg:hidden -mt-1 mb-4 grid grid-cols-2 gap-2"><button data-act="nav" data-v="upload" class="${bc('ghost')}">${ic('upload')} Upload</button><button data-act="openClose" data-d="${S.today}" class="${bc('dark')}">${ic('lock')} Tutup hari</button></div>`:''}
   <div class="hidden lg:flex items-end justify-between mb-5"><div><p class="text-sm text-slate-500">${greet()},</p><p class="text-2xl font-extrabold text-slate-900 tracking-tight">${esc(S.me.name)}</p></div>${isAdmin()?`<div class="flex gap-2"><button data-act="nav" data-v="upload" class="${bc('ghost')}">${ic('upload')} Upload task sheet</button><button data-act="openClose" data-d="${S.today}" class="${bc('dark')}">${ic('lock')} Tutup hari</button></div>`:''}</div>
-  <div class="grid grid-cols-2 md:grid-cols-5 gap-3 sm:gap-4">
+  <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
     ${kpi('bed','bg-slate-100 text-slate-600','Total kamar',total,`${R.filter(r=>r.category==='CHECKOUT').length} CO · ${R.filter(r=>r.category==='STAYOVER').length} SO`)}
     ${kpi('check','bg-emerald-50 text-emerald-600','Ready',ready,(()=>{const [a,c,so]=progSplit(R);return `${a.pct}% · CO ${c.done}/${c.total} · SO ${so.done}/${so.total}`})())}
     ${kpi('dcheck','bg-sky-50 text-sky-600','Tunggu / cek SPV',wait+chk,`${chk} sedang dicek`)}
     ${kpi('clock','bg-amber-50 text-amber-600','Dikerjakan',work,`${cnt(R,'PAUSED')} dijeda`)}
-    ${kpi('inbox','bg-slate-100 text-slate-500','Belum mulai',pend,`${R.filter(isDnd).length?R.filter(isDnd).length+' DND/Double Sign · ':''}${R.filter(r=>!r.assignedTo).length} belum di-assign`,'col-span-2 md:col-span-1')}
+    ${kpi('inbox','bg-slate-100 text-slate-500','Belum mulai',pend,`${R.filter(isDnd).length?R.filter(isDnd).length+' DND/Double Sign · ':''}${R.filter(r=>!r.assignedTo).length} belum di-assign`)}
+    ${kpi('ban','bg-stone-100 text-stone-600','Service Refused',cnt(R,'REFUSED'),(()=>{const L=R.filter(r=>r.status==='REFUSED'),c=L.filter(r=>r.refusedVia==='COURTESY').length;return L.length?`${L.length-c} dari RA · ${c} hasil courtesy`:'stayover · tamu menolak'})())}
   </div>
   <div class="mt-4">${progressCard(R)}</div>
   ${spvDashCard(R)}
@@ -692,6 +698,7 @@ function viewDash(){
   </div>
   <div class="mt-4">${floorMap(R)}</div>
   ${dndCard(R)}
+  ${refusedCard(R)}
   <div class="mt-4">${card(`${cardHead('Kinerja housekeeper',`${hks.length} orang bertugas hari ini`)}
     <div class="hidden md:block overflow-x-auto mt-3"><table class="w-full text-sm"><thead><tr class="text-left text-xs text-slate-500 border-y border-slate-100 bg-slate-50/60"><th class="font-semibold px-5 py-2.5">Housekeeper</th><th class="font-semibold px-3 py-2.5">Selesai</th><th class="font-semibold px-3 py-2.5 w-[28%]">Progress</th><th class="font-semibold px-3 py-2.5">Rata-rata</th><th class="font-semibold px-5 py-2.5">Saat ini</th></tr></thead>
       <tbody class="divide-y divide-slate-100">${hks.map(x=>`<tr class="hover:bg-slate-50/60"><td class="px-5 py-3"><div class="flex items-center gap-3">${avatar(x.h.name,'w-8 h-8 text-[11px]')}<span class="font-semibold text-slate-900">${esc(x.h.name)}</span></div></td><td class="px-3 py-3 font-bold text-slate-900">${x.d}<span class="text-slate-400 font-medium">/${x.m.length}</span></td><td class="px-3 py-3">${bar(x.d,x.m.length)}</td><td class="px-3 py-3 text-slate-600">${x.avgCO==null&&x.avgSO==null?'–':`<span class="whitespace-nowrap">${x.avgCO!=null?`<span class="text-rose-600">CO ${x.avgCO}</span>`:''}${x.avgCO!=null&&x.avgSO!=null?' · ':''}${x.avgSO!=null?`<span class="text-indigo-600">SO ${x.avgSO}</span>`:''} mnt</span>`}</td>
