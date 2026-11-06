@@ -14,7 +14,7 @@
   <script>
     /* Alamat server (Google Apps Script). Ganti jika membuat deployment baru. */
     window.HK_API_URL = 'https://script.google.com/macros/s/AKfycbyyFZ7k-3dElnTu4hKc6IbNF9uVi5FnZiOTJ6N4Wszv9jNoRZQYKMee7GVqjIfr-QEaRA/exec';
-    window.HK_BUILD = '20261106142457';
+    window.HK_BUILD = '20261106143918';
     /* Pengganti google.script.run: memanggil server lewat POST {fn, args} */
     (function () {
       function runner() {
@@ -199,7 +199,7 @@ async function run(fn,ok){try{const r=await fn();if(ok)toast(typeof ok==='functi
 let toastT;function toast(m){const el=document.getElementById('toast');document.getElementById('toast-msg').textContent=m;el.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>el.hidden=true,3500)}
 function renderBusy(){document.querySelectorAll('[data-busy]').forEach(el=>el.classList.toggle('spin',!!S.busy))}
 
-const CLIENT_VERSION=17; /* versi Code.gs yang dibutuhkan tampilan ini. Naikkan HANYA jika Code.gs ikut berubah (harus sama dengan APP_VERSION di Code.gs) */
+const CLIENT_VERSION=18; /* versi Code.gs yang dibutuhkan tampilan ini. Naikkan HANYA jika Code.gs ikut berubah (harus sama dengan APP_VERSION di Code.gs) */
 async function refresh(silent,again){
   if(!S.token||!S.me||S.me.mustChange)return;
   try{
@@ -327,7 +327,21 @@ const isQ=r=>!!r.queued&&r.status!=='COMPLETED';
 const queued=()=>S.rooms.filter(isQ).sort((a,b)=>(a.queuedAt||0)-(b.queuedAt||0));
 const waitSpan=r=>`<span data-wait="${r.queuedAt||0}">${mins(nowS()-(r.queuedAt||nowS()))}</span>`;
 const canQueue=()=>isAdmin()||(S.me&&S.me.role==='frontoffice');
-const queueToggle=r=>!canQueue()?(isQ(r)?`<span class="text-xs font-semibold text-rose-700">Tamu menunggu ${waitSpan(r)} mnt</span>`:''):r.status==='COMPLETED'?`<span class="text-[11px] text-slate-400">${r.queuedAt?'Tamu masuk':'–'}</span>`:`<label class="inline-flex items-center gap-2 cursor-pointer select-none" title="Tandai tamu sudah datang & menunggu"><input type="checkbox" data-queue="${esc(r.room)}" class="peer sr-only" ${isQ(r)?'checked':''}><span class="relative w-9 h-5 rounded-full bg-slate-200 peer-checked:bg-rose-600 transition after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-4 after:h-4 after:rounded-full after:bg-white after:shadow after:transition peer-checked:after:translate-x-4 peer-focus-visible:ring-2 peer-focus-visible:ring-rose-400"></span><span class="text-xs font-semibold ${isQ(r)?'text-rose-700':'text-slate-500'}">${isQ(r)?waitSpan(r)+' mnt':'Queue'}</span></label>`;
+/* Request PMR (kamar stayover): Front Office, Operator, admin, PENGUASA */
+const canReqPmr=()=>isAdmin()||(S.me&&['frontoffice','operator'].includes(S.me.role));
+const reqPmrOn=r=>r.category==='STAYOVER'&&r.status==='PENDING'&&!!r.reqPmrAt;
+const reqPmrDue=r=>reqPmrOn(r)&&nowS()>=r.reqPmrAt;
+const reqPmrTxt=r=>r.reqPmrAt-(r.reqPmrMade||0)<120000?'sekarang (sejak '+clk(r.reqPmrAt)+')':'pukul '+clk(r.reqPmrAt);
+const reqPmrChip=r=>reqPmrOn(r)?chip('PMR '+clk(r.reqPmrAt),reqPmrDue(r)?'bg-emerald-600 text-white ring-emerald-600':'bg-emerald-50 text-emerald-700 ring-emerald-200'):'';
+function pmrButton(r){
+  if(r.status==='COMPLETED')return `<span class="text-[11px] text-slate-400">${r.reqPmrAt?'PMR selesai':'–'}</span>`;
+  if(reqPmrOn(r))return `<span class="inline-flex items-center gap-1.5">${reqPmrChip(r)}${canReqPmr()?`<button data-act="cancelReqPmr" data-id="${esc(r.room)}" class="text-[11px] font-semibold text-slate-500 hover:text-rose-600" title="Batalkan Request PMR">${ic('x','w-3.5 h-3.5')}</button>`:''}</span>`;
+  if(r.status!=='PENDING')return r.reqPmrAt?'<span class="text-[11px] text-emerald-700 font-semibold">PMR · sedang dibersihkan</span>':'<span class="text-[11px] text-slate-400">–</span>';
+  return canReqPmr()?`<button data-act="openReqPmr" data-id="${esc(r.room)}" class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ring-emerald-300 text-emerald-700 hover:bg-emerald-50 whitespace-nowrap">${ic('plus','w-3 h-3')} Request PMR</button>`:'';
+}
+/* Queue hanya untuk checkout; stayover memakai Request PMR */
+const queueToggle=r=>r.category==='STAYOVER'?pmrButton(r):queueToggleCO(r);
+const queueToggleCO=r=>!canQueue()?(isQ(r)?`<span class="text-xs font-semibold text-rose-700">Tamu menunggu ${waitSpan(r)} mnt</span>`:''):r.status==='COMPLETED'?`<span class="text-[11px] text-slate-400">${r.queuedAt?'Tamu masuk':'–'}</span>`:`<label class="inline-flex items-center gap-2 cursor-pointer select-none" title="Tandai tamu sudah datang & menunggu"><input type="checkbox" data-queue="${esc(r.room)}" class="peer sr-only" ${isQ(r)?'checked':''}><span class="relative w-9 h-5 rounded-full bg-slate-200 peer-checked:bg-rose-600 transition after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-4 after:h-4 after:rounded-full after:bg-white after:shadow after:transition peer-checked:after:translate-x-4 peer-focus-visible:ring-2 peer-focus-visible:ring-rose-400"></span><span class="text-xs font-semibold ${isQ(r)?'text-rose-700':'text-slate-500'}">${isQ(r)?waitSpan(r)+' mnt':'Queue'}</span></label>`;
 const qChip=r=>isQ(r)?chip(ic('bell','w-3 h-3')+' Tamu menunggu · '+waitSpan(r)+' mnt','bg-rose-600 text-white ring-rose-700'):'';
 const qFirst=(a,b)=>(isQ(b)?1:0)-(isQ(a)?1:0);
 
@@ -738,7 +752,7 @@ function viewRooms(){
     <select id="f-qhk" data-keep data-rerender aria-label="Filter housekeeper" class="${selectCls} min-w-0"><option value="">Semua staf</option><option value="_none" ${fh==='_none'?'selected':''}>Belum di-assign</option>${hkOpts(fh)}</select>
     <select id="f-qst" data-keep data-rerender aria-label="Filter status" class="${selectCls} min-w-0"><option value="">Semua status</option><option value="_queue" ${fs==='_queue'?'selected':''}>Tamu menunggu</option><option value="_dnd" ${fs==='_dnd'?'selected':''}>DND / Double Sign</option>${Object.keys(ST).map(k=>`<option value="${k}" ${fs===k?'selected':''}>${ST[k].l}</option>`).join('')}</select>
     <select id="f-qcat" data-keep data-rerender aria-label="Filter kategori" class="${selectCls} min-w-0 col-span-2 md:col-span-1"><option value="">Semua kategori</option><option value="CHECKOUT" ${fc==='CHECKOUT'?'selected':''}>Checkout</option><option value="STAYOVER" ${fc==='STAYOVER'?'selected':''}>Stayover</option></select></div>`;
-  const table=`<div class="hidden md:block overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-xs text-slate-500 border-y border-slate-100 bg-slate-50/60"><th class="font-semibold px-5 py-2.5">Kamar</th><th class="font-semibold px-3 py-2.5">Reservasi</th><th class="font-semibold px-3 py-2.5">Housekeeper</th><th class="font-semibold px-3 py-2.5">Status</th><th class="font-semibold px-3 py-2.5">Tamu menunggu</th><th class="font-semibold px-3 py-2.5">Waktu</th><th class="px-5 py-2.5"></th></tr></thead>
+  const table=`<div class="hidden md:block overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-xs text-slate-500 border-y border-slate-100 bg-slate-50/60"><th class="font-semibold px-5 py-2.5">Kamar</th><th class="font-semibold px-3 py-2.5">Reservasi</th><th class="font-semibold px-3 py-2.5">Housekeeper</th><th class="font-semibold px-3 py-2.5">Status</th><th class="font-semibold px-3 py-2.5">Queue / Request PMR</th><th class="font-semibold px-3 py-2.5">Waktu</th><th class="px-5 py-2.5"></th></tr></thead>
     <tbody class="divide-y divide-slate-100">${shown.map(r=>`<tr class="${isQ(r)?'bg-rose-50/70 hover:bg-rose-50':'hover:bg-slate-50/60'} align-middle"><td class="px-5 py-3 ${isQ(r)?'border-l-4 border-rose-500':''}"><p class="font-extrabold text-slate-900">${esc(r.room)}</p><p class="text-xs text-slate-500">${esc(r.roomType)} · Lt ${esc(floorOf(r))}</p></td>
       <td class="px-3 py-3"><div class="flex flex-wrap gap-1">${resvChip(r)||catChip(r.category)}${flagChips(r)}</div></td><td class="px-3 py-3">${assignCell(r)}</td><td class="px-3 py-3">${rStChip(r)}</td><td class="px-3 py-3">${qToggle(r)}</td>
       <td class="px-3 py-3 text-xs text-slate-500 whitespace-nowrap font-mono">${r.startAt?clk(r.startAt)+(r.finishHkAt?' – '+clk(r.finishHkAt):''):'–'}</td><td class="px-5 py-3 text-right">${r.status==='PENDING'?delBtn('r'+r.room,'delRoom',r.room,'Hapus kamar '+r.room):''}</td></tr>`).join('')}</tbody></table></div>`;
@@ -907,10 +921,10 @@ function exportReport(){
   const done=all.slice().sort((a,b)=>(a.status==='COMPLETED'?0:1)-(b.status==='COMPLETED'?0:1)||roomSort(a,b));
   if(!done.length){toast('Tidak ada data untuk diunduh.');return}
   const M=v=>v==null?'':mins(v);
-  const head=['Tanggal','Kamar','Kategori','Status','Housekeeper','Jam HK start','Jam HK selesai','Waktu HK start-selesai (menit)','Jam SPV cek','Jam SPV selesai cek','Waktu pengecekan SPV (menit)','Waktu HK selesai - SPV cek (menit)','Total HK start - SPV selesai (menit)','Supervisor','Jeda/pause (menit)','Jam mulai queue','Tamu menunggu sampai ready (menit)','Skip DND/Double Sign','Courtesy operator'];
+  const head=['Tanggal','Kamar','Kategori','Status','Housekeeper','Jam HK start','Jam HK selesai','Waktu HK start-selesai (menit)','Jam SPV cek','Jam SPV selesai cek','Waktu pengecekan SPV (menit)','Waktu HK selesai - SPV cek (menit)','Total HK start - SPV selesai (menit)','Supervisor','Jeda/pause (menit)','Jam mulai queue','Tamu menunggu sampai ready (menit)','Skip DND/Double Sign','Courtesy operator','Request PMR (stayover)'];
   const T=x=>x==='--.--'||x==='–'?'':x.replace('.',':');
   const di=date===S.today?S.day:S.dayInfo[date],qEnd=di&&di.closed?di.closedAt:nowS();
-  const rows=done.map(r=>{const t=timesOf(r),ok=r.status==='COMPLETED';return [date,r.room,isSO(r)?'Stayover':'Checkout',ok?'Ready':isDnd(r)?dndLbl(r):ST[r.status].l,nameOf(r.assignedTo),T(t.hkStart),T(t.hkEnd),r.finishHkAt?M(t.hkDur):'',ok?T(t.spvStart):(r.spvStartAt?T(clk(r.spvStartAt)):''),ok?T(t.spvEnd):'',M(t.spvDur),M(t.wait),ok?M(t.total):'',r.spvId&&!isSO(r)?nameOf(r.spvId):'',mins(r.totalPauseMs),r.queuedAt?T(clk(r.queuedAt)):'',r.queuedAt?mins((ok?r.finishSpvAt:qEnd)-r.queuedAt):'',r.dndReason?`${dndLbl(r)} ${T(clk(r.dndAt))}${r.dndClearAt?'-'+T(clk(r.dndClearAt)):''} (cek ${(r.dndChecks||0)+1}x)`:'',r.csResult?`${CSL[r.csResult]} ${T(clk(r.csAt))}${r.csResult==='PMR'?' (bersih '+T(clk(r.csPmrAt))+')':''}${r.csBy?' - '+opName(r):''}`:'']});
+  const rows=done.map(r=>{const t=timesOf(r),ok=r.status==='COMPLETED';return [date,r.room,isSO(r)?'Stayover':'Checkout',ok?'Ready':isDnd(r)?dndLbl(r):ST[r.status].l,nameOf(r.assignedTo),T(t.hkStart),T(t.hkEnd),r.finishHkAt?M(t.hkDur):'',ok?T(t.spvStart):(r.spvStartAt?T(clk(r.spvStartAt)):''),ok?T(t.spvEnd):'',M(t.spvDur),M(t.wait),ok?M(t.total):'',r.spvId&&!isSO(r)?nameOf(r.spvId):'',mins(r.totalPauseMs),r.queuedAt?T(clk(r.queuedAt)):'',r.queuedAt?mins((ok?r.finishSpvAt:qEnd)-r.queuedAt):'',r.dndReason?`${dndLbl(r)} ${T(clk(r.dndAt))}${r.dndClearAt?'-'+T(clk(r.dndClearAt)):''} (cek ${(r.dndChecks||0)+1}x)`:'',r.csResult?`${CSL[r.csResult]} ${T(clk(r.csAt))}${r.csResult==='PMR'?' (bersih '+T(clk(r.csPmrAt))+')':''}${r.csBy?' - '+opName(r):''}`:'',r.reqPmrAt?`${T(clk(r.reqPmrAt))}${r.reqPmrBy?' - '+nameOf(r.reqPmrBy):''}`:'']});
   const q=v=>{v=String(v==null?'':v);return /[;"\n,]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
   const csv='﻿sep=;\r\n'+[head].concat(rows).map(a=>a.map(q).join(';')).join('\r\n');
   const name='Laporan-HK-'+date+'.csv';
@@ -1037,6 +1051,7 @@ const FO_RANK={INSPECTING:0,INSPECTION_READY:1,CLEANING:2,PAUSED:3,PENDING:4,COM
 function foLine(r){
   const hk=r.assignedTo?esc(nameOf(r.assignedTo)):'';
   if(isDnd(r))return `${esc(dndLbl(r))} sejak ${clk(r.dndAt)}${hk?' · '+hk:''}${r.csResult?' · '+(r.csResult==='PMR'?'PMR '+clk(r.csPmrAt):CSL[r.csResult]):' · belum courtesy'}`;
+  if(reqPmrOn(r))return `<b class="text-emerald-700">Request PMR ${reqPmrTxt(r)}</b>${hk?' · '+hk:''}`;
   return {PENDING:hk?'Belum mulai · '+hk:'Belum di-assign',
     CLEANING:`Dibersihkan ${hk} · mulai ${clk(r.startAt)}`,
     PAUSED:`Dijeda sejak ${clk(r.pausedAt)} · ${hk}`,
@@ -1063,13 +1078,15 @@ function viewFO(){
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">${[co,so].map(p=>`<div class="rounded-2xl bg-white/5 ring-1 ring-inset ring-white/10 p-3.5 flex items-center gap-3 min-w-0">${dark(p.done,p.total,68,8,p.k==='CHECKOUT'?'#fb7185':'#a5b4fc')}
         <div class="min-w-0"><p class="text-xs font-bold ${p.k==='CHECKOUT'?'text-rose-300':'text-indigo-300'} uppercase tracking-wider">${p.l}</p><p class="text-2xl font-extrabold leading-tight">${p.done}<span class="text-sm text-brand-300 font-bold"> / ${p.total}</span></p><p class="text-[11px] text-brand-200 truncate">${p.total?statusLine(p.list):'Tidak ada kamar'}</p></div></div>`).join('')}</div></div>
     <div class="mt-5 pt-4 border-t border-white/10 grid gap-2.5 sm:grid-cols-2 sm:gap-x-6">${bars.map(b=>`<div><div class="flex items-center justify-between text-xs"><span class="text-brand-100">${b.l}${b.dnd?` <span class="text-brand-300">(${b.dnd} DND)</span>`:''}</span><span class="font-bold">${b.n}</span></div><div class="mt-1 h-1.5 rounded-full bg-white/10 overflow-hidden"><div class="h-full ${b.c} rounded-full" style="width:${total?Math.round(b.n/total*100):0}%"></div></div></div>`).join('')}</div></section>`;
-  const qCard=card(`${cardHead(Q.length?`<span class="inline-flex items-center gap-2 text-rose-700">${ic('bell','w-4 h-4')} Tamu menunggu</span>`:'Tamu menunggu',Q.length?`${Q.length} kamar · housekeeper & supervisor sudah diberi tahu`:'Aktifkan Queue pada kamar saat tamu sudah datang tetapi kamar belum ready')}
+  const qCard=card(`${cardHead(Q.length?`<span class="inline-flex items-center gap-2 text-rose-700">${ic('bell','w-4 h-4')} Tamu menunggu</span>`:'Tamu menunggu',Q.length?`${Q.length} kamar · housekeeper & supervisor sudah diberi tahu`:'Kamar checkout: aktifkan Queue saat tamu sudah datang tetapi kamar belum ready. Kamar stayover: gunakan Request PMR.')}
     ${Q.length?`<div class="p-3 sm:p-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">${Q.map(r=>`<div class="min-w-0 flex items-center gap-3 rounded-xl bg-rose-50 ring-1 ring-inset ring-rose-200 px-3 py-2.5"><span class="w-14 text-xl font-extrabold text-slate-900">${esc(r.room)}</span><div class="flex-1 min-w-0 text-xs text-slate-600"><p class="truncate">${foLine(r)}</p><p class="font-semibold text-rose-700">Menunggu ${waitSpan(r)} mnt</p></div>${queueToggle(r)}</div>`).join('')}</div>`:'<div class="px-5 pb-4 pt-1 text-sm text-slate-400">Tidak ada tamu yang menunggu.</div>'}`);
   const row=r=>`<div class="flex items-center gap-3 px-4 sm:px-5 py-3 ${isQ(r)?'bg-rose-50/60':''}"><div class="w-16 shrink-0"><p class="text-xl font-extrabold text-slate-900 leading-none">${esc(r.room)}</p><p class="text-[11px] text-slate-500 mt-1">${esc(r.roomType)}</p></div>
     <div class="flex-1 min-w-0"><div class="flex flex-wrap items-center gap-1.5">${rStChip(r)}${r.arrivalFlag?chip('Arrival','bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-200'):''}${r.vip?chip('VIP '+esc(r.vip),'bg-amber-50 text-amber-800 ring-amber-200'):''}</div><p class="text-xs text-slate-500 mt-1 truncate">${foLine(r)}</p></div>
     <div class="shrink-0">${queueToggle(r)}</div></div>`;
+  const RQ=R.filter(reqPmrOn).sort((a,b)=>a.reqPmrAt-b.reqPmrAt);
+  const rqCard=RQ.length?`<div class="mt-4">${card(`${cardHead(`<span class="inline-flex items-center gap-2 text-emerald-700">${ic('bell','w-4 h-4')} Request PMR (stayover)</span>`,`${RQ.length} kamar · RA sudah diberi tahu`)}<div class="p-3 sm:p-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">${RQ.map(r=>`<div class="min-w-0 flex items-center gap-3 rounded-xl bg-emerald-50 ring-1 ring-inset ring-emerald-200 px-3 py-2.5"><span class="w-14 text-xl font-extrabold text-slate-900">${esc(r.room)}</span><div class="flex-1 min-w-0 text-xs text-slate-600"><p class="truncate">RA ${esc(nameOf(r.assignedTo))}</p><p class="font-semibold text-emerald-700">${reqPmrDue(r)?'Waktunya dibersihkan':'Pukul '+clk(r.reqPmrAt)}</p></div>${pmrButton(r)}</div>`).join('')}</div>`)}</div>`:'';
   return `${pageHead('',esc(fmtDate(S.today)))}
-  ${Q.length?`<div class="mb-4">${qCard}</div>${hero}`:`${hero}<div class="mt-4">${qCard}</div>`}
+  ${Q.length?`<div class="mb-4">${qCard}</div>${hero}`:`${hero}<div class="mt-4">${qCard}</div>`}${rqCard}
   <div class="mt-4">${card(`<div class="px-4 sm:px-5 pt-4 sm:pt-5 space-y-3"><div class="flex flex-col sm:flex-row sm:items-center gap-3"><h3 class="text-base font-bold text-slate-900 flex-1">Cari kamar</h3><div class="sm:w-72">${searchBox('f-foq','Nomor kamar, mis. 805')}</div></div>
       <div class="flex gap-1 p-1 rounded-xl bg-slate-200/60 overflow-x-auto no-scrollbar">${tabs.map(([k,l,n])=>`<button data-act="fofilter" data-v="${k}" class="px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap ${f===k?'bg-white text-slate-900 shadow-card':'text-slate-600 hover:text-slate-900'}">${l} <span class="text-slate-400">${n}</span></button>`).join('')}</div></div>
     ${list.length?`<div class="mt-3 divide-y divide-slate-100 border-t border-slate-100">${shown.map(row).join('')}</div>${list.length>60?`<div class="px-5 py-3 border-t border-slate-100 text-center"><button data-act="toggleAll" class="text-xs font-semibold text-brand-700">${S.showAll?'Tampilkan lebih sedikit':`Tampilkan semua (${list.length})`}</button></div>`:''}`:`<div class="p-6">${empty('search','Tidak ada kamar yang cocok','')}</div>`}`)}</div>
@@ -1081,7 +1098,7 @@ function viewHK(){
   const mine=S.rooms.filter(r=>r.assignedTo===S.me.id);
   const done=mine.filter(hkDone).length;
   const active=mine.find(r=>r.status==='CLEANING');
-  const paused=mine.filter(r=>r.status==='PAUSED').sort((a,b)=>qFirst(a,b)||seqSort(a,b)),pending=mine.filter(r=>r.status==='PENDING'&&!isDnd(r)).sort((a,b)=>qFirst(a,b)||seqSort(a,b)),dnds=mine.filter(isDnd).sort((a,b)=>(pmrDue(b)-pmrDue(a))||((a.csResult==='NOSERVICE')-(b.csResult==='NOSERVICE'))||((a.csResult==='PMR'?a.csPmrAt:dndDue(a))-(b.csResult==='PMR'?b.csPmrAt:dndDue(b))));
+  const paused=mine.filter(r=>r.status==='PAUSED').sort((a,b)=>qFirst(a,b)||seqSort(a,b)),pending=mine.filter(r=>r.status==='PENDING'&&!isDnd(r)).sort((a,b)=>qFirst(a,b)||(reqPmrOn(b)-reqPmrOn(a))||(reqPmrOn(a)&&reqPmrOn(b)?a.reqPmrAt-b.reqPmrAt:0)||seqSort(a,b)),dnds=mine.filter(isDnd).sort((a,b)=>(pmrDue(b)-pmrDue(a))||((a.csResult==='NOSERVICE')-(b.csResult==='NOSERVICE'))||((a.csResult==='PMR'?a.csPmrAt:dndDue(a))-(b.csResult==='PMR'?b.csPmrAt:dndDue(b))));
   const myQ=mine.filter(isQ);
   const waiting=mine.filter(r=>r.status==='INSPECTION_READY'||r.status==='INSPECTING').sort(seqSort),finished=mine.filter(r=>r.status==='COMPLETED').sort((a,b)=>b.finishSpvAt-a.finishSpvAt);
   const co=mine.filter(r=>r.category==='CHECKOUT').length,arrP=mine.filter(r=>r.arrivalFlag&&r.status==='PENDING').length;
@@ -1119,6 +1136,8 @@ function hkCard(r,active){
       <p class="mt-0.5">${esc(dndLbl(r))} sejak ${clk(r.dndAt)} · sudah dicek ${(r.dndChecks||0)+1}x · terakhir ${clk(r.dndCheckAt||r.dndAt)}</p></div>
     <div class="grid grid-cols-2 gap-2"><button data-act="ask" data-type="recheck" data-id="${esc(r.room)}" class="${bc(late?'danger':'soft','md')}">${ic('refresh','w-4 h-4')} Masih ${esc(dndLbl(r))}</button>${locked?`<span class="text-[11px] text-slate-500 self-center text-center leading-tight">Selesaikan kamar ${esc(active.room)} dulu untuk Start</span>`:`<button data-act="ask" data-type="start" data-id="${esc(r.room)}" class="${bc('dark','md')}">${ic('play')} Start</button>`}</div>
     <button data-act="ask" data-type="unskip" data-id="${esc(r.room)}" class="w-full text-[11px] font-semibold text-slate-500 hover:text-slate-800">Batalkan skip</button>`}
+  else if(reqPmrOn(r)){const due=reqPmrDue(r);act=`<div class="rounded-xl ring-1 ring-inset ${due?'bg-emerald-600 text-white ring-emerald-600':'bg-emerald-50 ring-emerald-200 text-emerald-900'} px-3 py-2.5 text-xs"><p class="font-bold flex items-center gap-1.5">${ic('bell','w-3.5 h-3.5')} ${due?'Request PMR · bersihkan sekarang':'Request PMR pukul '+clk(r.reqPmrAt)}</p><p class="mt-0.5 ${due?'text-emerald-50':''}">dari ${esc(r.reqPmrBy&&usersById()[r.reqPmrBy]?nameOf(r.reqPmrBy):'front office')} ${clk(r.reqPmrMade)}${r.reqPmrNote?` · "${esc(r.reqPmrNote)}"`:''}</p></div>
+    ${locked?`<p class="text-[11px] text-slate-500 text-center">Selesaikan kamar ${esc(active.room)} dulu untuk Start</p>`:`<button data-act="ask" data-type="start" data-id="${esc(r.room)}" class="${bc(due?'success':'dark','md','w-full')}">${ic('play')} Start</button>`}`}
   else if(r.status==='PENDING')act=`<div class="grid ${locked?'':'grid-cols-[auto_1fr]'} gap-2"><button data-act="openSkip" data-id="${esc(r.room)}" class="${bc('ghost','md')}" title="Skip: DND / Double Sign">${ic('skip','w-4 h-4')} Skip</button>${locked?'':`<button data-act="ask" data-type="start" data-id="${esc(r.room)}" class="${bc('dark','md','w-full')}">${ic('play')} Start</button>`}</div>`;
   else if(r.status==='PAUSED')act=`<div class="flex items-center justify-between text-xs text-orange-800 bg-orange-50 rounded-xl px-3 py-2"><span>Dijeda sejak ${clk(r.pausedAt)}</span></div>
     ${locked?'':`<div class="grid grid-cols-[auto_1fr] gap-2"><button data-act="ask" data-type="undo" data-id="${esc(r.room)}" class="${bc('dangerSoft','md')}" aria-label="Batalkan">${ic('ban')}</button><button data-act="ask" data-type="resume" data-id="${esc(r.room)}" class="${bc('primary','md')}">${ic('play')} Resume</button></div>`}`;
@@ -1126,8 +1145,8 @@ function hkCard(r,active){
   else if(r.status==='INSPECTING')act=`${timeline(r,false)}<p class="text-xs text-violet-800 bg-violet-50 rounded-xl px-3 py-2">Sedang dicek ${esc(nameOf(r.spvId))} sejak ${clk(r.spvStartAt)}</p>`;
   else if(r.status==='COMPLETED')act=`${timeline(r,r.category==='STAYOVER')}<p class="text-xs text-emerald-700 font-semibold">${mins(netClean(r))} menit bersih</p>`;
   const gl=guestLine(r),extra=resvChip(r)+flagChips(r);
-  return `<article class="bg-white rounded-2xl ${isQ(r)?'ring-2 ring-rose-500':pmrDue(r)?'ring-2 ring-emerald-500':dndLate(r)?'ring-2 ring-rose-300':isDnd(r)?'ring-1 ring-slate-400':r.arrivalFlag&&r.status==='PENDING'?'ring-1 ring-fuchsia-300':'ring-1 ring-slate-200/80'} shadow-card p-4 flex flex-col gap-3">${isQ(r)?`<div>${qChip(r)}</div>`:''}
-    <div class="flex items-start justify-between gap-3"><div class="min-w-0"><p class="text-2xl font-extrabold text-slate-900 leading-none tracking-tight">${esc(r.room)}</p><p class="text-xs text-slate-500 mt-1.5">${esc(r.roomType)}${gl?' · '+gl:''}</p></div>${isDnd(r)?`<div class="flex flex-col items-end gap-1">${dndChip(r)}${csChip(r)}</div>`:r.status==='PENDING'?catChip(r.category):rStChip(r)}</div>
+  return `<article class="bg-white rounded-2xl ${isQ(r)?'ring-2 ring-rose-500':(pmrDue(r)||reqPmrDue(r))?'ring-2 ring-emerald-500':reqPmrOn(r)?'ring-1 ring-emerald-300':dndLate(r)?'ring-2 ring-rose-300':isDnd(r)?'ring-1 ring-slate-400':r.arrivalFlag&&r.status==='PENDING'?'ring-1 ring-fuchsia-300':'ring-1 ring-slate-200/80'} shadow-card p-4 flex flex-col gap-3">${isQ(r)?`<div>${qChip(r)}</div>`:''}
+    <div class="flex items-start justify-between gap-3"><div class="min-w-0"><p class="text-2xl font-extrabold text-slate-900 leading-none tracking-tight">${esc(r.room)}</p><p class="text-xs text-slate-500 mt-1.5">${esc(r.roomType)}${gl?' · '+gl:''}</p></div>${isDnd(r)?`<div class="flex flex-col items-end gap-1">${dndChip(r)}${csChip(r)}</div>`:reqPmrOn(r)?`<div class="flex flex-col items-end gap-1">${catChip(r.category)}${reqPmrChip(r)}</div>`:r.status==='PENDING'?catChip(r.category):rStChip(r)}</div>
     ${extra?`<div class="flex flex-wrap gap-1">${extra}</div>`:''}${notes(r)}<div class="mt-auto space-y-2">${act}</div></article>`;
 }
 
@@ -1299,7 +1318,7 @@ function renderModals(){
   if(S.closing&&S.me)h+=closeSheet();
   if(S.pmr&&S.me){const r=S.rooms.find(x=>x.room===S.pmr.room);
     if(r){const mode=S.pmr.mode||'now';const def=(()=>{const d=new Date(nowS()+30*60000);const p=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Jakarta',hour:'2-digit',minute:'2-digit',hour12:false}).format(d);return p})();
-      h+=sheet(`${sheetHead('Tamu minta dibersihkan · '+esc(r.room),'PMR · RA langsung diberi tahu','closePmr')}<div class="px-5 sm:px-6 pb-6 space-y-3 overflow-y-auto">
+      h+=sheet(`${sheetHead((S.pmr.kind==='req'?'Request PMR · ':'Tamu minta dibersihkan · ')+esc(r.room),S.pmr.kind==='req'?'Kamar stayover · RA langsung diberi tahu':'PMR · RA langsung diberi tahu','closePmr')}<div class="px-5 sm:px-6 pb-6 space-y-3 overflow-y-auto">
         <div class="grid grid-cols-2 gap-2">${[['now','Sekarang','RA diberi tahu saat ini'],['at','Pada jam','pilih jam yang diminta tamu']].map(([k,l,d])=>`<label class="cursor-pointer"><input type="radio" name="pmrmode" value="${k}" data-pmrmode class="peer sr-only" ${mode===k?'checked':''}><span class="block rounded-2xl ring-1 ring-inset ring-slate-200 peer-checked:ring-2 peer-checked:ring-emerald-500 peer-checked:bg-emerald-50 p-3"><span class="block text-sm font-bold text-slate-900">${l}</span><span class="block text-[11px] text-slate-500">${d}</span></span></label>`).join('')}</div>
         ${mode==='at'?`<div>${label('pmr-time','Jam dibersihkan')}<input id="pmr-time" type="time" value="${esc(S.pmr.time||def)}" class="${field}"></div>`:''}
         <div>${label('pmr-note','Catatan (opsional)')}<input id="pmr-note" type="text" maxlength="200" placeholder="mis. tamu keluar jam 15.00" class="${field}"></div>
@@ -1389,14 +1408,16 @@ const A={
   openMore(){S.more=true;render()},closeMore(){S.more=false;render()},
   toggleAll(){S.showAll=!S.showAll;render()},
   hardReload(){hardReload()},
-  openPmr(el){S.pmr={room:el.dataset.id,mode:'now'};render()},
+  openPmr(el){S.pmr={room:el.dataset.id,mode:'now',kind:'cs'};render()},
+  openReqPmr(el){S.pmr={room:el.dataset.id,mode:'now',kind:'req'};render()},
+  cancelReqPmr(el){const room=el.dataset.id;S.confirm={icon:'x',iconCls:'bg-slate-100 text-slate-600',title:`Batalkan Request PMR ${esc(room)}?`,msg:'RA tidak lagi diingatkan untuk kamar ini.',btnV:'dark',btn:'Ya, batalkan',onYes:async()=>{const upd=await run(()=>api('requestPmr',S.today,room,{cancel:true}),`Request PMR kamar ${room} dibatalkan`);if(upd){const i=S.rooms.findIndex(x=>x.room===upd.room);if(i>=0)S.rooms[i]=upd;render()}}};render()},
   closePmr(){S.pmr=null;render()},
   async savePmr(){const k=S.pmr;if(!k)return;let at=0;
     if(k.mode==='at'){const v=(document.getElementById('pmr-time')||{}).value||'';if(!/^\d{2}:\d{2}$/.test(v)){const e=document.getElementById('pmr-err');if(e){e.textContent='Pilih jamnya dulu.';e.hidden=false}return}
       at=new Date(S.today+'T'+v+':00+07:00').getTime();if(at<nowS()-5*60000)at+=86400000}
     const note=(document.getElementById('pmr-note')||{}).value||'';
-    try{const upd=await api('courtesy',S.today,k.room,{result:'PMR',pmrAt:at,note});S.pmr=null;const i=S.rooms.findIndex(x=>x.room===upd.room);if(i>=0)S.rooms[i]=upd;
-      toast(`Kamar ${upd.room}: PMR ${at?'pukul '+clk(upd.csPmrAt):'sekarang'}. ${nameOf(upd.assignedTo)} diberi tahu.`);render()}
+    try{const upd=k.kind==='req'?await api('requestPmr',S.today,k.room,{at,note}):await api('courtesy',S.today,k.room,{result:'PMR',pmrAt:at,note});S.pmr=null;const i=S.rooms.findIndex(x=>x.room===upd.room);if(i>=0)S.rooms[i]=upd;
+      toast(`Kamar ${upd.room}: ${k.kind==='req'?'Request PMR':'PMR'} ${at?'pukul '+clk(k.kind==='req'?upd.reqPmrAt:upd.csPmrAt):'sekarang'}. ${nameOf(upd.assignedTo)} diberi tahu.`);render()}
     catch(e){const x=document.getElementById('pmr-err');if(x&&e.code!=='AUTH'){x.textContent=e.message;x.hidden=false}}},
   csSet(el){const room=el.dataset.id,res=el.dataset.res,r=S.rooms.find(x=>x.room===room);if(!r)return;
     const go=async()=>{const upd=await run(()=>api('courtesy',S.today,room,{result:res}),{CALLED:`Kamar ${room}: sudah courtesy`,NOSERVICE:`Kamar ${room}: tamu tidak ingin dibersihkan. Pengingat RA dihentikan.`,RESET:`Status courtesy kamar ${room} dibatalkan`}[res]);
@@ -1550,8 +1571,8 @@ const pmrSeen=new Set(),csSeen=new Set();
 function checkCourtesyReminders(){
   if(!S.me||!S.loaded)return;const now=nowS();
   if(S.me.role==='housekeeper'){
-    const due=S.rooms.filter(r=>r.assignedTo===S.me.id&&pmrDue(r)).filter(r=>{const k=r.room+'|'+r.csPmrAt+'|'+Math.floor((now-r.csPmrAt)/600000);if(pmrSeen.has(k))return false;pmrSeen.add(k);return true});
-    if(due.length){const t=`Waktunya membersihkan kamar ${due.map(r=>r.room).join(', ')}`,m='Permintaan tamu (PMR) dari operator. Tekan Start saat mulai.';notify('alarm',t,m,'pmr');toast(t+' · '+m);render()}
+    const due=S.rooms.filter(r=>r.assignedTo===S.me.id&&(pmrDue(r)||reqPmrDue(r))).filter(r=>{const at=reqPmrOn(r)?r.reqPmrAt:r.csPmrAt;const k=r.room+'|'+at+'|'+Math.floor((now-at)/600000);if(pmrSeen.has(k))return false;pmrSeen.add(k);return true});
+    if(due.length){const t=`Waktunya membersihkan kamar ${due.map(r=>r.room).join(', ')}`,m='Permintaan tamu (PMR). Tekan Start saat mulai.';notify('alarm',t,m,'pmr');toast(t+' · '+m);render()}
   }
   if(S.me.role==='operator'){
     const need=S.rooms.filter(r=>isDnd(r)&&!r.csResult&&now-r.dndAt>=900000).filter(r=>{const k=r.room+'|'+r.dndAt+'|'+Math.floor((now-r.dndAt)/900000);if(csSeen.has(k))return false;csSeen.add(k);return true});
@@ -1638,7 +1659,9 @@ function detectEvents(prev,next){
   }
   if(me.role==='housekeeper'){
     const pm=next.filter(r=>r.assignedTo===me.id&&isDnd(r)&&r.csResult==='PMR'&&P.get(r.room)&&(P.get(r.room).csResult!=='PMR'||P.get(r.room).csPmrAt!==r.csPmrAt));
-    pm.forEach(r=>{const t=`Kamar ${r.room}: tamu minta dibersihkan ${pmrTxt(r)}`;notify(nowS()>=r.csPmrAt?'alarm':'info',t,r.csNote||'Info dari operator','pmr');if(nowS()>=r.csPmrAt)toast(t)});
+    pm.forEach(r=>{const t=`Kamar ${r.room}: tamu minta dibersihkan ${pmrTxt(r)}`;notify(nowS()>=r.csPmrAt?'alarm':'info',t,r.csNote||'Info dari operator','pmr');if(nowS()>=r.csPmrAt){toast(t);pmrSeen.add(r.room+'|'+r.csPmrAt+'|'+Math.floor((nowS()-r.csPmrAt)/600000))}});
+    const rq=next.filter(r=>r.assignedTo===me.id&&reqPmrOn(r)&&P.get(r.room)&&P.get(r.room).reqPmrAt!==r.reqPmrAt);
+    rq.forEach(r=>{const t=`Request PMR kamar ${r.room}: dibersihkan ${reqPmrTxt(r)}`;const due=nowS()>=r.reqPmrAt;notify(due?'alarm':'info',t,r.reqPmrNote||'Permintaan tamu stayover','pmr');if(due){toast(t);pmrSeen.add(r.room+'|'+r.reqPmrAt+'|'+Math.floor((nowS()-r.reqPmrAt)/600000))}});
     const ns=next.filter(r=>r.assignedTo===me.id&&isDnd(r)&&r.csResult==='NOSERVICE'&&P.get(r.room)&&P.get(r.room).csResult!=='NOSERVICE');
     if(ns.length)notify('info',`Kamar ${ns.map(r=>r.room).join(', ')}: tamu tidak ingin dibersihkan`,'Tidak perlu cek ulang lagi.','pmr');
   }
