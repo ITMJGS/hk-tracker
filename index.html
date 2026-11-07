@@ -14,7 +14,7 @@
   <script>
     /* Alamat server (Google Apps Script). Ganti jika membuat deployment baru. */
     window.HK_API_URL = 'https://script.google.com/macros/s/AKfycbyyFZ7k-3dElnTu4hKc6IbNF9uVi5FnZiOTJ6N4Wszv9jNoRZQYKMee7GVqjIfr-QEaRA/exec';
-    window.HK_BUILD = '20261107132941';
+    window.HK_BUILD = '20261107141951';
     /* Pengganti google.script.run: memanggil server lewat POST {fn, args} */
     (function () {
       function runner() {
@@ -204,7 +204,7 @@ async function run(fn,ok){try{const r=await fn();if(ok)toast(typeof ok==='functi
 let toastT;function toast(m){const el=document.getElementById('toast');document.getElementById('toast-msg').textContent=m;el.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>el.hidden=true,3500)}
 function renderBusy(){document.querySelectorAll('[data-busy]').forEach(el=>el.classList.toggle('spin',!!S.busy))}
 
-const CLIENT_VERSION=28; /* versi Code.gs yang dibutuhkan tampilan ini. Naikkan HANYA jika Code.gs ikut berubah (harus sama dengan APP_VERSION di Code.gs) */
+const CLIENT_VERSION=29; /* versi Code.gs yang dibutuhkan tampilan ini. Naikkan HANYA jika Code.gs ikut berubah (harus sama dengan APP_VERSION di Code.gs) */
 /* satu permintaan getState pada satu waktu: cegah notifikasi dobel & beban server.
    Jika dipanggil saat masih memuat (mis. setelah menyimpan), dijalankan sekali lagi sesudahnya agar data terbaru terambil. */
 let refreshing=null,refreshNext=null;
@@ -215,14 +215,20 @@ function refresh(silent){
 }
 async function doRefresh(silent,again){
   try{
-    const t0=Date.now();const st=await api('getState',S.today||'');syncClock(st.serverTime,t0,Date.now());
+    /* kirim tanda versi data terakhir: jika tidak ada perubahan, server cukup menjawab "same" (hemat & cepat).
+       Muat ulang manual (tidak silent) selalu mengambil data lengkap. */
+    const since=silent&&S.loaded&&S.tag&&S.stateDate===S.today?S.tag:'';
+    const t0=Date.now();const st=await api('getState',S.today||'',since);syncClock(st.serverTime,t0,Date.now());
+    if(st.same){const lbl=clk(S.lastSync),hadErr=!!S.syncErr;S.lastSync=nowS();S.syncErr='';S.srvVer=+st.version||0;
+      if(S.srvVer>CLIENT_VERSION&&window.HK_API_URL&&reloadOk())return hardReload();
+      if(hadErr||clk(S.lastSync)!==lbl)render();return}
     /* hari berganti (ditutup admin atau lewat tengah malam): pindah ke tanggal operasional baru */
     if(st.date!==st.today&&!again){const old=S.today;S.today=st.today;delete S.report[old];
       if(old&&S.loaded)toast(st.day&&st.day.closed?`Hari ${fmtShort(old)} sudah ditutup. Tampilan pindah ke ${fmtShort(st.today)}.`:`Tampilan pindah ke ${fmtShort(st.today)}.`);
       return doRefresh(silent,true)}
     const prev=(S.loaded&&S.stateDate===st.date)?S.rooms:null;S.stateDate=st.date;
     S.srvVer=+st.version||0;if(S.srvVer>CLIENT_VERSION&&window.HK_API_URL&&reloadOk())return hardReload();
-    S.me=st.me;S.users=st.users;detectEvents(prev,st.rooms);S.rooms=st.rooms;S.uploads=st.uploads||[];S.day=st.day||null;if(st.days)S.days=st.days;if(st.floors)S.hotelFloors=st.floors;S.incharge=st.incharge||null;if(st.deletedNames)S.deletedNames=st.deletedNames;S.unclosed=st.unclosed||[];S.dayInfo[st.date]=st.day||null;S.loaded=true;S.lastSync=nowS();S.syncErr='';
+    S.tag=st.tag||'';S.me=st.me;S.users=st.users;detectEvents(prev,st.rooms);S.rooms=st.rooms;S.uploads=st.uploads||[];S.day=st.day||null;if(st.days)S.days=st.days;if(st.floors)S.hotelFloors=st.floors;S.incharge=st.incharge||null;if(st.deletedNames)S.deletedNames=st.deletedNames;S.unclosed=st.unclosed||[];S.dayInfo[st.date]=st.day||null;S.loaded=true;S.lastSync=nowS();S.syncErr='';
     S.today=st.today;if(!S.reportDate)S.reportDate=st.today;
     checkQueueAlerts();
     render();
@@ -248,7 +254,7 @@ async function checkUpdate(){
 }
 async function loadReport(date){const st=await run(()=>api('getState',date));if(st){S.report[date]=st.rooms;S.dayInfo[date]=st.day||null;(S.inchargeInfo=S.inchargeInfo||{})[date]=st.incharge||null;render()}}
 function doLocalLogout(msg){
-  lsDel('hk.token');Object.assign(S,{token:'',me:null,loaded:false,rooms:[],users:[],allUsers:null,log:null,modal:null,confirm:null,creds:null,acct:false,more:false,addUser:false,imp:null,qAlert:null,loginErr:msg||'',view:''});
+  lsDel('hk.token');Object.assign(S,{token:'',me:null,loaded:false,tag:'',rooms:[],users:[],allUsers:null,log:null,modal:null,confirm:null,creds:null,acct:false,more:false,addUser:false,imp:null,qAlert:null,loginErr:msg||'',view:''});
   render();
 }
 
@@ -1923,7 +1929,7 @@ setInterval(()=>{document.querySelectorAll('[data-dnd]').forEach(el=>{el.textCon
 async function syncServerTime(){try{const t0=Date.now();const r=await call('getServerTime',[]);syncClock(r.now,t0,Date.now())}catch(e){}}
 syncServerTime();setInterval(syncServerTime,600000);
 /* refresh: tiap 20 detik, atau 10 detik selama ada tamu menunggu */
-setInterval(()=>{checkUpdate();checkDndAlerts();checkQueueReminders();checkCourtesyReminders();if(!S.me||S.me.mustChange||S.busy||S.modal||S.confirm||S.addUser||S.editUser||S.skip||S.move||S.pmr||S.unreach||S.closing||S.ret||(S.imp&&S.imp.state==='writing'))return;const every=document.hidden?30000:queued().length?10000:20000;if(nowS()-S.lastSync>=every&&!refreshing)refresh(true)},2500);
+setInterval(()=>{checkUpdate();checkDndAlerts();checkQueueReminders();checkCourtesyReminders();if(!S.me||S.me.mustChange||S.busy||S.modal||S.confirm||S.addUser||S.editUser||S.skip||S.move||S.pmr||S.unreach||S.closing||S.ret||(S.imp&&S.imp.state==='writing'))return;const every=document.hidden?30000:queued().length?6000:10000;if(nowS()-S.lastSync>=every&&!refreshing)refresh(true)},2500);
 
 (async function boot(){
   render();
