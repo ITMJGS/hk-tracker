@@ -14,7 +14,7 @@
   <script>
     /* Alamat server (Google Apps Script). Ganti jika membuat deployment baru. */
     window.HK_API_URL = 'https://script.google.com/macros/s/AKfycbyyFZ7k-3dElnTu4hKc6IbNF9uVi5FnZiOTJ6N4Wszv9jNoRZQYKMee7GVqjIfr-QEaRA/exec';
-    window.HK_BUILD = '20261107124011';
+    window.HK_BUILD = '20261107124648';
     /* Pengganti google.script.run: memanggil server lewat POST {fn, args} */
     (function () {
       function runner() {
@@ -201,7 +201,7 @@ async function run(fn,ok){try{const r=await fn();if(ok)toast(typeof ok==='functi
 let toastT;function toast(m){const el=document.getElementById('toast');document.getElementById('toast-msg').textContent=m;el.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>el.hidden=true,3500)}
 function renderBusy(){document.querySelectorAll('[data-busy]').forEach(el=>el.classList.toggle('spin',!!S.busy))}
 
-const CLIENT_VERSION=27; /* versi Code.gs yang dibutuhkan tampilan ini. Naikkan HANYA jika Code.gs ikut berubah (harus sama dengan APP_VERSION di Code.gs) */
+const CLIENT_VERSION=26; /* versi Code.gs yang dibutuhkan tampilan ini. Naikkan HANYA jika Code.gs ikut berubah (harus sama dengan APP_VERSION di Code.gs) */
 async function refresh(silent,again){
   if(!S.token||!S.me||S.me.mustChange)return;
   try{
@@ -333,18 +333,7 @@ const spvWait=r=>(r.spvStartAt&&r.finishHkAt?r.spvStartAt-r.finishHkAt:0)+(r.pre
 const spvCheck=r=>(r.finishSpvAt?(r.spvStartAt?r.finishSpvAt-r.spvStartAt:r.finishSpvAt-(r.finishHkAt||r.finishSpvAt)):0)+(r.prevSpvMs||0);
 /* 8 waktu laporan: jam HK start, jam HK selesai, lama HK (start→selesai), jam SPV cek, jam SPV selesai, lama cek, tunggu SPV, total (HK start→SPV selesai) */
 const isSO=r=>r.category==='STAYOVER';
-const hkSpan=r=>netClean(r); /* lama RA bersih = tanpa jeda (pause) */
-/* ===== Definisi angka manajemen (sama dengan Laporan Harian di server) =====
-   lama RA bersih   : Start → Finish tanpa jeda; kamar dikembalikan = putaran pertama + perbaikan
-   lama sampai ready: start pertama RA → SPV Finish cek (stayover: → RA Finish)
-   SPV menggantungkan: RA Finish → SPV Start cek (checkout); belum dicek = dihitung sampai hari ditutup / sekarang */
-const ODD_MIN=5,ODD_MAX=180;
-const cleanMs=r=>r.startAt&&r.finishHkAt?netClean(r):null;
-const readyMs=r=>r.status==='COMPLETED'&&r.startAt&&r.finishSpvAt?r.finishSpvAt-(r.firstStartAt||r.startAt):null;
-const hangMs=(r,end)=>r.category!=='CHECKOUT'||!r.finishHkAt?null:r.spvStartAt?(r.spvStartAt-r.finishHkAt)+(r.prevWaitMs||0):r.status==='INSPECTION_READY'?Math.max(0,(end||nowS())-r.finishHkAt)+(r.prevWaitMs||0):null;
-const isOdd=r=>{const c=cleanMs(r);return c!=null&&(c<ODD_MIN*60000||c>ODD_MAX*60000)};
-const median=a=>{if(!a.length)return null;const b=a.slice().sort((x,y)=>x-y),m=b.length>>1;return Math.round(b.length%2?b[m]:(b[m-1]+b[m])/2)};
-const mList=(rooms,f)=>rooms.map(f).filter(v=>v!=null).map(v=>mins(v));
+const hkSpan=r=>(r.startAt&&r.finishHkAt?r.finishHkAt-r.startAt:0)+(r.prevHkMs||0);
 const totalSpan=r=>r.startAt&&r.finishSpvAt?r.finishSpvAt-firstStart(r):0;
 const reworkOf=r=>r.retCount&&r.startAt&&r.finishHkAt?Math.max(0,hkSpan(r)-(r.firstHkMs||0)):null; /* waktu perbaikan setelah dikembalikan SPV */
 const hasSpv=r=>!isSO(r)&&!!r.spvStartAt;
@@ -562,7 +551,6 @@ const VIEWS={
   spv:{l:'Supervisor',i:'activity',d:'Pergerakan supervisor: kamar dicek & jeda waktu'},
   recap:{l:'Rekap',i:'clock',d:'Durasi kamar yang sudah ready hari ini'},
   report:{l:'Laporan',i:'chart',d:'Kinerja per tanggal'},
-  gm:{l:'Rekap Periode',i:'activity',d:'Rata-rata mingguan / bulanan untuk manajemen'},
   users:{l:'Pengguna',i:'users',d:'Akun, role, dan password'},
   system:{l:'Sistem',i:'shield',d:'Log aktivitas & penyimpanan'},
   hk:{l:'Tugas Saya',i:'list',d:'Kamar yang ditugaskan kepada Anda'},
@@ -571,8 +559,8 @@ const VIEWS={
 };
 function navItems(){
   const r=S.me.role;
-  if(r==='superadmin')return ['dash','upload','rooms','inspect','spv','op','report','gm','users','recap','system'];
-  if(r==='admin')return ['dash','upload','rooms','inspect','spv','op','report','gm','users','recap'];
+  if(r==='superadmin')return ['dash','upload','rooms','inspect','spv','op','report','users','recap','system'];
+  if(r==='admin')return ['dash','upload','rooms','inspect','spv','op','report','users','recap'];
   if(r==='supervisor')return ['inspect','dash','upload','recap','users'];
   if(r==='frontoffice')return ['fo','op','report']; /* laporan: hanya lihat, tidak bisa tutup/buka hari */
   if(r==='operator')return ['op','fo'];
@@ -623,7 +611,7 @@ function viewShell(){
   const nav=navItems();if(!nav.includes(S.view))S.view=nav[0];
   let body;
   if(!S.loaded)body=S.syncErr?card(empty('alert','Data belum bisa dimuat',esc(S.syncErr),`<button data-act="refresh" class="${bc('primary')}">Coba lagi</button>`)):skeleton();
-  else body={dash:viewDash,upload:viewUpload,rooms:viewRooms,inspect:viewInspect,recap:viewRecap,report:viewReport,gm:viewGM,users:viewUsers,system:viewSystem,hk:viewHK,fo:viewFO,spv:viewSpv,op:viewOp}[S.view]();
+  else body={dash:viewDash,upload:viewUpload,rooms:viewRooms,inspect:viewInspect,recap:viewRecap,report:viewReport,users:viewUsers,system:viewSystem,hk:viewHK,fo:viewFO,spv:viewSpv,op:viewOp}[S.view]();
   return `${sidebar(nav)}<div class="lg:pl-72 min-h-screen">${topbar()}
     <main class="px-safe pt-5 pb-28 lg:pb-12 max-w-[1400px]">
       ${S.loaded&&S.srvVer!==CLIENT_VERSION?verBanner():''}
@@ -978,19 +966,17 @@ function viewReport(){
     :card(empty('inbox','Tidak ada data pada tanggal ini','Pilih tanggal lain.')));
   const done=all.filter(r=>r.status==='COMPLETED').sort(roomSort),co=done.filter(hasSpv),left=all.filter(r=>r.status!=='COMPLETED'&&r.status!=='REFUSED').sort(roomSort),refusedL=all.filter(r=>r.status==='REFUSED').sort(roomSort);
   const avg=a=>a.length?Math.round(a.reduce((s,x)=>s+x,0)/a.length):0;
-  const avgS=avg(co.map(r=>mins(spvCheck(r))));
-  const aCO=all.filter(r=>r.category==='CHECKOUT'),aSO=all.filter(r=>r.category==='STAYOVER'),endRef=info&&info.closed?info.closedAt:nowS();
-  const cCO=mList(aCO,cleanMs),cSO=mList(aSO,cleanMs),rCO=mList(aCO,readyMs),rSO=mList(aSO,readyMs),hang=mList(all,r=>hangMs(r,endRef));
-  const hkCO=avgOf(cCO),hkSO=avgOf(cSO),totCO=avgOf(rCO),totSO=avgOf(rSO),avgW=avgOf(hang),unchk=all.filter(r=>r.category==='CHECKOUT'&&r.status==='INSPECTION_READY').length,oddN=all.filter(isOdd).length;
-  const medTxt=(a,b)=>`median CO ${median(a)??'–'} · SO ${median(b)??'–'} mnt`;
+  const avgS=avg(co.map(r=>mins(spvCheck(r)))),avgW=avg(co.map(r=>mins(spvWait(r))));
+  const dCO=done.filter(r=>r.category==='CHECKOUT'),dSO=done.filter(r=>r.category==='STAYOVER');
+  const hkCO=avgOf(dCO.map(r=>mins(hkSpan(r)))),hkSO=avgOf(dSO.map(r=>mins(hkSpan(r)))),totCO=avgOf(dCO.map(r=>mins(totalSpan(r)))),totSO=avgOf(dSO.map(r=>mins(totalSpan(r))));
   const per={};done.forEach(r=>{const k=r.assignedTo||'-';const p=per[k]=per[k]||{n:0,c:[],cc:[],cs:[],co:0};p.n++;p.c.push(mins(hkSpan(r)));(r.category==='CHECKOUT'?p.cc:p.cs).push(mins(hkSpan(r)));if(r.category==='CHECKOUT')p.co++});
   const rows=Object.entries(per).sort((a,b)=>b[1].n-a[1].n);
   const leftCard=left.length?`<div class="mt-4">${card(`${cardHead(info&&info.closed?'Belum ready saat hari ditutup':'Belum ready',`${left.length} kamar`)}<div class="p-3 sm:p-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">${left.map(r=>`<div class="flex items-center gap-3 rounded-xl ring-1 ring-inset ring-slate-200/80 px-3 py-2.5"><span class="w-12 text-lg font-extrabold text-slate-900">${esc(r.room)}</span><div class="flex-1 min-w-0 text-xs text-slate-500"><p class="font-semibold text-slate-800 truncate">${esc(nameOf(r.assignedTo))}</p><p>${isDnd(r)?`${esc(dndLbl(r))} sejak ${clk(r.dndAt)} · dicek ${(r.dndChecks||0)+1}x${r.csResult?' · '+(r.csResult==='PMR'?'PMR '+clk(r.csPmrAt):CSL[r.csResult]):''}`:r.startAt?'start '+clk(r.startAt):'belum mulai'}${r.finishHkAt?' · selesai '+clk(r.finishHkAt):''}</p></div>${rStChip(r)}</div>`).join('')}</div>`)}</div>`:'';
   return head+strip+status+`<div class="mb-4">${progressCard(all)}</div><div class="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
     ${kpi('check','bg-emerald-50 text-emerald-600','Kamar ready',done.length,`dari ${all.length} kamar`)}
-    ${kpiSplit('clock','bg-amber-50 text-amber-600','Lama RA bersih',hkCO,hkSO,`${medTxt(cCO,cSO)} · tanpa jeda${oddN?` · <span class="text-amber-700 font-semibold">⚠ ${oddN} tidak wajar</span>`:''}`)}
-    ${kpi('dcheck','bg-violet-50 text-violet-600','SPV menggantungkan',(avgW??0)+' mnt',`RA selesai → SPV mulai cek · median ${median(hang)??'–'} mnt · lama cek ±${avgS} mnt${unchk?` · <b class="text-rose-600">${unchk} belum dicek</b> (ikut dihitung)`:''}`)}
-    ${kpiSplit('chart','bg-brand-50 text-brand-600','Lama sampai ready',totCO,totSO,`RA mulai → kamar ready · ${medTxt(rCO,rSO)}`)}</div>
+    ${kpiSplit('clock','bg-amber-50 text-amber-600','Rata-rata HK',hkCO,hkSO,'HK start → selesai')}
+    ${kpi('dcheck','bg-violet-50 text-violet-600','Rata-rata cek SPV',avgS+' mnt',`khusus checkout · HK selesai → SPV cek ±${avgW} mnt`)}
+    ${kpiSplit('chart','bg-brand-50 text-brand-600','Rata-rata total',totCO,totSO,'HK start → kamar ready (stayover tanpa cek SPV)')}</div>
   <div class="mt-4">${card(`${cardHead('Detail waktu per kamar',`${done.length} kamar ready · semua jam waktu server (WIB)`)}${done.length?reportTable(done)+`
       <div class="md:hidden p-4 space-y-3">${done.slice(0,S.showAll?9999:30).map(r=>recapCard(r,false)).join('')}${done.length>30&&!S.showAll?`<button data-act="toggleAll" class="${bc('ghost','md','w-full')}">Tampilkan semua (${done.length})</button>`:''}</div>`:empty('inbox','Belum ada kamar ready pada tanggal ini','')}`)}</div>
   ${queueReport(all.filter(r=>r.queuedAt).map(r=>({room:r.room,hk:nameOf(r.assignedTo),status:r.status,queuedAt:r.queuedAt,readyAt:r.status==='COMPLETED'?r.finishSpvAt:0,by:r.queuedBy?nameOf(r.queuedBy):'',top:!!r.queueTop})),info&&info.closed?info.closedAt:0)}
@@ -998,74 +984,6 @@ function viewReport(){
   ${refusedL.length?`<div class="mt-4">${card(`${cardHead('Service Refused',`${refusedL.length} kamar stayover · tamu menolak dibersihkan`)}<div class="p-3 sm:p-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">${refusedL.map(r=>`<div class="flex items-center gap-3 rounded-xl ring-1 ring-inset ring-stone-200 bg-stone-50 px-3 py-2.5"><span class="w-12 text-lg font-extrabold text-slate-900">${esc(r.room)}</span><div class="flex-1 min-w-0 text-xs text-slate-500"><p class="font-semibold text-slate-800 truncate">${esc(nameOf(r.assignedTo))}</p><p>${clk(r.refusedAt)} · ${r.refusedVia==='COURTESY'?'hasil courtesy '+esc(opName(r)):'dari RA'}</p></div>${stChip('REFUSED')}</div>`).join('')}</div>`)}</div>`:''}
   ${spvReportCard(all,info&&info.closed?false:date===S.today)}
   <div class="mt-4">${card(`${cardHead('Per housekeeper','Diurutkan dari kamar terbanyak')}<div class="p-2 grid sm:grid-cols-2 xl:grid-cols-3">${rows.length?rows.map(([id,p])=>`<div class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50">${avatar(nameOf(id),'w-8 h-8 text-[10px]')}<div class="flex-1 min-w-0"><p class="text-sm font-semibold text-slate-900 truncate">${esc(nameOf(id))}</p><p class="text-xs text-slate-500">${p.co} checkout · ${p.n-p.co} stayover</p></div><div class="text-right"><p class="text-sm font-extrabold text-slate-900">${p.n}</p><p class="text-[11px] text-slate-500 whitespace-nowrap">${p.cc.length?`<span class="text-rose-600 font-semibold">CO ${avgOf(p.cc)}</span>`:''}${p.cc.length&&p.cs.length?' · ':''}${p.cs.length?`<span class="text-indigo-600 font-semibold">SO ${avgOf(p.cs)}</span>`:''} mnt/kamar</p></div></div>`).join(''):empty('chart','Belum ada data','')}</div>`)}</div>`;
-}
-/* ================= REKAP PERIODE (untuk GM) ================= */
-const dAdd=(d,n)=>{const p=d.split('-').map(Number);return new Date(Date.UTC(p[0],p[1]-1,p[2]+n)).toISOString().slice(0,10)};
-const gmPresets=()=>{const t=S.today,first=t.slice(0,7)+'-01',lastPrev=dAdd(first,-1);return [['7','7 hari',dAdd(t,-6),t],['30','30 hari',dAdd(t,-29),t],['tm','Bulan ini',first,t],['lm','Bulan lalu',lastPrev.slice(0,7)+'-01',lastPrev]]};
-async function loadGM(from,to){S.gm=Object.assign({},S.gm||{},{from,to,loading:true});render();const d=await run(()=>api('getRecap',from,to));S.gm={from,to,data:d||(S.gm&&S.gm.data)||null,loading:false};render()}
-function gmCalc(D){
-  const R=D.rooms,end=r=>D.dayEnd[r.date]||D.now,nm=id=>D.names[id]||nameOf(id);
-  const isCO=r=>r.category==='CHECKOUT',isSO_=r=>r.category==='STAYOVER';
-  const st=a=>({n:a.length,avg:avgOf(a),med:median(a)});
-  const hangL=rs=>mList(rs,r=>hangMs(r,end(r)));
-  const block=a=>{const co=a.filter(isCO),so=a.filter(isSO_),h=hangL(a);return {n:a.length,ready:a.filter(r=>r.status==='COMPLETED').length,
-    cCO:st(mList(co,cleanMs)),cSO:st(mList(so,cleanMs)),rCO:st(mList(co,readyMs)),rSO:st(mList(so,readyMs)),hang:st(h),h15:h.length?Math.round(h.filter(x=>x<=15).length/h.length*100):null,
-    chk:st(mList(co.filter(r=>r.status==='COMPLETED'&&r.spvStartAt),spvCheck)),ret:a.filter(r=>r.retCount).length,refused:a.filter(r=>r.status==='REFUSED').length,odd:a.filter(isOdd).length,
-    unchk:co.filter(r=>r.status==='INSPECTION_READY').length}};
-  const group=(f)=>{const m={};R.forEach(r=>{const k=f(r);if(k!=null)(m[k]=m[k]||[]).push(r)});return m};
-  const byDay=group(r=>r.date),byHk=group(r=>r.assignedTo||('~'+(r.attendantName||'-'))),bySpv=group(r=>isCO(r)&&r.spvId&&r.spvStartAt?r.spvId:null);
-  const retBy={};R.forEach(r=>{if(r.retCount&&r.retBy)retBy[r.retBy]=(retBy[r.retBy]||0)+r.retCount});
-  return {all:block(R),
-    days:Object.keys(byDay).sort().reverse().map(d=>Object.assign({d,closed:!!D.dayEnd[d]},block(byDay[d]))),
-    hks:Object.entries(byHk).map(([k,a])=>{const c=mList(a,cleanMs);return Object.assign({name:k[0]==='~'?k.slice(1):nm(k),med:median(c),cleaned:c.length},block(a))}).sort((a,b)=>b.cleaned-a.cleaned||a.name.localeCompare(b.name)),
-    spvs:Object.entries(bySpv).map(([id,a])=>Object.assign({name:nm(id),retBy:retBy[id]||0},block(a))).sort((a,b)=>b.n-a.n)};
-}
-function viewGM(){
-  const G=S.gm;
-  if(!G){const p=gmPresets()[1];loadGM(p[2],p[3]);return pageHead('',VIEWS.gm.d)+skeleton()}
-  const presets=gmPresets(),cur=presets.find(p=>p[2]===G.from&&p[3]===G.to);
-  const bar=`<div class="flex flex-col lg:flex-row lg:items-center gap-3 mb-4"><div class="flex gap-1 p-1 rounded-xl bg-slate-200/60 overflow-x-auto no-scrollbar">${presets.map(p=>`<button data-act="gmPreset" data-f="${p[2]}" data-t="${p[3]}" class="px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap ${cur&&cur[0]===p[0]?'bg-white text-slate-900 shadow-card':'text-slate-600 hover:text-slate-900'}">${p[1]}</button>`).join('')}</div>
-    <div class="flex items-center gap-2 flex-wrap"><input type="date" id="f-gmfrom" value="${G.from}" aria-label="Dari tanggal" class="${selectCls}"><span class="text-slate-400 text-sm">s/d</span><input type="date" id="f-gmto" value="${G.to}" max="${S.today}" aria-label="Sampai tanggal" class="${selectCls}"><button data-act="gmLoad" class="${bc('dark','md')}">${G.loading?ic('refresh','w-4 h-4 spin'):'Tampilkan'}</button>${G.data&&G.data.rooms.length?`<button data-act="gmExport" class="${bc('soft','md')} whitespace-nowrap">${ic('file','w-4 h-4')} Unduh Excel</button>`:''}</div></div>`;
-  const D=G.data;
-  if(!D)return pageHead('',VIEWS.gm.d)+bar+(G.loading?skeleton():card(empty('inbox','Gagal memuat data','Coba lagi.')));
-  if(!D.rooms.length)return pageHead('',VIEWS.gm.d)+bar+card(empty('inbox','Tidak ada data kamar di periode ini',D.oldest?`Data per kamar tersedia mulai ${esc(fmtShort(D.oldest))}.`:''));
-  const C=gmCalc(D),A=C.all,m=v=>v==null?'–':v+' mnt',M=o=>`${m(o.avg)}<span class="block text-[10px] text-slate-400">med ${o.med??'–'}</span>`;
-  const oldNote=D.oldest&&D.from<D.oldest?`<div class="mb-4 flex gap-2 rounded-xl bg-amber-50 ring-1 ring-inset ring-amber-200 px-3 py-2.5 text-xs text-amber-900">${ic('info','w-4 h-4 shrink-0')}<span>Data per kamar baru tersedia mulai <b>${esc(fmtShort(D.oldest))}</b>, jadi rekap dihitung dari tanggal itu.</span></div>`:'';
-  const tbl=(head,rows)=>`<div class="overflow-x-auto"><table class="w-full text-sm"><thead class="bg-slate-50"><tr class="text-left text-xs text-slate-500">${head.map((h,i)=>`<th class="font-semibold px-3 py-2 whitespace-nowrap ${i?'text-right':'pl-5'}">${h}</th>`).join('')}</tr></thead><tbody class="divide-y divide-slate-100">${rows.map(r=>`<tr class="hover:bg-slate-50/60">${r.map((c,i)=>`<td class="px-3 py-2.5 whitespace-nowrap ${i?'text-right':'pl-5 font-semibold text-slate-900'}">${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
-  const defs=`<details class="mt-4 bg-white rounded-2xl ring-1 ring-slate-200/80 shadow-card"><summary class="px-4 sm:px-5 py-3 text-sm font-bold text-slate-900 cursor-pointer flex items-center gap-2">${ic('info','w-4 h-4 text-brand-600')} Cara menghitung</summary><ul class="px-5 sm:px-6 pb-4 space-y-1.5 text-xs text-slate-600 list-disc list-inside">
-    <li><b>Lama RA bersih</b>: dari RA menekan Start sampai Finish, <b>tanpa waktu jeda (pause)</b>. Kamar yang dikembalikan SPV = putaran pertama + waktu perbaikan.</li>
-    <li><b>Lama sampai ready</b>: dari RA pertama kali menekan Start sampai SPV menekan Finish cek (stayover: sampai RA Finish). Termasuk jeda dan waktu menunggu SPV.</li>
-    <li><b>SPV menggantungkan</b>: kamar checkout, dari RA Finish sampai SPV menekan Start cek. Kamar yang <b>belum dicek</b> saat hari ditutup tetap dihitung sampai jam tutup hari.</li>
-    <li><b>Median</b> = nilai tengah. Tidak terpengaruh satu-dua kamar ekstrem, jadi lebih mewakili kondisi normal. Jika rata-rata jauh di atas median, ada beberapa kamar yang sangat lama.</li>
-    <li><b>⚠ Tidak wajar</b>: lama bersih kurang dari ${ODD_MIN} menit atau lebih dari ${ODD_MAX} menit (kemungkinan tombol Start/Finish tidak ditekan tepat waktu). Tetap ikut dihitung.</li>
-    <li>Service Refused tidak dihitung dalam rata-rata waktu karena kamarnya tidak dibersihkan.</li></ul></details>`;
-  return `${pageHead('',`${esc(fmtShort(D.from))} – ${esc(fmtShort(D.to))} · ${C.days.length} hari`)}${bar}${oldNote}
-  <div class="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
-    ${kpiSplit('clock','bg-amber-50 text-amber-600','Rata-rata lama RA bersih',A.cCO.avg,A.cSO.avg,`median CO ${A.cCO.med??'–'} · SO ${A.cSO.med??'–'} mnt · tanpa jeda`)}
-    ${kpiSplit('chart','bg-brand-50 text-brand-600','Rata-rata lama sampai ready',A.rCO.avg,A.rSO.avg,`median CO ${A.rCO.med??'–'} · SO ${A.rSO.med??'–'} mnt · RA mulai → ready`)}
-    ${kpi('dcheck','bg-violet-50 text-violet-600','Rata-rata SPV menggantungkan',m(A.hang.avg),`median ${A.hang.med??'–'} mnt · ${A.h15??'–'}% dicek ≤ 15 mnt · lama cek ±${A.chk.avg??'–'} mnt${A.unchk?` · ${A.unchk} belum dicek`:''}`)}
-    ${kpi('check','bg-emerald-50 text-emerald-600','Kamar ready',A.ready,`dari ${A.n} kamar · ↩ ${A.ret} dikembalikan · ${A.refused} refused${A.odd?` · <span class="text-amber-700 font-semibold">⚠ ${A.odd} tidak wajar</span>`:''}`)}</div>
-  ${defs}
-  <div class="mt-4">${card(cardHead('Per RA',`${C.hks.length} housekeeper · diurutkan dari kamar terbanyak`)+tbl(['RA','Kamar dibersihkan','Lama bersih CO','Lama bersih SO','Median','Dikembalikan','⚠ Tidak wajar'],C.hks.map(h=>[esc(h.name),h.cleaned,M(h.cCO),M(h.cSO),m(h.med),h.ret||'–',h.odd?`<span class="text-amber-700 font-semibold">${h.odd}</span>`:'–'])))}</div>
-  <div class="mt-4">${card(cardHead('Per supervisor','Kamar checkout yang dicek')+(C.spvs.length?tbl(['Supervisor','Kamar dicek','Menggantungkan','Lama cek','Dicek ≤ 15 mnt','Mengembalikan'],C.spvs.map(x=>[esc(x.name),x.n,M(x.hang),M(x.chk),x.h15==null?'–':x.h15+'%',x.retBy||'–'])):empty('inbox','Belum ada kamar yang dicek','')))}</div>
-  <div class="mt-4">${card(cardHead('Per hari','Tanggal terbaru di atas')+tbl(['Tanggal','Ready','RA bersih CO','RA bersih SO','Ready CO','Ready SO','SPV menggantung'],C.days.map(x=>[`<button data-act="openReportDate" data-d="${x.d}" class="font-semibold text-brand-700 hover:underline">${esc(fmtShort(x.d))}</button>${x.closed?'':' <span class="text-[10px] text-amber-700">berjalan</span>'}`,`${x.ready}/${x.n}`,M(x.cCO),M(x.cSO),M(x.rCO),M(x.rSO),M(x.hang)])))}</div>`;
-}
-function exportGM(){
-  const G=S.gm,D=G&&G.data;if(!D||!D.rooms.length)return;const C=gmCalc(D),A=C.all,v=x=>x==null?'':x;
-  const L=[['Rekap periode',D.from+' s/d '+D.to],[],['Ringkasan','Rata-rata (menit)','Median (menit)','Jumlah kamar'],
-    ['Lama RA bersih - checkout',v(A.cCO.avg),v(A.cCO.med),A.cCO.n],['Lama RA bersih - stayover',v(A.cSO.avg),v(A.cSO.med),A.cSO.n],
-    ['Lama sampai ready - checkout',v(A.rCO.avg),v(A.rCO.med),A.rCO.n],['Lama sampai ready - stayover',v(A.rSO.avg),v(A.rSO.med),A.rSO.n],
-    ['SPV menggantungkan (checkout)',v(A.hang.avg),v(A.hang.med),A.hang.n],['Lama cek SPV',v(A.chk.avg),v(A.chk.med),A.chk.n],
-    ['Kamar ready / total',A.ready+' / '+A.n],['Dikembalikan ke RA',A.ret],['Service Refused',A.refused],['Tidak wajar (<'+ODD_MIN+' / >'+ODD_MAX+' mnt)',A.odd],[],
-    ['Per RA','Kamar dibersihkan','Rata-rata bersih CO','Median bersih CO','Rata-rata bersih SO','Median bersih SO','Median semua','Dikembalikan','Tidak wajar'],
-    ...C.hks.map(h=>[h.name,h.cleaned,v(h.cCO.avg),v(h.cCO.med),v(h.cSO.avg),v(h.cSO.med),v(h.med),h.ret,h.odd]),[],
-    ['Per supervisor','Kamar dicek','Rata-rata menggantungkan','Median menggantungkan','Rata-rata lama cek','Dicek <= 15 mnt (%)','Mengembalikan'],
-    ...C.spvs.map(x=>[x.name,x.n,v(x.hang.avg),v(x.hang.med),v(x.chk.avg),v(x.h15),x.retBy]),[],
-    ['Per hari','Kamar','Ready','Rata-rata bersih CO','Rata-rata bersih SO','Rata-rata ready CO','Rata-rata ready SO','Rata-rata SPV menggantung','Median SPV menggantung'],
-    ...C.days.map(x=>[x.d,x.n,x.ready,v(x.cCO.avg),v(x.cSO.avg),v(x.rCO.avg),v(x.rSO.avg),v(x.hang.avg),v(x.hang.med)])];
-  const q=x=>{x=String(x==null?'':x);return /[;"\n,]/.test(x)?'"'+x.replace(/"/g,'""')+'"':x};
-  const csv='\ufeffsep=;\r\n'+L.map(a=>a.map(q).join(';')).join('\r\n'),name='Rekap-HK-'+D.from+'_'+D.to+'.csv';
-  try{const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);toast('Rekap diunduh: '+name)}catch(e){toast('Gagal mengunduh.')}
 }
 /* Laporan tamu menunggu (queue): kamar apa saja, mulai queue → ready, total/rata-rata/terlama */
 function queueReport(list,endRef){
@@ -1094,9 +1012,9 @@ function reportTable(done){
   const D=v=>v==null?'<span class="text-slate-300">–</span>':dur(v);
   return `<div class="hidden md:block overflow-x-auto mt-3 max-h-[680px] overflow-y-auto"><table class="w-full text-sm"><thead class="sticky top-0 bg-slate-50 z-10">
     <tr class="text-left">${grp('Kamar',2,'text-slate-500')}${grp('Housekeeper',3,'text-amber-700 bg-amber-50/60')}${grp('Supervisor',3,'text-violet-700 bg-violet-50/60')}${grp('Durasi',2,'text-brand-700 bg-brand-50/60')}${grp('Lainnya',3,'text-slate-500')}</tr>
-    <tr class="text-left text-xs text-slate-500 border-b border-slate-100">${th('No.','pl-5')}${th('Housekeeper')}${th('Jam start','bg-amber-50/60')}${th('Jam selesai','bg-amber-50/60')}${th('Lama bersih','bg-amber-50/60 text-right')}${th('Jam cek','bg-violet-50/60')}${th('Jam selesai cek','bg-violet-50/60')}${th('Lama cek','bg-violet-50/60 text-right')}${th('HK selesai → SPV cek','bg-brand-50/60 text-right')}${th('Total HK start → SPV selesai','bg-brand-50/60 text-right')}${th('Supervisor')}${th('Jeda','text-right')}${th('Tamu tunggu','text-right pr-5')}</tr></thead>
+    <tr class="text-left text-xs text-slate-500 border-b border-slate-100">${th('No.','pl-5')}${th('Housekeeper')}${th('Jam start','bg-amber-50/60')}${th('Jam selesai','bg-amber-50/60')}${th('Start → selesai','bg-amber-50/60 text-right')}${th('Jam cek','bg-violet-50/60')}${th('Jam selesai cek','bg-violet-50/60')}${th('Lama cek','bg-violet-50/60 text-right')}${th('HK selesai → SPV cek','bg-brand-50/60 text-right')}${th('Total HK start → SPV selesai','bg-brand-50/60 text-right')}${th('Supervisor')}${th('Jeda','text-right')}${th('Tamu tunggu','text-right pr-5')}</tr></thead>
     <tbody class="divide-y divide-slate-100">${done.map(r=>{const t=timesOf(r);return `<tr class="hover:bg-slate-50/60">
-      ${td(`<span class="font-extrabold text-slate-900">${esc(r.room)}</span> <span class="text-[11px] ${catOf(r.category).text} font-semibold">${isSO(r)?'SO':'CO'}</span>${r.dndReason?` <span class="text-[10px] font-bold text-white bg-slate-800 rounded px-1 py-0.5" title="${esc(dndLbl(r))} ${clk(r.dndAt)}–${clk(r.dndClearAt)} · dicek ${(r.dndChecks||0)+1}x">${r.dndReason==='DND'?'DND':'DS'}</span>`:''}${isOdd(r)?` <span class="text-[10px] font-bold text-amber-900 bg-amber-200 rounded px-1 py-0.5" title="Lama bersih tidak wajar (kurang dari ${ODD_MIN} atau lebih dari ${ODD_MAX} menit). Cek apakah Start/Finish ditekan dengan benar.">⚠</span>`:''}${r.retCount?` <span class="text-[10px] font-bold text-white bg-orange-600 rounded px-1 py-0.5" title="Dikembalikan ke RA ${r.retCount}x · ${esc(RETL[r.retReason]||'')}${r.retNote?' · '+esc(r.retNote):''}">↩ ${r.retCount>1?r.retCount+'x':esc(RETL[r.retReason]||'')}</span>`:''}`,'pl-5')}${td(esc(nameOf(r.assignedTo)),'text-slate-700')}
+      ${td(`<span class="font-extrabold text-slate-900">${esc(r.room)}</span> <span class="text-[11px] ${catOf(r.category).text} font-semibold">${isSO(r)?'SO':'CO'}</span>${r.dndReason?` <span class="text-[10px] font-bold text-white bg-slate-800 rounded px-1 py-0.5" title="${esc(dndLbl(r))} ${clk(r.dndAt)}–${clk(r.dndClearAt)} · dicek ${(r.dndChecks||0)+1}x">${r.dndReason==='DND'?'DND':'DS'}</span>`:''}${r.retCount?` <span class="text-[10px] font-bold text-white bg-orange-600 rounded px-1 py-0.5" title="Dikembalikan ke RA ${r.retCount}x · ${esc(RETL[r.retReason]||'')}${r.retNote?' · '+esc(r.retNote):''}">↩ ${r.retCount>1?r.retCount+'x':esc(RETL[r.retReason]||'')}</span>`:''}`,'pl-5')}${td(esc(nameOf(r.assignedTo)),'text-slate-700')}
       ${td(t.hkStart+(t.ret?`<span class="block text-[10px] font-semibold text-orange-600">↩ ${t.redoStart}</span>`:''),'font-mono text-xs')}${td(t.hkEnd+(t.ret?`<span class="block text-[10px] font-semibold text-orange-600">↩ ${t.redoEnd}</span>`:''),'font-mono text-xs')}${td(dur(t.hkDur)+(t.rework!=null?`<span class="block text-[10px] font-semibold text-orange-600">${dur(t.firstDur)} + ${dur(t.rework)} perbaikan</span>`:''),'text-right font-semibold text-amber-700')}
       ${td(t.spvStart+(t.ret&&t.redoSpvStart?`<span class="block text-[10px] font-semibold text-orange-600">↩ ${t.redoSpvStart}</span>`:''),'font-mono text-xs'+(isSO(r)?' text-slate-400':''))}${td(t.spvEnd+(t.ret&&t.redoSpvEnd?`<span class="block text-[10px] font-semibold text-orange-600">↩ ${t.redoSpvEnd}</span>`:''),'font-mono text-xs'+(isSO(r)?' text-slate-400':''))}${td(D(t.spvDur),'text-right font-semibold text-violet-700')}
       ${td(D(t.wait),'text-right text-sky-700')}${td(dur(t.total),'text-right font-bold text-brand-700')}
@@ -1108,10 +1026,10 @@ function exportReport(){
   const done=all.slice().sort((a,b)=>(a.status==='COMPLETED'?0:1)-(b.status==='COMPLETED'?0:1)||roomSort(a,b));
   if(!done.length){toast('Tidak ada data untuk diunduh.');return}
   const M=v=>v==null?'':mins(v);
-  const head=['Tanggal','Kamar','Kategori','Status','Housekeeper','Jam HK start','Jam HK selesai','Lama RA bersih tanpa jeda (menit)','Jam SPV cek','Jam SPV selesai cek','Waktu pengecekan SPV (menit)','Waktu HK selesai - SPV cek (menit)','Total HK start - SPV selesai (menit)','Supervisor','Jeda/pause (menit)','Jam mulai queue','Tamu menunggu sampai ready (menit)','Skip DND/Double Sign','Courtesy operator','Request PMR (stayover)','Dikembalikan ke RA','Waktu perbaikan (menit)','Tidak wajar'];
+  const head=['Tanggal','Kamar','Kategori','Status','Housekeeper','Jam HK start','Jam HK selesai','Waktu HK start-selesai (menit)','Jam SPV cek','Jam SPV selesai cek','Waktu pengecekan SPV (menit)','Waktu HK selesai - SPV cek (menit)','Total HK start - SPV selesai (menit)','Supervisor','Jeda/pause (menit)','Jam mulai queue','Tamu menunggu sampai ready (menit)','Skip DND/Double Sign','Courtesy operator','Request PMR (stayover)','Dikembalikan ke RA','Waktu perbaikan (menit)'];
   const T=x=>x==='--.--'||x==='–'?'':x.replace('.',':');
   const di=date===S.today?S.day:S.dayInfo[date],qEnd=di&&di.closed?di.closedAt:nowS();
-  const rows=done.map(r=>{const t=timesOf(r),ok=r.status==='COMPLETED';return [date,r.room,isSO(r)?'Stayover':'Checkout',ok?'Ready':isDnd(r)?dndLbl(r):ST[r.status].l,nameOf(r.assignedTo),T(t.hkStart),T(t.hkEnd),r.finishHkAt?M(t.hkDur):'',ok?T(t.spvStart):(r.spvStartAt?T(clk(r.spvStartAt)):''),ok?T(t.spvEnd):'',M(t.spvDur),M(t.wait),ok?M(t.total):'',r.spvId&&!isSO(r)?nameOf(r.spvId):'',mins(pauseOf(r)),r.queuedAt?T(clk(r.queuedAt))+(r.queueTop?' (TOP PRIORITY)':''):'',r.queuedAt?mins((ok?r.finishSpvAt:qEnd)-r.queuedAt):'',r.dndReason?`${dndLbl(r)} ${T(clk(r.dndAt))}${r.dndClearAt?'-'+T(clk(r.dndClearAt)):''} (cek ${(r.dndChecks||0)+1}x)`:'',r.csResult?`${CSL[r.csResult]} ${T(clk(r.csAt))}${r.csResult==='PMR'?' (bersih '+T(clk(r.csPmrAt))+')':''}${r.csBy?' - '+opName(r):''}`:'',r.reqPmrAt?`${T(clk(r.reqPmrAt))}${r.reqPmrBy?' - '+nameOf(r.reqPmrBy):''}`:'',r.retCount?`${r.retCount}x - ${RETL[r.retReason]||''} ${T(clk(r.retAt))}${t.ret?' - perbaikan '+T(t.redoStart)+'-'+T(t.redoEnd)+(t.redoSpvEnd?' - cek ulang '+T(t.redoSpvStart)+'-'+T(t.redoSpvEnd):''):''}${r.retBy?' - '+nameOf(r.retBy):''}${r.retNote?' ('+r.retNote+')':''}`:'',t.rework!=null?mins(t.rework):'',isOdd(r)?'Ya':'']});
+  const rows=done.map(r=>{const t=timesOf(r),ok=r.status==='COMPLETED';return [date,r.room,isSO(r)?'Stayover':'Checkout',ok?'Ready':isDnd(r)?dndLbl(r):ST[r.status].l,nameOf(r.assignedTo),T(t.hkStart),T(t.hkEnd),r.finishHkAt?M(t.hkDur):'',ok?T(t.spvStart):(r.spvStartAt?T(clk(r.spvStartAt)):''),ok?T(t.spvEnd):'',M(t.spvDur),M(t.wait),ok?M(t.total):'',r.spvId&&!isSO(r)?nameOf(r.spvId):'',mins(pauseOf(r)),r.queuedAt?T(clk(r.queuedAt))+(r.queueTop?' (TOP PRIORITY)':''):'',r.queuedAt?mins((ok?r.finishSpvAt:qEnd)-r.queuedAt):'',r.dndReason?`${dndLbl(r)} ${T(clk(r.dndAt))}${r.dndClearAt?'-'+T(clk(r.dndClearAt)):''} (cek ${(r.dndChecks||0)+1}x)`:'',r.csResult?`${CSL[r.csResult]} ${T(clk(r.csAt))}${r.csResult==='PMR'?' (bersih '+T(clk(r.csPmrAt))+')':''}${r.csBy?' - '+opName(r):''}`:'',r.reqPmrAt?`${T(clk(r.reqPmrAt))}${r.reqPmrBy?' - '+nameOf(r.reqPmrBy):''}`:'',r.retCount?`${r.retCount}x - ${RETL[r.retReason]||''} ${T(clk(r.retAt))}${t.ret?' - perbaikan '+T(t.redoStart)+'-'+T(t.redoEnd)+(t.redoSpvEnd?' - cek ulang '+T(t.redoSpvStart)+'-'+T(t.redoSpvEnd):''):''}${r.retBy?' - '+nameOf(r.retBy):''}${r.retNote?' ('+r.retNote+')':''}`:'',t.rework!=null?mins(t.rework):'']});
   const q=v=>{v=String(v==null?'':v);return /[;"\n,]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
   const csv='﻿sep=;\r\n'+[head].concat(rows).map(a=>a.map(q).join(';')).join('\r\n');
   const name='Laporan-HK-'+date+'.csv';
@@ -1134,7 +1052,7 @@ function spvStats(R,live,date){
     const mine=co.filter(inFl),done=co.filter(r=>r.spvId===id&&r.status==='COMPLETED'&&r.spvStartAt); /* stayover tidak dicek supervisor */
     const checkedMine=done.filter(inFl).length,elsewhere=done.length-checkedMine;
     const byOthers=mine.filter(r=>r.status==='COMPLETED'&&r.spvId&&r.spvId!==id).length;
-    const waits=done.filter(r=>r.finishHkAt).map(r=>mins(spvWait(r))),checks=done.map(r=>mins(spvCheck(r)));
+    const waits=done.filter(r=>r.finishHkAt).map(r=>mins(r.spvStartAt-r.finishHkAt)),checks=done.map(r=>mins(r.finishSpvAt-r.spvStartAt));
     const queue=mine.filter(r=>r.status==='INSPECTION_READY').sort((a,b)=>a.finishHkAt-b.finishHkAt);
     return {u,fl,duty,extra,handle:mine.length,checkedMine,elsewhere,byOthers,checked:done.length,pct:mine.length?Math.round(checkedMine/mine.length*100):0,
       avgWait:avg(waits),maxWait:waits.length?Math.max(...waits):null,avgCheck:avg(checks),
@@ -1666,9 +1584,6 @@ const A={
   spvToday(){S.spvDate='';render()},
   fofilter(el){S.drafts['f-fof']=el.dataset.v;S.showAll=false;render()},
   openSkip(el){S.skip={room:el.dataset.id,reason:''};render()},
-  gmPreset(el){loadGM(el.dataset.f,el.dataset.t)},
-  gmLoad(){const f=(document.getElementById('f-gmfrom')||{}).value||'',t=(document.getElementById('f-gmto')||{}).value||'';if(!f||!t||f>t){toast('Rentang tanggal tidak valid.');return}loadGM(f,t)},
-  gmExport(){exportGM()},
   openReturn(el){S.ret={room:el.dataset.id,reason:'',note:''};render()},
   closeReturn(){S.ret=null;render()},
   async doReturn(){const k=S.ret;if(!k||!k.reason)return;const note=((document.getElementById('ret-note')||{}).value||'').trim();const t0=Date.now();
