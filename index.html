@@ -14,7 +14,7 @@
   <script>
     /* Alamat server (Google Apps Script). Ganti jika membuat deployment baru. */
     window.HK_API_URL = 'https://script.google.com/macros/s/AKfycbyyFZ7k-3dElnTu4hKc6IbNF9uVi5FnZiOTJ6N4Wszv9jNoRZQYKMee7GVqjIfr-QEaRA/exec';
-    window.HK_BUILD = '20261107085304';
+    window.HK_BUILD = '20261107085940';
     /* Pengganti google.script.run: memanggil server lewat POST {fn, args} */
     (function () {
       function runner() {
@@ -200,7 +200,7 @@ async function run(fn,ok){try{const r=await fn();if(ok)toast(typeof ok==='functi
 let toastT;function toast(m){const el=document.getElementById('toast');document.getElementById('toast-msg').textContent=m;el.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>el.hidden=true,3500)}
 function renderBusy(){document.querySelectorAll('[data-busy]').forEach(el=>el.classList.toggle('spin',!!S.busy))}
 
-const CLIENT_VERSION=22; /* versi Code.gs yang dibutuhkan tampilan ini. Naikkan HANYA jika Code.gs ikut berubah (harus sama dengan APP_VERSION di Code.gs) */
+const CLIENT_VERSION=23; /* versi Code.gs yang dibutuhkan tampilan ini. Naikkan HANYA jika Code.gs ikut berubah (harus sama dengan APP_VERSION di Code.gs) */
 async function refresh(silent,again){
   if(!S.token||!S.me||S.me.mustChange)return;
   try{
@@ -670,18 +670,18 @@ function queueBalanceCard(){
 function moveSheet(){
   const r=S.rooms.find(x=>x.room===S.move.room);if(!r){S.move=null;return ''}
   const tab=S.move.tab||'swap',owner=r.assignedTo,nt=norm(r.roomType);
-  const cands=S.rooms.filter(x=>x.room!==r.room&&x.status==='PENDING'&&x.assignedTo&&x.assignedTo!==owner&&!isQ(x)&&!isDnd(x)&&norm(x.roomType)===nt)
+  const cands=S.rooms.filter(x=>x.room!==r.room&&x.status==='PENDING'&&x.assignedTo&&x.assignedTo!==owner&&!isQ(x)&&!isDnd(x)&&norm(x.roomType)===nt&&x.category===r.category) /* checkout hanya dengan checkout */
     .sort((a,b)=>hkQ(a.assignedTo)-hkQ(b.assignedTo)||hkLeft(a.assignedTo)-hkLeft(b.assignedTo)||roomSort(a,b));
   const hks=hkList().filter(h=>h.id!==owner).sort((a,b)=>hkQ(a.id)-hkQ(b.id)||hkLeft(a.id)-hkLeft(b.id)||a.name.localeCompare(b.name));
   const tabBtn=(k,l,n)=>`<button data-act="moveTab" data-v="${k}" class="flex-1 px-3 py-2 rounded-lg text-xs font-semibold ${tab===k?'bg-white text-slate-900 shadow-card':'text-slate-600'}">${l} <span class="text-slate-400">${n}</span></button>`;
   const raInfo=id=>`${hkNow(id)} · sisa ${hkLeft(id)} kamar${hkQ(id)?` · <span class="text-rose-600 font-semibold">${hkQ(id)} queue</span>`:''}`;
   const list=tab==='swap'
     ?(cands.length?cands.map(x=>`<div class="flex items-center gap-3 rounded-xl ring-1 ring-inset ring-slate-200 px-3 py-2.5"><div class="w-16 shrink-0"><p class="text-lg font-extrabold text-slate-900 leading-none">${esc(x.room)}</p><p class="text-[10px] text-slate-500 mt-1">${esc(x.roomType)} · ${catOf(x.category).l}</p></div><div class="flex-1 min-w-0 text-xs"><p class="font-semibold text-slate-900 truncate">${esc(nameOf(x.assignedTo))}</p><p class="text-slate-500 truncate">${raInfo(x.assignedTo)}</p></div><button data-act="doSwap" data-a="${esc(r.room)}" data-b="${esc(x.room)}" class="${bc('dark','sm')} shrink-0">⇄ Tukar</button></div>`).join('')
-      :`<p class="text-sm text-slate-500 py-4 text-center">Tidak ada kamar tipe <b>${esc(r.roomType)}</b> yang belum dimulai milik RA lain. Gunakan <b>Alihkan ke RA lain</b>.</p>`)
+      :`<p class="text-sm text-slate-500 py-4 text-center">Tidak ada kamar ${catOf(r.category).l.toLowerCase()} tipe <b>${esc(r.roomType)}</b> yang belum dimulai milik RA lain. Gunakan <b>Alihkan ke RA lain</b>.</p>`)
     :(hks.length?hks.map(h=>`<div class="flex items-center gap-3 rounded-xl ring-1 ring-inset ring-slate-200 px-3 py-2.5">${avatar(h.name,'w-8 h-8 text-[10px]')}<div class="flex-1 min-w-0 text-xs"><p class="font-semibold text-slate-900 truncate">${esc(h.name)}</p><p class="text-slate-500 truncate">${raInfo(h.id)}</p></div><button data-act="doReassign" data-id="${esc(r.room)}" data-to="${h.id}" class="${bc('soft','sm')} shrink-0">Alihkan</button></div>`).join(''):'<p class="text-sm text-slate-500 py-4 text-center">Tidak ada housekeeper lain yang aktif.</p>');
   return sheet(`${sheetHead(`Alihkan kamar ${esc(r.room)}${isTop(r)?' <span class="text-[11px] font-extrabold text-white bg-red-700 rounded px-1.5 py-0.5 align-middle">★ TOP</span>':''}`,`${esc(r.roomType)} · milik ${esc(nameOf(owner))} (${hkQ(owner)} queue, sisa ${hkLeft(owner)} kamar)${isQ(r)?` · tamu menunggu ${waitSpan(r)} mnt`:''}`,'closeMove')}
-    <div class="px-5 sm:px-6 pb-6 space-y-3 overflow-y-auto"><div class="flex gap-1 p-1 rounded-xl bg-slate-200/60">${tabBtn('swap','Tukar (tipe sama)',cands.length)}${tabBtn('move','Alihkan ke RA lain',hks.length)}</div>
-      <p class="text-xs text-slate-500">${tab==='swap'?`Kamar ${esc(r.room)} pindah ke RA pilihan, dan kamarnya pindah ke ${esc(nameOf(owner))}. Hanya kamar tipe <b>${esc(r.roomType)}</b> yang belum dimulai. RA dengan queue dan sisa kamar paling sedikit tampil di atas.`:`Kamar ${esc(r.room)} pindah ke RA pilihan tanpa tukar.`}</p>
+    <div class="px-5 sm:px-6 pb-6 space-y-3 overflow-y-auto"><div class="flex gap-1 p-1 rounded-xl bg-slate-200/60">${tabBtn('swap','Tukar ('+catOf(r.category).l.toLowerCase()+' tipe sama)',cands.length)}${tabBtn('move','Alihkan ke RA lain',hks.length)}</div>
+      <p class="text-xs text-slate-500">${tab==='swap'?`Kamar ${esc(r.room)} pindah ke RA pilihan, dan kamarnya pindah ke ${esc(nameOf(owner))}. Hanya kamar <b>${catOf(r.category).l.toLowerCase()}</b> tipe <b>${esc(r.roomType)}</b> yang belum dimulai. RA dengan queue dan sisa kamar paling sedikit tampil di atas.`:`Kamar ${esc(r.room)} pindah ke RA pilihan tanpa tukar.`}</p>
       <div class="space-y-2 max-h-[50vh] overflow-y-auto">${list}</div></div>`,{close:'closeMove',size:'sm:max-w-lg',lbl:'Alihkan kamar'});
 }
 
