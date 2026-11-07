@@ -14,7 +14,7 @@
   <script>
     /* Alamat server (Google Apps Script). Ganti jika membuat deployment baru. */
     window.HK_API_URL = 'https://script.google.com/macros/s/AKfycbyyFZ7k-3dElnTu4hKc6IbNF9uVi5FnZiOTJ6N4Wszv9jNoRZQYKMee7GVqjIfr-QEaRA/exec';
-    window.HK_BUILD = '20261107130815';
+    window.HK_BUILD = '20261107131127';
     /* Pengganti google.script.run: memanggil server lewat POST {fn, args} */
     (function () {
       function runner() {
@@ -323,8 +323,10 @@ function raByFloor(rooms){const m={};for(const r of rooms){if(!r.assignedTo)cont
 function raFloorCard(mf){
   const m=raByFloor(S.rooms),fl=Object.keys(m).sort(cmpFloor);if(!fl.length)return '';
   const row=f=>{const list=Object.values(m[f]).sort((a,b)=>nameOf(a.id).localeCompare(nameOf(b.id)));return `<div class="flex flex-col sm:flex-row sm:items-start gap-2 py-2.5 border-t border-slate-100 first:border-0"><span class="shrink-0 w-14 text-sm font-extrabold ${mf&&mf.has(f)?'text-violet-700':'text-slate-900'}">Lt ${esc(f)}</span><div class="flex flex-wrap gap-1.5 min-w-0">${list.map(a=>`<span class="inline-flex items-center gap-1.5 rounded-full bg-slate-50 ring-1 ring-inset ring-slate-200 pl-1 pr-2.5 py-1 text-xs">${avatar(nameOf(a.id),'w-5 h-5 text-[8px]')}<b class="text-slate-900">${esc(nameOf(a.id))}</b><span class="text-slate-500">${a.done}/${a.n}</span>${a.now?`<span class="text-amber-700 font-semibold">· ${esc(a.now)}</span>`:''}</span>`).join('')}</div></div>`};
-  const mine=mf?fl.filter(f=>mf.has(f)):fl,rest=mf?fl.filter(f=>!mf.has(f)):[];
-  return `<details class="group mb-4 bg-white rounded-2xl ring-1 ring-slate-200/80 shadow-card" ${S.raFloorOpen===false?'':'open'}><summary data-act="raFloorTog" data-k="raFloorOpen" class="flex items-center gap-2 px-4 sm:px-5 py-3 cursor-pointer">${ic('users','w-4 h-4 text-violet-600')}<h3 class="text-sm font-bold text-slate-900">RA per lantai</h3><span class="text-xs text-slate-500">${mf?'lantai Anda di atas':'hari ini'} · selesai/total · kamar yang sedang dibersihkan</span><span class="ml-auto text-slate-400 group-open:rotate-90 transition">${ic('chevron')}</span></summary>
+  /* supervisor: hanya lantai yang ia pegang (termasuk lantai yang dialihkan karena SPV-nya tidak incharge). Admin: semua lantai */
+  const spvMode=S.me.role==='supervisor'&&mf,held=spvMode?new Set(S.rooms.filter(onMyFloor).map(floorOf).concat([...mf])):null;
+  const mine=spvMode?fl.filter(f=>held.has(f)):mf?fl.filter(f=>mf.has(f)):fl,rest=spvMode?[]:mf?fl.filter(f=>!mf.has(f)):[];
+  return `<details class="group mb-4 bg-white rounded-2xl ring-1 ring-slate-200/80 shadow-card" ${S.raFloorOpen===false?'':'open'}><summary data-act="raFloorTog" data-k="raFloorOpen" class="flex items-center gap-2 px-4 sm:px-5 py-3 cursor-pointer">${ic('users','w-4 h-4 text-violet-600')}<h3 class="text-sm font-bold text-slate-900">RA per lantai</h3><span class="text-xs text-slate-500">${spvMode?'lantai yang Anda pegang':mf?'lantai Anda di atas':'hari ini'} · selesai/total · kamar yang sedang dibersihkan</span><span class="ml-auto text-slate-400 group-open:rotate-90 transition">${ic('chevron')}</span></summary>
     <div class="px-4 sm:px-5 pb-3">${mine.map(row).join('')||'<p class="text-xs text-slate-500 py-2">Belum ada kamar di lantai Anda.</p>'}${rest.length?`<details class="mt-1" ${S.raRestOpen?'open':''}><summary data-act="raFloorTog" data-k="raRestOpen" class="text-xs font-semibold text-brand-700 cursor-pointer py-1.5">Lantai lain (${rest.length})</summary>${rest.map(row).join('')}</details>`:''}</div></details>`;
 }
 const hkDone=r=>r.status==='INSPECTION_READY'||r.status==='INSPECTING'||r.status==='COMPLETED'||r.status==='REFUSED';
