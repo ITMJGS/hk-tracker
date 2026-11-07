@@ -14,7 +14,7 @@
   <script>
     /* Alamat server (Google Apps Script). Ganti jika membuat deployment baru. */
     window.HK_API_URL = 'https://script.google.com/macros/s/AKfycbyyFZ7k-3dElnTu4hKc6IbNF9uVi5FnZiOTJ6N4Wszv9jNoRZQYKMee7GVqjIfr-QEaRA/exec';
-    window.HK_BUILD = '20261107141951';
+    window.HK_BUILD = '20261107154629';
     /* Pengganti google.script.run: memanggil server lewat POST {fn, args} */
     (function () {
       function runner() {
@@ -683,12 +683,14 @@ const nextDay=k=>{const [y,m,d]=k.split('-').map(Number);return new Date(Date.UT
 /* ================= QUEUE BANNER ================= */
 function queueBanner(list,title,sub){
   if(!list.length)return '';
+  /* banyak queue: kartu turun ke baris berikutnya (tidak terpotong di tepi), maksimal 2 baris lalu tombol "Tampilkan semua" */
+  const LIM=window.innerWidth>=1280?12:window.innerWidth>=1024?8:window.innerWidth>=640?6:4,more=list.length-LIM,shown=S.qAll||more<=0?list:list.slice(0,LIM);
   return `<section class="mb-4 rounded-2xl bg-rose-600 text-white shadow-lift overflow-hidden" role="alert">
     <div class="px-4 sm:px-5 py-3.5 flex items-center gap-3"><span class="relative w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center shrink-0">${ic('bell','w-5 h-5')}<span class="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-amber-300 animate-ping"></span></span>
       <div class="min-w-0 flex-1"><p class="font-extrabold">${title}</p><p class="text-xs text-rose-100">${sub}</p></div></div>
-    <div class="bg-rose-700/40 px-2 sm:px-3 py-2 flex gap-2 overflow-x-auto no-scrollbar">${list.map(r=>`<div class="shrink-0 rounded-xl bg-white text-slate-900 px-3 py-2 min-w-[150px]">
+    <div class="bg-rose-700/40 px-2 sm:px-3 py-2 grid gap-2 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">${shown.map(r=>`<div class="min-w-0 rounded-xl bg-white text-slate-900 px-3 py-2">
       <div class="flex items-center justify-between gap-2"><span class="text-lg font-extrabold">${esc(r.room)}${isTop(r)?'<span class="ml-1 align-middle text-[10px] font-extrabold text-white bg-red-700 rounded px-1 py-0.5">★ TOP</span>':''}</span><span class="text-xs font-bold text-rose-600">${waitSpan(r)} mnt</span></div>
-      <p class="text-[11px] text-slate-500 truncate">${esc(nameOf(r.assignedTo))}</p><div class="mt-1 flex items-center justify-between gap-2">${rStChip(r)}${canReassign()&&r.status==='PENDING'?`<button data-act="openMove" data-id="${esc(r.room)}" class="text-[11px] font-bold text-brand-700 hover:underline whitespace-nowrap">⇄ Alihkan</button>`:''}</div></div>`).join('')}</div></section>`;
+      <p class="text-[11px] text-slate-500 truncate">${esc(nameOf(r.assignedTo))}</p><div class="mt-1 flex flex-wrap items-center justify-between gap-x-2 gap-y-1">${rStChip(r)}${canReassign()&&r.status==='PENDING'?`<button data-act="openMove" data-id="${esc(r.room)}" class="text-[11px] font-bold text-brand-700 hover:underline whitespace-nowrap">⇄ Alihkan</button>`:''}</div></div>`).join('')}</div>${more>0?`<button data-act="qAllTog" class="w-full bg-rose-700/40 border-t border-white/10 py-2 text-xs font-bold text-white hover:bg-rose-700/60">${S.qAll?'Tampilkan lebih sedikit':`Tampilkan semua (${list.length} kamar)`}</button>`:''}</section>`;
 }
 /* ---- Alihkan / tukar kamar queue (admin, PENGUASA, supervisor) ---- */
 const canReassign=()=>isAdmin(); /* supervisor tidak bisa menukar / mengalihkan kamar */
@@ -1602,6 +1604,7 @@ const A={
   spvToday(){S.spvDate='';render()},
   fofilter(el){S.drafts['f-fof']=el.dataset.v;S.showAll=false;render()},
   openSkip(el){S.skip={room:el.dataset.id,reason:''};render()},
+  qAllTog(){S.qAll=!S.qAll;render()},
   openReturn(el){S.ret={room:el.dataset.id,reason:'',note:''};render()},
   closeReturn(){S.ret=null;render()},
   async doReturn(){const k=S.ret;if(!k||!k.reason)return;const note=((document.getElementById('ret-note')||{}).value||'').trim();const t0=Date.now();
@@ -1923,6 +1926,7 @@ document.addEventListener('dragover',e=>{const d=e.target.closest&&e.target.clos
 document.addEventListener('dragleave',e=>{const d=e.target.closest&&e.target.closest('#drop');if(d)d.classList.remove('!border-brand-500','!bg-brand-50')});
 document.addEventListener('drop',e=>{if(e.target.closest&&e.target.closest('#drop')){e.preventDefault();handleFile(e.dataTransfer.files&&e.dataTransfer.files[0])}});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&(S.modal||S.confirm||S.acct||S.more||S.addUser||S.qAlert||S.editUser)){if(S.qAlert)markSeen(S.qAlert);Object.assign(S,{modal:null,confirm:null,acct:false,more:false,addUser:false,qAlert:null,editUser:null});render()}});
+let rsT;window.addEventListener('resize',()=>{clearTimeout(rsT);rsT=setTimeout(render,200)});
 document.addEventListener('visibilitychange',()=>{applyWake();if(!document.hidden)checkUpdate();if(!document.hidden&&S.me&&nowS()-S.lastSync>10000)refresh(true)});
 setInterval(()=>{document.querySelectorAll('[data-dnd]').forEach(el=>{el.textContent='· '+dndLeftAt(+el.dataset.dnd)});document.querySelectorAll('[data-since]').forEach(el=>{const s=+el.dataset.since;if(s)el.textContent=timer(nowS()-s)});const c=fmtClock();document.querySelectorAll('[data-clock]').forEach(el=>el.textContent=c);document.querySelectorAll('[data-wait]').forEach(el=>{const s=+el.dataset.wait;if(s)el.textContent=mins(nowS()-s)})},1000);
 /* sinkron jam server saat dibuka & tiap 10 menit (juga di halaman login) */
