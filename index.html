@@ -14,7 +14,7 @@
   <script>
     /* Alamat server (Google Apps Script). Ganti jika membuat deployment baru. */
     window.HK_API_URL = 'https://script.google.com/macros/s/AKfycbyyFZ7k-3dElnTu4hKc6IbNF9uVi5FnZiOTJ6N4Wszv9jNoRZQYKMee7GVqjIfr-QEaRA/exec';
-    window.HK_BUILD = '20261107160709';
+    window.HK_BUILD = '20261107175318';
     /* Pengganti google.script.run: memanggil server lewat POST {fn, args} */
     (function () {
       function runner() {
@@ -975,7 +975,7 @@ function viewReport(){
   const date=S.reportDate||S.today,all=date===S.today?S.rooms:S.report[date];
   const hasDone=!!(all&&all.length);
   const info=date===S.today?S.day:S.dayInfo[date];
-  const head=`<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4"><p class="text-sm text-slate-500 lg:hidden">${VIEWS.report.d}</p><div class="flex items-center gap-2 sm:ml-auto">${ic('calendar','w-4 h-4 text-slate-400')}<input type="date" id="f-rdate" value="${date}" aria-label="Tanggal laporan" class="${selectCls} flex-1 sm:flex-none">${hasDone?`<button data-act="exportReport" class="${bc('soft','md')} whitespace-nowrap">${ic('file','w-4 h-4')} Unduh Excel</button>`:''}</div></div>`;
+  const head=`<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4"><p class="text-sm text-slate-500 lg:hidden">${VIEWS.report.d}</p><div class="flex flex-wrap items-center gap-2 sm:ml-auto">${ic('calendar','w-4 h-4 text-slate-400')}<input type="date" id="f-rdate" value="${date}" aria-label="Tanggal laporan" class="${selectCls} flex-1 sm:flex-none">${hasDone?`<button data-act="exportReport" class="${bc('soft','md')} whitespace-nowrap" title="Ringkasan + detail per kamar (.xlsx)">${ic('file','w-4 h-4')} Excel</button><button data-act="exportPdf" class="${bc('dark','md')} whitespace-nowrap" title="Laporan rapi siap dikirim ke GM">${ic('file','w-4 h-4')} PDF</button>`:''}</div></div>`;
   const days=(S.days||[]).slice(0,14);
   const strip=days.length?`<div class="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 mb-4">${days.map(x=>`<button data-act="openReportDate" data-d="${x.date}" class="shrink-0 text-left rounded-xl px-3 py-2 ring-1 ring-inset ${x.date===date?'bg-brand-950 text-white ring-brand-950':'bg-white text-slate-700 ring-slate-200 hover:ring-brand-300'}"><span class="flex items-center gap-1 text-xs font-bold">${x.closed?ic('lock','w-3 h-3'):ic('unlock','w-3 h-3')} ${esc(fmtShort(x.date))}</span><span class="block text-[11px] ${x.date===date?'text-brand-200':'text-slate-500'}">${x.ready}/${x.total} ready</span></button>`).join('')}</div>`:'';
   if(!all){if(!S.repLoading[date]){S.repLoading[date]=1;loadReport(date).finally(()=>{delete S.repLoading[date]})}return head+strip+skeleton()}
@@ -1042,22 +1042,163 @@ function reportTable(done){
       ${td(D(t.wait),'text-right text-sky-700 whitespace-nowrap')}${td(dur(t.total),'text-right font-bold text-brand-700 whitespace-nowrap')}
       ${td(r.queuedAt?dur(r.finishSpvAt-r.queuedAt):'–','text-right pr-5 whitespace-nowrap '+(r.queuedAt?'font-bold text-rose-700':'text-slate-300'))}</tr>`}).join('')}</tbody></table></div>`;
 }
-/* Unduh laporan sebagai CSV (dibuka di Excel / Google Sheets). Durasi dalam menit agar bisa dihitung. */
-function exportReport(){
-  const date=S.reportDate||S.today,all=(date===S.today?S.rooms:S.report[date])||[];
-  const done=all.slice().sort((a,b)=>(a.status==='COMPLETED'?0:1)-(b.status==='COMPLETED'?0:1)||roomSort(a,b));
-  if(!done.length){toast('Tidak ada data untuk diunduh.');return}
+/* ================= LAPORAN UNDUH: Excel (.xlsx, ringkasan + detail) & PDF siap kirim ke GM ================= */
+const T_=x=>!x||x==='--.--'||x==='–'?'':x.replace('.',':');
+function reportData(date){
+  const all=((date===S.today?S.rooms:S.report[date])||[]).slice().sort(roomSort);
+  const di=date===S.today?S.day:S.dayInfo[date],end=di&&di.closed?di.closedAt:nowS();
+  const CO=all.filter(r=>r.category==='CHECKOUT'),SO=all.filter(r=>r.category==='STAYOVER');
+  const rd=a=>a.filter(r=>r.status==='COMPLETED'),rf=a=>a.filter(r=>r.status==='REFUSED');
+  const pct=(a,b)=>b?Math.round(a/b*100):0,avg=a=>a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length):null;
+  const lo=a=>a.length?Math.min(...a):null,hi=a=>a.length?Math.max(...a):null;
+  const cleaned=a=>a.filter(r=>r.startAt&&r.finishHkAt&&r.status!=='REFUSED');
+  const cl=a=>cleaned(a).map(r=>mins(hkSpan(r))),tot=a=>rd(a).filter(r=>r.startAt).map(r=>mins(totalSpan(r)));
+  const spvDone=rd(CO).filter(r=>r.spvStartAt),waitM=spvDone.filter(r=>r.finishHkAt).map(r=>mins(spvWait(r))),chkM=spvDone.map(r=>mins(spvCheck(r)));
+  const cat=(l,a)=>({l,total:a.length,ready:rd(a).length,pct:pct(rd(a).length,a.length),refused:rf(a).length,left:a.length-rd(a).length-rf(a).length});
+  const statusRows=[['Belum mulai',all.filter(r=>r.status==='PENDING'&&!isDnd(r)).length],['DND / Double Sign',all.filter(isDnd).length],['Sedang dibersihkan',all.filter(r=>r.status==='CLEANING').length],
+    ['Dijeda',all.filter(r=>r.status==='PAUSED').length],['Menunggu cek SPV',all.filter(r=>r.status==='INSPECTION_READY').length],['Sedang dicek SPV',all.filter(r=>r.status==='INSPECTING').length]];
+  const queue=all.filter(r=>r.queuedAt).sort((a,b)=>a.queuedAt-b.queuedAt).map(r=>{const ok=r.status==='COMPLETED';return {room:r.room,hk:nameOf(r.assignedTo),top:!!r.queueTop,start:T_(clk(r.queuedAt)),ready:ok?T_(clk(r.finishSpvAt)):'',wait:mins((ok?r.finishSpvAt:end)-r.queuedAt),status:ok?'Ready':(isDnd(r)?dndLbl(r):ST[r.status].l)}});
+  const qW=queue.map(q=>q.wait);
+  const byHk={};all.forEach(r=>{const k=r.assignedTo||'~'+(r.attendantName||'-');(byHk[k]=byHk[k]||[]).push(r)});
+  const perRA=Object.entries(byHk).map(([k,a])=>({name:k[0]==='~'?k.slice(1):nameOf(k),total:a.length,co:a.filter(r=>r.category==='CHECKOUT').length,so:a.filter(r=>r.category==='STAYOVER').length,
+    ready:rd(a).length,refused:rf(a).length,cCO:avg(cl(a.filter(r=>r.category==='CHECKOUT'))),cSO:avg(cl(a.filter(r=>r.category==='STAYOVER'))),pause:mins(a.reduce((s,r)=>s+pauseOf(r),0))})).sort((a,b)=>b.total-a.total||a.name.localeCompare(b.name));
+  const bySpv={};spvDone.forEach(r=>(bySpv[r.spvId]=bySpv[r.spvId]||[]).push(r));
+  const perSPV=Object.entries(bySpv).map(([id,a])=>{const w=a.filter(r=>r.finishHkAt).map(r=>mins(spvWait(r))),c=a.map(r=>mins(spvCheck(r)));return {name:nameOf(id),checked:a.length,avgWait:avg(w),maxWait:hi(w),avgCheck:avg(c)}}).sort((a,b)=>b.checked-a.checked);
+  const notReady=all.filter(r=>r.status!=='COMPLETED'&&r.status!=='REFUSED').map(r=>({room:r.room,cat:isSO(r)?'Stayover':'Checkout',status:isDnd(r)?dndLbl(r)+' (dicek '+((r.dndChecks||0)+1)+'x)':ST[r.status].l,hk:nameOf(r.assignedTo),queue:isQ(r)?(r.queueTop?'TOP PRIORITY':'Tamu menunggu'):''}));
+  const refused=rf(all).map(r=>({room:r.room,hk:nameOf(r.assignedTo),at:T_(clk(r.refusedAt)),via:r.refusedVia==='COURTESY'?'Konfirmasi operator':'RA'}));
   const M=v=>v==null?'':mins(v);
-  const head=['Tanggal','Kamar','Kategori','Status','Housekeeper','Jam HK start','Jam HK selesai','Jeda/pause (menit)','Waktu bersih pengerjaan HK (menit)','Jam SPV cek','Jam SPV selesai cek','Waktu pengecekan SPV (menit)','Waktu HK selesai - SPV cek (menit)','Total HK start - SPV selesai (menit)','Supervisor','Jam mulai queue','Tamu menunggu sampai ready (menit)','Skip DND/Double Sign','Courtesy operator','Request PMR (stayover)','Dikembalikan ke RA','Waktu perbaikan (menit)'];
-  const T=x=>x==='--.--'||x==='–'?'':x.replace('.',':');
-  const di=date===S.today?S.day:S.dayInfo[date],qEnd=di&&di.closed?di.closedAt:nowS();
-  const rows=done.map(r=>{const t=timesOf(r),ok=r.status==='COMPLETED';return [date,r.room,isSO(r)?'Stayover':'Checkout',ok?'Ready':isDnd(r)?dndLbl(r):ST[r.status].l,nameOf(r.assignedTo),T(t.hkStart),T(t.hkEnd),mins(pauseOf(r)),r.finishHkAt?M(t.hkDur):'',ok?T(t.spvStart):(r.spvStartAt?T(clk(r.spvStartAt)):''),ok?T(t.spvEnd):'',M(t.spvDur),M(t.wait),ok?M(t.total):'',r.spvId&&!isSO(r)?nameOf(r.spvId):'',r.queuedAt?T(clk(r.queuedAt))+(r.queueTop?' (TOP PRIORITY)':''):'',r.queuedAt?mins((ok?r.finishSpvAt:qEnd)-r.queuedAt):'',r.dndReason?`${dndLbl(r)} ${T(clk(r.dndAt))}${r.dndClearAt?'-'+T(clk(r.dndClearAt)):''} (cek ${(r.dndChecks||0)+1}x)`:'',r.csResult?`${CSL[r.csResult]} ${T(clk(r.csAt))}${r.csResult==='PMR'?' (bersih '+T(clk(r.csPmrAt))+')':''}${r.csBy?' - '+opName(r):''}`:'',r.reqPmrAt?`${T(clk(r.reqPmrAt))}${r.reqPmrBy?' - '+nameOf(r.reqPmrBy):''}`:'',r.retCount?`${r.retCount}x - ${RETL[r.retReason]||''} ${T(clk(r.retAt))}${t.ret?' - perbaikan '+T(t.redoStart)+'-'+T(t.redoEnd)+(t.redoSpvEnd?' - cek ulang '+T(t.redoSpvStart)+'-'+T(t.redoSpvEnd):''):''}${r.retBy?' - '+nameOf(r.retBy):''}${r.retNote?' ('+r.retNote+')':''}`:'',t.rework!=null?mins(t.rework):'']});
-  const q=v=>{v=String(v==null?'':v);if(/^[=+\-@]/.test(v)&&!/^-?\d+([.,]\d+)?$/.test(v))v="'"+v; /* cegah teks terbaca sebagai rumus di Excel */return /[;"\n,]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
-  const csv='﻿sep=;\r\n'+[head].concat(rows).map(a=>a.map(q).join(';')).join('\r\n');
-  const name='Laporan-HK-'+date+'.csv';
-  try{const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);toast('Laporan diunduh: '+name)}
-  catch(e){toast('Gagal mengunduh. Buka aplikasi lewat link GitHub lalu coba lagi.')}
+  const head=['Kamar','Kategori','Status','Housekeeper','Jam HK start','Jam HK selesai','Jeda (mnt)','Waktu bersih pengerjaan (mnt)','Jam SPV cek','Jam SPV selesai cek','Lama cek SPV (mnt)','HK selesai - SPV cek (mnt)','Total HK start - SPV selesai (mnt)','Supervisor','Jam mulai queue','Tamu menunggu (mnt)','DND / Double Sign','Courtesy operator','Request PMR','Dikembalikan ke RA','Waktu perbaikan (mnt)'];
+  const done=all.slice().sort((a,b)=>(a.status==='COMPLETED'?0:1)-(b.status==='COMPLETED'?0:1)||roomSort(a,b));
+  const rows=done.map(r=>{const t=timesOf(r),ok=r.status==='COMPLETED';return [r.room,isSO(r)?'Stayover':'Checkout',ok?'Ready':isDnd(r)?dndLbl(r):ST[r.status].l,nameOf(r.assignedTo),T_(t.hkStart),T_(t.hkEnd),r.startAt?mins(pauseOf(r)):'',r.finishHkAt?M(t.hkDur):'',ok?T_(t.spvStart):(r.spvStartAt?T_(clk(r.spvStartAt)):''),ok?T_(t.spvEnd):'',t.spvDur==null?'':M(t.spvDur),t.wait==null?'':M(t.wait),ok&&r.startAt?M(t.total):'',r.spvId&&!isSO(r)?nameOf(r.spvId):'',r.queuedAt?T_(clk(r.queuedAt))+(r.queueTop?' (TOP)':''):'',r.queuedAt?mins((ok?r.finishSpvAt:end)-r.queuedAt):'',r.dndReason?`${dndLbl(r)} ${T_(clk(r.dndAt))}${r.dndClearAt?'-'+T_(clk(r.dndClearAt)):''} (cek ${(r.dndChecks||0)+1}x)`:'',r.csResult?`${CSL[r.csResult]} ${T_(clk(r.csAt))}${r.csResult==='PMR'?' (bersih '+T_(clk(r.csPmrAt))+')':''}${r.csBy?' - '+opName(r):''}`:'',r.reqPmrAt?`${T_(clk(r.reqPmrAt))}${r.reqPmrBy?' - '+nameOf(r.reqPmrBy):''}`:'',r.retCount?`${r.retCount}x - ${RETL[r.retReason]||''} ${T_(clk(r.retAt))}${r.retBy?' - '+nameOf(r.retBy):''}${r.retNote?' ('+r.retNote+')':''}`:'',t.rework!=null?mins(t.rework):'']});
+  return {date,dateLong:fmtDate(date),closed:!!(di&&di.closed),statusTxt:di&&di.closed?`Ditutup ${new Date(di.closedAt).toLocaleString('id-ID',{timeZone:'Asia/Jakarta',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})} oleh ${di.closedBy}`:'Belum ditutup (data sementara)',
+    made:new Date(nowS()).toLocaleString('id-ID',{timeZone:'Asia/Jakarta',day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'}),by:S.me?S.me.name:'',
+    cats:[cat('Checkout',CO),cat('Stayover',SO),cat('Total',all)],statusRows,dnd:all.filter(isDnd).length,
+    times:[['Waktu bersih pengerjaan (tanpa jeda)',avg(cl(CO)),avg(cl(SO)),lo(cl(CO).concat(cl(SO))),hi(cl(CO).concat(cl(SO)))],['Total RA mulai - kamar ready',avg(tot(CO)),avg(tot(SO)),lo(tot(CO).concat(tot(SO))),hi(tot(CO).concat(tot(SO)))],
+      ['HK selesai - SPV mulai cek (checkout)',avg(waitM),null,lo(waitM),hi(waitM)],['Lama cek SPV (checkout)',avg(chkM),null,lo(chkM),hi(chkM)]],
+    queue,qStat:{n:queue.length,avg:avg(qW),lo:lo(qW),hi:hi(qW),top:queue.filter(q=>q.top).length},perRA,perSPV,notReady,refused,head,rows,total:all.length};
 }
+function downloadBlob(blob,name){try{const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);toast('Laporan diunduh: '+name)}catch(e){toast('Gagal mengunduh. Buka aplikasi lewat link GitHub lalu coba lagi.')}}
+/* ---- penulis .xlsx tanpa library (SpreadsheetML + zip) ---- */
+const CRC_T=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+const crc32=b=>{let c=0xFFFFFFFF;for(let i=0;i<b.length;i++)c=CRC_T[(c^b[i])&255]^(c>>>8);return (c^0xFFFFFFFF)>>>0};
+function zipStore(files,type){
+  const enc=new TextEncoder(),out=[],cen=[];let off=0;
+  files.forEach(f=>{const nm=enc.encode(f.name),data=typeof f.data==='string'?enc.encode(f.data):f.data,crc=crc32(data);
+    const h=new DataView(new ArrayBuffer(30));h.setUint32(0,0x04034b50,true);h.setUint16(4,20,true);h.setUint16(6,0x0800,true);h.setUint16(8,0,true);h.setUint16(10,0,true);h.setUint16(12,0x21,true);
+    h.setUint32(14,crc,true);h.setUint32(18,data.length,true);h.setUint32(22,data.length,true);h.setUint16(26,nm.length,true);h.setUint16(28,0,true);out.push(h.buffer,nm,data);
+    const c=new DataView(new ArrayBuffer(46));c.setUint32(0,0x02014b50,true);c.setUint16(4,20,true);c.setUint16(6,20,true);c.setUint16(8,0x0800,true);c.setUint16(10,0,true);c.setUint16(12,0,true);c.setUint16(14,0x21,true);
+    c.setUint32(16,crc,true);c.setUint32(20,data.length,true);c.setUint32(24,data.length,true);c.setUint16(28,nm.length,true);c.setUint32(42,off,true);cen.push(c.buffer,nm);off+=30+nm.length+data.length});
+  const csz=cen.reduce((s,x)=>s+(x.byteLength||x.length),0),e=new DataView(new ArrayBuffer(22));e.setUint32(0,0x06054b50,true);e.setUint16(8,files.length,true);e.setUint16(10,files.length,true);e.setUint32(12,csz,true);e.setUint32(16,off,true);
+  return new Blob([...out,...cen,e.buffer],{type});
+}
+const xe=s=>String(s).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const xcol=i=>{let s='';i++;while(i){const m=(i-1)%26;s=String.fromCharCode(65+m)+s;i=Math.floor((i-1)/26)}return s};
+/* style: 0 biasa · 1 judul · 2 keterangan abu · 3 header tabel · 4 teks berbingkai · 5 angka berbingkai · 6 judul bagian · 7 teks tebal berbingkai · 8 angka tebal berbingkai · 9 persen · 10 persen tebal */
+function xlSheet(rows,o){
+  o=o||{};const merges=[];let maxC=0;
+  const data=rows.map((row,ri)=>{if(!row)return `<row r="${ri+1}"/>`;maxC=Math.max(maxC,row.length);return `<row r="${ri+1}"${row.ht?` ht="${row.ht}" customHeight="1"`:''}>`+row.map((c,ci)=>{
+    if(c==null||c==='')return '';const v=typeof c==='object'?c.v:c,s=typeof c==='object'?c.s||0:0,ref=xcol(ci)+(ri+1);if(typeof c==='object'&&c.span)merges.push(`${ref}:${xcol(ci+c.span-1)}${ri+1}`);
+    if(v==null||v==='')return `<c r="${ref}" s="${s}"/>`;
+    if(typeof v==='number'&&isFinite(v))return `<c r="${ref}" s="${s}"><v>${v}</v></c>`;
+    return `<c r="${ref}" s="${s}" t="inlineStr"><is><t xml:space="preserve">${xe(v)}</t></is></c>`}).join('')+'</row>'}).join('');
+  const cols=o.widths?`<cols>${o.widths.map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join('')}</cols>`:'';
+  const pane=o.freeze?`<sheetViews><sheetView workbookViewId="0"><pane ySplit="${o.freeze}" topLeftCell="A${o.freeze+1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>`:'<sheetViews><sheetView workbookViewId="0" showGridLines="0"/></sheetViews>';
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">${pane}<sheetFormatPr defaultRowHeight="15"/>${cols}<sheetData>${data}</sheetData>${o.filter?`<autoFilter ref="${o.filter}"/>`:''}${merges.length?`<mergeCells count="${merges.length}">${merges.map(m=>`<mergeCell ref="${m}"/>`).join('')}</mergeCells>`:''}<pageMargins left="0.4" right="0.4" top="0.5" bottom="0.5" header="0.3" footer="0.3"/><pageSetup orientation="landscape" paperSize="9" fitToWidth="1" fitToHeight="0"/></worksheet>`;
+}
+function exportXlsx(){
+  const date=S.reportDate||S.today,D=reportData(date);
+  if(!D.total){toast('Tidak ada data untuk diunduh.');return}
+  const H=t=>({v:t,s:3}),tx=v=>({v:v==null?'':v,s:4}),nm=v=>({v:v==null?'':v,s:5}),bt=v=>({v,s:7}),bn=v=>({v:v==null?'':v,s:8}),sec=t=>[{v:t,s:6,span:6}];
+  /* Ringkasan */
+  const R=[[{v:'Laporan Harian Housekeeping',s:1,span:6}],[{v:D.dateLong,s:2,span:6}],[{v:D.statusTxt+' · dibuat '+D.made+(D.by?' oleh '+D.by:''),s:2,span:6}],null,
+    sec('Status kamar'),[H('Kategori'),H('Total kamar'),H('Ready'),H('% ready'),H('Belum ready'),H('Service Refused')],
+    ...D.cats.map((c,i)=>{const f=i===2?bn:nm;return [i===2?bt(c.l):tx(c.l),f(c.total),f(c.ready),{v:c.total?c.ready/c.total:0,s:i===2?10:9},f(c.left),f(c.refused)]}),null,
+    sec('Rata-rata waktu (menit)'),[H('Metrik'),H('Checkout'),H('Stayover'),H('Tercepat'),H('Terlama'),H('')],...D.times.map(t=>[tx(t[0]),nm(t[1]),nm(t[2]),nm(t[3]),nm(t[4]),{v:'',s:0}]),null,
+    sec('Kamar belum ready'),[H('Status'),H('Jumlah')],...D.statusRows.map(s=>[tx(s[0]),nm(s[1])]),null,
+    sec('Tamu menunggu (Queue)'),[H('Jumlah kamar'),H('Top Priority'),H('Rata-rata tunggu (mnt)'),H('Tercepat (mnt)'),H('Terlama (mnt)')],[nm(D.qStat.n),nm(D.qStat.top),nm(D.qStat.avg),nm(D.qStat.lo),nm(D.qStat.hi)],null,
+    sec('Per housekeeper'),[H('Housekeeper'),H('Kamar'),H('Checkout'),H('Stayover'),H('Ready'),H('Service Refused'),H('Rata-rata bersih CO (mnt)'),H('Rata-rata bersih SO (mnt)'),H('Total jeda (mnt)')],
+    ...D.perRA.map(p=>[tx(p.name),nm(p.total),nm(p.co),nm(p.so),nm(p.ready),nm(p.refused),nm(p.cCO),nm(p.cSO),nm(p.pause)]),null,
+    sec('Per supervisor (kamar checkout)'),[H('Supervisor'),H('Kamar dicek'),H('Rata-rata HK selesai - SPV cek (mnt)'),H('Terlama (mnt)'),H('Rata-rata lama cek (mnt)')],
+    ...(D.perSPV.length?D.perSPV.map(p=>[tx(p.name),nm(p.checked),nm(p.avgWait),nm(p.maxWait),nm(p.avgCheck)]):[[tx('Belum ada kamar yang dicek')]])];
+  const detail=[D.head.map(H),...D.rows.map(r=>r.map(v=>typeof v==='number'?nm(v):tx(v)))];
+  const Q=[[H('Kamar'),H('Housekeeper'),H('Top Priority'),H('Mulai queue'),H('Kamar ready'),H('Tunggu (mnt)'),H('Status')],...(D.queue.length?D.queue.map(q=>[tx(q.room),tx(q.hk),tx(q.top?'Ya':''),tx(q.start),tx(q.ready),nm(q.wait),tx(q.status)]):[[tx('Tidak ada tamu menunggu')]])];
+  const NR=[[H('Kamar'),H('Kategori'),H('Status'),H('Housekeeper'),H('Queue')],...(D.notReady.length?D.notReady.map(n=>[tx(n.room),tx(n.cat),tx(n.status),tx(n.hk),tx(n.queue)]):[[tx('Semua kamar ready')]]),null,
+    [H('Service Refused'),H('Housekeeper'),H('Jam'),H('Dicatat oleh')],...(D.refused.length?D.refused.map(n=>[tx(n.room),tx(n.hk),tx(n.at),tx(n.via)]):[[tx('Tidak ada')]])];
+  const sheets=[['Ringkasan',xlSheet(R,{widths:[38,14,14,16,14,16,22,22,16]})],['Detail Kamar',xlSheet(detail,{freeze:1,filter:`A1:${xcol(D.head.length-1)}${D.rows.length+1}`,widths:[8,10,16,22,10,10,9,13,10,10,10,12,13,20,12,11,26,30,20,26,11]})],['Tamu Menunggu',xlSheet(Q,{freeze:1,widths:[10,24,12,12,12,12,18]})],['Belum Ready',xlSheet(NR,{freeze:1,widths:[16,22,26,24,16]})]];
+  const styles=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="5"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font><font><b/><sz val="16"/><color rgb="FF0B2A29"/><name val="Calibri"/></font><font><sz val="10"/><color rgb="FF64748B"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FF0B2A29"/><name val="Calibri"/></font></fonts><fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF174F4B"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE3F2EF"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color rgb="FFCBD5E1"/></left><right style="thin"><color rgb="FFCBD5E1"/></right><top style="thin"><color rgb="FFCBD5E1"/></top><bottom style="thin"><color rgb="FFCBD5E1"/></bottom><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="11"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="right" vertical="top"/></xf><xf numFmtId="0" fontId="4" fillId="3" borderId="0" xfId="0" applyFont="1" applyFill="1"/><xf numFmtId="0" fontId="4" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/><xf numFmtId="0" fontId="4" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right"/></xf><xf numFmtId="9" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right" vertical="top"/></xf><xf numFmtId="9" fontId="4" fillId="3" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+  const files=[{name:'[Content_Types].xml',data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${sheets.map((s,i)=>`<Override PartName="/xl/worksheets/sheet${i+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}</Types>`},
+    {name:'_rels/.rels',data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`},
+    {name:'xl/workbook.xml',data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${sheets.map((s,i)=>`<sheet name="${xe(s[0])}" sheetId="${i+1}" r:id="rId${i+1}"/>`).join('')}</sheets>${`<definedNames><definedName name="_xlnm._FilterDatabase" localSheetId="1" hidden="1">'Detail Kamar'!$A$1:$${xcol(D.head.length-1)}$${D.rows.length+1}</definedName></definedNames>`}</workbook>`},
+    {name:'xl/_rels/workbook.xml.rels',data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((s,i)=>`<Relationship Id="rId${i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i+1}.xml"/>`).join('')}<Relationship Id="rId${sheets.length+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`},
+    {name:'xl/styles.xml',data:styles},...sheets.map((s,i)=>({name:`xl/worksheets/sheet${i+1}.xml`,data:s[1]}))];
+  downloadBlob(zipStore(files,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),'Laporan-HK-'+date+'.xlsx');
+}
+/* ---- PDF (A4 landscape) dengan pdf-lib dari CDN, dimuat hanya saat dibutuhkan ---- */
+let pdfLibReady=null;
+const loadPdfLib=()=>pdfLibReady||(pdfLibReady=new Promise((ok,no)=>{if(window.PDFLib)return ok(window.PDFLib);const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js';s.onload=()=>window.PDFLib?ok(window.PDFLib):no(new Error('pdf'));s.onerror=()=>{pdfLibReady=null;no(new Error('pdf'))};document.head.appendChild(s)}));
+const WINANSI=new Set('€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ');
+const pdfTxt=s=>String(s==null?'':s).replace(/→/g,'-').replace(/★/g,'*').replace(/↩/g,'<').replace(/[←-⇿]/g,'-').split('').map(c=>{const n=c.charCodeAt(0);return (n>=32&&n<127)||(n>=160&&n<=255)||WINANSI.has(c)?c:(c==='\n'?' ':'?')}).join('');
+async function exportPdf(){
+  const date=S.reportDate||S.today,D=reportData(date);
+  if(!D.total){toast('Tidak ada data untuk diunduh.');return}
+  toast('Menyiapkan PDF…');
+  let L;try{L=await loadPdfLib()}catch(e){toast('PDF gagal dimuat. Periksa koneksi internet lalu coba lagi.');return}
+  const {PDFDocument,StandardFonts,rgb}=L,doc=await PDFDocument.create(),F=await doc.embedFont(StandardFonts.Helvetica),B=await doc.embedFont(StandardFonts.HelveticaBold);
+  doc.setTitle('Laporan Harian Housekeeping '+date);doc.setAuthor(D.by||'HK Tracker');doc.setCreator('HK Tracker');
+  const W=842,Hh=595,M=32,CW=W-2*M,C={ink:rgb(.06,.09,.16),mut:rgb(.39,.45,.55),brand:rgb(.09,.31,.29),brandL:rgb(.89,.95,.94),line:rgb(.8,.84,.88),zebra:rgb(.97,.98,.98),rose:rgb(.8,.1,.25),amber:rgb(.7,.4,.05),white:rgb(1,1,1)};
+  let page,y;
+  const fit=(s,f,size,w)=>{s=pdfTxt(s);if(f.widthOfTextAtSize(s,size)<=w)return s;while(s.length>1&&f.widthOfTextAtSize(s+'...',size)>w)s=s.slice(0,-1);return s+'...'};
+  const text=(s,x,yy,o={})=>{const f=o.bold?B:F,size=o.size||9,str=o.w?fit(s,f,size,o.w):pdfTxt(s);let xx=x;if(o.align==='right'&&o.w)xx=x+o.w-f.widthOfTextAtSize(str,size);else if(o.align==='center'&&o.w)xx=x+(o.w-f.widthOfTextAtSize(str,size))/2;page.drawText(str,{x:xx,y:yy,size,font:f,color:o.color||C.ink})};
+  const newPage=()=>{page=doc.addPage([W,Hh]);y=Hh-M;page.drawRectangle({x:0,y:Hh-6,width:W,height:6,color:C.brand});
+    if(doc.getPageCount()>1){text('Laporan Harian Housekeeping · '+D.dateLong,M,y-4,{size:9,bold:true,color:C.brand});y-=20}};
+  const need=h=>{if(y-h<M+18)newPage()};
+  const heading=(t,rowsAfter)=>{need(40+(rowsAfter?18+15*Math.min(rowsAfter,4):0));y-=8;text(t,M,y-11,{size:11.5,bold:true,color:C.brand});y-=18};
+  const table=(cols,rows,o={})=>{const sc=CW/cols.reduce((s,c)=>s+c.w,0),ws=cols.map(c=>c.w*sc),rh=o.rh||15,hh=o.hh||18;
+    const head=()=>{need(hh+rh);page.drawRectangle({x:M,y:y-hh,width:CW,height:hh,color:C.brand});let x=M;cols.forEach((c,i)=>{text(c.h,x+4,y-hh+6,{size:7.5,bold:true,color:C.white,w:ws[i]-8,align:c.a});x+=ws[i]});y-=hh};
+    head();rows.forEach((r,ri)=>{if(y-rh<M+18){newPage();head()}const bold=o.boldLast&&ri===rows.length-1;
+      if(ri%2)page.drawRectangle({x:M,y:y-rh,width:CW,height:rh,color:bold?C.brandL:C.zebra});else if(bold)page.drawRectangle({x:M,y:y-rh,width:CW,height:rh,color:C.brandL});
+      let x=M;cols.forEach((c,i)=>{const v=r[i];text(v==null||v===''?'-':v,x+4,y-rh+4.5,{size:o.size||8,w:ws[i]-8,align:c.a,bold:bold||c.bold,color:c.color&&v!==''&&v!=null?c.color:C.ink});x+=ws[i]});
+      page.drawLine({start:{x:M,y:y-rh},end:{x:M+CW,y:y-rh},thickness:.4,color:C.line});y-=rh});y-=6};
+  const mm=v=>v==null?'-':v+' mnt';
+  newPage();
+  /* kepala laporan */
+  text('Laporan Harian Housekeeping',M,y-20,{size:20,bold:true,color:C.brand});
+  text(D.dateLong,M,y-38,{size:11.5,bold:true});
+  text(D.statusTxt+'   ·   Dibuat '+D.made+(D.by?' oleh '+D.by:''),M,y-53,{size:8.5,color:C.mut});
+  y-=68;
+  /* kartu ringkasan */
+  const tc=D.cats[2],co=D.cats[0],so=D.cats[1];
+  const cards=[['Kamar ready',`${tc.ready} / ${tc.total}`,`${tc.pct}% dari semua kamar`],['Checkout ready',`${co.ready} / ${co.total}`,`${co.pct}%`],['Stayover ready',`${so.ready} / ${so.total}`,`${so.pct}%${so.refused?' · '+so.refused+' service refused':''}`],
+    ['Rata-rata bersih',`${D.times[0][1]??'-'} / ${D.times[0][2]??'-'}`,'menit · checkout / stayover'],['Rata-rata sampai ready',`${D.times[1][1]??'-'} / ${D.times[1][2]??'-'}`,'menit · checkout / stayover'],['Tamu menunggu',String(D.qStat.n),D.qStat.n?`rata-rata ${D.qStat.avg} mnt · terlama ${D.qStat.hi} mnt`:'tidak ada']];
+  const cw=(CW-5*8)/6;cards.forEach((c,i)=>{const x=M+i*(cw+8);page.drawRectangle({x,y:y-58,width:cw,height:58,color:C.brandL,borderColor:C.line,borderWidth:.5});
+    text(c[0],x+8,y-15,{size:8,bold:true,color:C.brand,w:cw-16});text(c[1],x+8,y-35,{size:16,bold:true,w:cw-16});text(c[2],x+8,y-49,{size:7,color:C.mut,w:cw-16})});
+  y-=72;
+  heading('Status kamar',3);
+  table([{h:'Kategori',w:3},{h:'Total kamar',w:2,a:'right'},{h:'Ready',w:2,a:'right'},{h:'% ready',w:2,a:'right'},{h:'Belum ready',w:2,a:'right'},{h:'Service Refused',w:2,a:'right'}],D.cats.map(c=>[c.l,c.total,c.ready,c.pct+'%',c.left,c.refused]),{boldLast:true});
+  heading('Rata-rata waktu',4);
+  table([{h:'Metrik',w:5},{h:'Checkout',w:2,a:'right'},{h:'Stayover',w:2,a:'right'},{h:'Tercepat',w:2,a:'right'},{h:'Terlama',w:2,a:'right'}],D.times.map(t=>[t[0],mm(t[1]),t[2]==null?'-':mm(t[2]),mm(t[3]),mm(t[4])]));
+  const left=D.statusRows.filter(s=>s[1]);
+  if(left.length){heading('Kamar belum ready',left.length);table([{h:'Status',w:5},{h:'Jumlah',w:2,a:'right'}],left)}
+  heading('Per housekeeper',D.perRA.length);
+  table([{h:'Housekeeper',w:5},{h:'Kamar',w:1.4,a:'right'},{h:'CO',w:1.2,a:'right'},{h:'SO',w:1.2,a:'right'},{h:'Ready',w:1.4,a:'right'},{h:'Refused',w:1.5,a:'right'},{h:'Rata bersih CO',w:2.2,a:'right'},{h:'Rata bersih SO',w:2.2,a:'right'},{h:'Total jeda',w:1.8,a:'right'}],
+    D.perRA.map(p=>[p.name,p.total,p.co,p.so,p.ready,p.refused,mm(p.cCO),mm(p.cSO),p.pause?p.pause+' mnt':'-']));
+  heading('Per supervisor (kamar checkout)',D.perSPV.length||1);
+  if(D.perSPV.length)table([{h:'Supervisor',w:5},{h:'Kamar dicek',w:2,a:'right'},{h:'Rata HK selesai - SPV cek',w:3,a:'right'},{h:'Terlama',w:2,a:'right'},{h:'Rata lama cek',w:2.4,a:'right'}],D.perSPV.map(p=>[p.name,p.checked,mm(p.avgWait),mm(p.maxWait),mm(p.avgCheck)]));
+  else{text('Belum ada kamar checkout yang dicek supervisor.',M,y-10,{size:8.5,color:C.mut});y-=20}
+  if(D.queue.length){heading(`Tamu menunggu (Queue) · ${D.qStat.n} kamar · rata-rata ${D.qStat.avg} mnt · tercepat ${D.qStat.lo} mnt · terlama ${D.qStat.hi} mnt`,D.queue.length);
+    table([{h:'Kamar',w:1.4},{h:'Housekeeper',w:4},{h:'Prioritas',w:1.8},{h:'Mulai queue',w:1.8},{h:'Kamar ready',w:1.8},{h:'Tunggu',w:1.6,a:'right'},{h:'Status',w:2.4}],D.queue.map(q=>[q.room,q.hk,q.top?'TOP':'Biasa',q.start,q.ready||'-',q.wait+' mnt',q.status]))}
+  if(D.notReady.length){heading(`Belum ready${D.closed?' saat hari ditutup':''} · ${D.notReady.length} kamar`,D.notReady.length);
+    table([{h:'Kamar',w:1.4},{h:'Kategori',w:1.8},{h:'Status',w:3.4},{h:'Housekeeper',w:4},{h:'Queue',w:2}],D.notReady.map(n=>[n.room,n.cat,n.status,n.hk,n.queue]))}
+  /* detail per kamar di halaman baru */
+  if(y<Hh/2)newPage();heading(`Detail waktu per kamar · ${D.rows.length} kamar`,6);
+  const dc=[{h:'Kamar',w:1.2,bold:true},{h:'Kat',w:.9},{h:'Status',w:2},{h:'Housekeeper',w:2.6},{h:'Start',w:1.05},{h:'Selesai',w:1.15},{h:'Jeda',w:1,a:'right'},{h:'Bersih',w:1.2,a:'right',color:C.amber},{h:'SPV cek',w:1.25},{h:'Selesai cek',w:1.55},{h:'Lama cek',w:1.35,a:'right'},{h:'Tunggu SPV',w:1.65,a:'right'},{h:'Total',w:1.2,a:'right',color:C.brand},{h:'Supervisor',w:2.2},{h:'Tamu tunggu',w:1.7,a:'right',color:C.rose}];
+  const m2=v=>v===''||v==null?'':v+' mnt';
+  table(dc,D.rows.map(r=>[r[0],r[1]==='Stayover'?'SO':'CO',r[2],r[3],r[4],r[5],r[6]===''||r[6]===0?'':m2(r[6]),m2(r[7]),r[1]==='Stayover'?'auto':r[8],r[1]==='Stayover'?'auto':r[9],m2(r[10]),m2(r[11]),m2(r[12]),r[13],m2(r[15])]),{size:7.5,rh:14});
+  /* nomor halaman */
+  const n=doc.getPageCount();doc.getPages().forEach((p,i)=>{page=p;text(`HK Tracker · Laporan ${D.date}`,M,16,{size:7,color:C.mut});text(`Halaman ${i+1} dari ${n}`,W-M-120,16,{size:7,color:C.mut,w:120,align:'right'})});
+  downloadBlob(new Blob([await doc.save()],{type:'application/pdf'}),'Laporan-HK-'+date+'.pdf');
+}
+
 
 /* ================= PERGERAKAN SUPERVISOR ================= */
 /* Per supervisor: kamar dicek dari total kamar checkout di lantainya, rata-rata jeda HK selesai → mulai cek, lama cek, status saat ini */
@@ -1648,7 +1789,8 @@ const A={
     if(!Object.keys(map).length){S.extraFloors=[];toast('Daftar lantai disimpan.');render();return}
     const r=await run(()=>api('setSpvFloors',map),r=>`Pembagian lantai disimpan (${r.changed} supervisor).`);
     if(r){S.allUsers=null;S.floorDraft=null;S.extraFloors=[];refresh(true);render()}},
-  exportReport(){exportReport()},
+  exportReport(){exportXlsx()},
+  exportPdf(){exportPdf()},
   refresh(){refresh()},
   togglePw(el){const i=document.getElementById(el.dataset.for);if(i)i.type=i.type==='password'?'text':'password'},
   acct(){S.acct=true;S.more=false;render()},closeAcct(){S.acct=false;render()},
