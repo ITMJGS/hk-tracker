@@ -14,7 +14,7 @@
   <script>
     /* Alamat server (Google Apps Script). Ganti jika membuat deployment baru. */
     window.HK_API_URL = 'https://script.google.com/macros/s/AKfycbyyFZ7k-3dElnTu4hKc6IbNF9uVi5FnZiOTJ6N4Wszv9jNoRZQYKMee7GVqjIfr-QEaRA/exec';
-    window.HK_BUILD = '20261107155927';
+    window.HK_BUILD = '20261107160709';
     /* Pengganti google.script.run: memanggil server lewat POST {fn, args} */
     (function () {
       function runner() {
@@ -1229,7 +1229,7 @@ function viewHK(){
   const done=mine.filter(hkDone).length;
   const active=mine.find(r=>r.status==='CLEANING');
   const paused=mine.filter(r=>r.status==='PAUSED').sort((a,b)=>qFirst(a,b)||seqSort(a,b)),pending=mine.filter(r=>r.status==='PENDING'&&!isDnd(r)).sort((a,b)=>qFirst(a,b)||(retOn(b)-retOn(a))||(reqPmrOn(b)-reqPmrOn(a))||(reqPmrOn(a)&&reqPmrOn(b)?a.reqPmrAt-b.reqPmrAt:0)||seqSort(a,b)),dnds=mine.filter(isDnd).sort((a,b)=>(pmrDue(b)-pmrDue(a))||((a.csResult==='NOSERVICE')-(b.csResult==='NOSERVICE'))||((a.csResult==='PMR'?a.csPmrAt:dndDue(a))-(b.csResult==='PMR'?b.csPmrAt:dndDue(b))));
-  const myQ=mine.filter(isQ).sort(qFirst);
+  const myQ=mine.filter(r=>isQ(r)&&withRA(r)).sort(qFirst);
   const waiting=mine.filter(r=>r.status==='INSPECTION_READY'||r.status==='INSPECTING').sort(seqSort),finished=mine.filter(r=>r.status==='COMPLETED').sort((a,b)=>b.finishSpvAt-a.finishSpvAt),refused=mine.filter(r=>r.status==='REFUSED').sort((a,b)=>b.refusedAt-a.refusedAt);
   const co=mine.filter(r=>r.category==='CHECKOUT').length,arrP=mine.filter(r=>r.arrivalFlag&&r.status==='PENDING').length;
   const section=(t,list,open,hint)=>list.length?`<details ${open?'open':''} class="group"><summary class="flex items-center gap-2 py-2 cursor-pointer"><h3 class="text-sm font-bold text-slate-900">${t}</h3><span class="text-xs font-bold text-slate-500 bg-slate-200/70 rounded-full px-2 py-0.5">${list.length}</span><span class="ml-auto text-slate-400 group-open:rotate-90 transition">${ic('chevron')}</span></summary>${hint?`<p class="flex items-center gap-1.5 text-xs text-slate-500 mb-2">${ic('lock','w-3.5 h-3.5')} ${hint}</p>`:''}
@@ -1739,9 +1739,11 @@ const A={
 const qKey=r=>S.today+'|'+r.room+'|'+r.queuedAt;
 function seenSet(){try{return new Set(JSON.parse(localStorage.getItem('hk.qseen')||'[]'))}catch(e){return new Set()}}
 function markSeen(list){const s=seenSet();list.forEach(r=>s.add(qKey(r)));try{localStorage.setItem('hk.qseen',JSON.stringify([...s].slice(-300)))}catch(e){}S.qSeenMem=s}
+/* kamar queue yang masih di tangan RA (belum Finish). Setelah RA Finish, giliran SPV: RA tidak diingatkan lagi */
+const withRA=r=>['PENDING','CLEANING','PAUSED'].includes(r.status);
 function relevantQueue(){
   if(!S.me)return [];
-  if(S.me.role==='housekeeper')return queued().filter(r=>r.assignedTo===S.me.id);
+  if(S.me.role==='housekeeper')return queued().filter(r=>r.assignedTo===S.me.id&&withRA(r));
   if(S.me.role==='supervisor')return meOnDuty()?queued().filter(onMyFloor):[];
   return [];
 }
@@ -1773,7 +1775,7 @@ const QUEUE_REMIND_MS=600000,qRemindSeen=new Set();
 function checkQueueReminders(){
   if(!S.me||!S.loaded)return;
   const role=S.me.role;let list=[];
-  if(role==='housekeeper')list=queued().filter(r=>r.assignedTo===S.me.id);
+  if(role==='housekeeper')list=queued().filter(r=>r.assignedTo===S.me.id&&withRA(r));
   else if(role==='supervisor')list=meOnDuty()?queued().filter(onMyFloor):[];
   else return;
   const now=nowS();
@@ -1863,7 +1865,7 @@ function detectEvents(prev,next){
   }
   { /* kamar dinaikkan ke Top Priority → RA pemegang & supervisor lantainya */
     const up=next.filter(r=>isTop(r)&&P.get(r.room)&&!isTop(P.get(r.room))&&isQ(P.get(r.room)))
-      .filter(r=>me.role==='housekeeper'?r.assignedTo===me.id:me.role==='supervisor'?meOnDuty()&&onMyFloor(r):false);
+      .filter(r=>me.role==='housekeeper'?r.assignedTo===me.id&&withRA(r):me.role==='supervisor'?meOnDuty()&&onMyFloor(r):false);
     if(up.length){const t=`★ TOP PRIORITY: kamar ${up.map(r=>r.room).join(', ')}`;notify('alarm',t,me.role==='housekeeper'?'Kerjakan paling dulu.':'Cek paling dulu.','queue');toast(t)}
   }
   if(me.role==='operator'){
