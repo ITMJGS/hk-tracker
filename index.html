@@ -14,7 +14,7 @@
   <script>
     /* Alamat server (Google Apps Script). Ganti jika membuat deployment baru. */
     window.HK_API_URL = 'https://script.google.com/macros/s/AKfycbyyFZ7k-3dElnTu4hKc6IbNF9uVi5FnZiOTJ6N4Wszv9jNoRZQYKMee7GVqjIfr-QEaRA/exec';
-    window.HK_BUILD = '20261107121445';
+    window.HK_BUILD = '20261107122332';
     /* Pengganti google.script.run: memanggil server lewat POST {fn, args} */
     (function () {
       function runner() {
@@ -201,7 +201,7 @@ async function run(fn,ok){try{const r=await fn();if(ok)toast(typeof ok==='functi
 let toastT;function toast(m){const el=document.getElementById('toast');document.getElementById('toast-msg').textContent=m;el.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>el.hidden=true,3500)}
 function renderBusy(){document.querySelectorAll('[data-busy]').forEach(el=>el.classList.toggle('spin',!!S.busy))}
 
-const CLIENT_VERSION=25; /* versi Code.gs yang dibutuhkan tampilan ini. Naikkan HANYA jika Code.gs ikut berubah (harus sama dengan APP_VERSION di Code.gs) */
+const CLIENT_VERSION=26; /* versi Code.gs yang dibutuhkan tampilan ini. Naikkan HANYA jika Code.gs ikut berubah (harus sama dengan APP_VERSION di Code.gs) */
 async function refresh(silent,again){
   if(!S.token||!S.me||S.me.mustChange)return;
   try{
@@ -341,7 +341,8 @@ const dur=ms=>{const m=mins(ms);return m>=60?Math.floor(m/60)+' j '+(m%60)+' mnt
 function timesOf(r){const so=isSO(r),spv=hasSpv(r);
   const ret=!!r.retCount&&!!r.firstFinishHkAt;
   return {ret,hkStart:clk(firstStart(r)),hkEnd:clk(ret?r.firstFinishHkAt:r.finishHkAt),redoStart:ret?clk(r.startAt):'',redoEnd:ret?clk(r.finishHkAt):'',firstDur:ret?(r.firstHkMs||0):0,hkDur:hkSpan(r),rework:reworkOf(r),
-    spvStart:so?'auto':spv?clk(r.spvStartAt):'–',spvEnd:so?'auto':clk(r.finishSpvAt),spvDur:spv?spvCheck(r):null,
+    spvStart:so?'auto':ret?(r.firstSpvStartAt?clk(r.firstSpvStartAt):'–'):spv?clk(r.spvStartAt):'–',spvEnd:so?'auto':ret?clk(r.firstSpvEndAt||r.retAt):clk(r.finishSpvAt),
+    redoSpvStart:ret&&!so?(r.spvStartAt?clk(r.spvStartAt):'–'):'',redoSpvEnd:ret&&!so?clk(r.finishSpvAt):'',spvDur:spv?spvCheck(r):null,
     wait:spv?spvWait(r):null,total:totalSpan(r)}}
 /* ---- Queue: tamu sudah datang, kamar belum ready ---- */
 const isQ=r=>!!r.queued&&r.status!=='COMPLETED';
@@ -933,7 +934,7 @@ function timeBlock(r){
   return `<div class="space-y-2">
     ${row('Housekeeper','text-amber-700',cell('Start',t.hkStart+(t.ret?`<span class="block text-[10px] text-orange-600">↩ ${t.redoStart}</span>`:'')),cell('Selesai',t.hkEnd+(t.ret?`<span class="block text-[10px] text-orange-600">↩ ${t.redoEnd}</span>`:'')),cell('Lama bersih',dur(t.hkDur),'text-amber-600'))}
     ${so?`<div class="rounded-xl bg-slate-50 px-3 py-2.5 text-xs text-slate-500"><b class="text-emerald-700">Stayover</b> · otomatis ready saat housekeeper selesai, tanpa cek supervisor.</div>`
-      :row('Supervisor'+(r.spvId?' · '+esc(nameOf(r.spvId)):''),'text-violet-700',cell('Mulai cek',t.spvStart),cell('Selesai cek',t.spvEnd),cell('Lama cek',t.spvDur==null?'–':dur(t.spvDur),'text-violet-600'))}
+      :row('Supervisor'+(r.spvId?' · '+esc(nameOf(r.spvId)):''),'text-violet-700',cell('Mulai cek',t.spvStart+(t.ret&&t.redoSpvStart?`<span class="block text-[10px] text-orange-600">↩ ${t.redoSpvStart}</span>`:'')),cell('Selesai cek',t.spvEnd+(t.ret&&t.redoSpvEnd?`<span class="block text-[10px] text-orange-600">↩ ${t.redoSpvEnd}</span>`:'')),cell('Lama cek',t.spvDur==null?'–':dur(t.spvDur),'text-violet-600'))}
     <div class="grid grid-cols-2 gap-2 text-center">
       <div class="rounded-xl ring-1 ring-inset ring-slate-100 py-2"><p class="text-base font-extrabold text-sky-600">${t.wait==null?'–':dur(t.wait)}</p><p class="text-[10px] text-slate-500">HK selesai → SPV cek</p></div>
       <div class="rounded-xl ring-1 ring-inset ring-brand-100 bg-brand-50/50 py-2"><p class="text-base font-extrabold text-brand-700">${dur(t.total)}</p><p class="text-[10px] text-slate-500">Total HK start → SPV selesai</p></div></div>
@@ -1015,7 +1016,7 @@ function reportTable(done){
     <tbody class="divide-y divide-slate-100">${done.map(r=>{const t=timesOf(r);return `<tr class="hover:bg-slate-50/60">
       ${td(`<span class="font-extrabold text-slate-900">${esc(r.room)}</span> <span class="text-[11px] ${catOf(r.category).text} font-semibold">${isSO(r)?'SO':'CO'}</span>${r.dndReason?` <span class="text-[10px] font-bold text-white bg-slate-800 rounded px-1 py-0.5" title="${esc(dndLbl(r))} ${clk(r.dndAt)}–${clk(r.dndClearAt)} · dicek ${(r.dndChecks||0)+1}x">${r.dndReason==='DND'?'DND':'DS'}</span>`:''}${r.retCount?` <span class="text-[10px] font-bold text-white bg-orange-600 rounded px-1 py-0.5" title="Dikembalikan ke RA ${r.retCount}x · ${esc(RETL[r.retReason]||'')}${r.retNote?' · '+esc(r.retNote):''}">↩ ${r.retCount>1?r.retCount+'x':esc(RETL[r.retReason]||'')}</span>`:''}`,'pl-5')}${td(esc(nameOf(r.assignedTo)),'text-slate-700')}
       ${td(t.hkStart+(t.ret?`<span class="block text-[10px] font-semibold text-orange-600">↩ ${t.redoStart}</span>`:''),'font-mono text-xs')}${td(t.hkEnd+(t.ret?`<span class="block text-[10px] font-semibold text-orange-600">↩ ${t.redoEnd}</span>`:''),'font-mono text-xs')}${td(dur(t.hkDur)+(t.rework!=null?`<span class="block text-[10px] font-semibold text-orange-600">${dur(t.firstDur)} + ${dur(t.rework)} perbaikan</span>`:''),'text-right font-semibold text-amber-700')}
-      ${td(t.spvStart,'font-mono text-xs'+(isSO(r)?' text-slate-400':''))}${td(t.spvEnd,'font-mono text-xs'+(isSO(r)?' text-slate-400':''))}${td(D(t.spvDur),'text-right font-semibold text-violet-700')}
+      ${td(t.spvStart+(t.ret&&t.redoSpvStart?`<span class="block text-[10px] font-semibold text-orange-600">↩ ${t.redoSpvStart}</span>`:''),'font-mono text-xs'+(isSO(r)?' text-slate-400':''))}${td(t.spvEnd+(t.ret&&t.redoSpvEnd?`<span class="block text-[10px] font-semibold text-orange-600">↩ ${t.redoSpvEnd}</span>`:''),'font-mono text-xs'+(isSO(r)?' text-slate-400':''))}${td(D(t.spvDur),'text-right font-semibold text-violet-700')}
       ${td(D(t.wait),'text-right text-sky-700')}${td(dur(t.total),'text-right font-bold text-brand-700')}
       ${td(r.spvId&&!isSO(r)?esc(nameOf(r.spvId)):'–','text-slate-600')}${td(pauseOf(r)?mins(pauseOf(r))+' mnt':'–','text-right text-slate-500')}${td(r.queuedAt?dur(r.finishSpvAt-r.queuedAt):'–','text-right pr-5 '+(r.queuedAt?'font-bold text-rose-700':'text-slate-300'))}</tr>`}).join('')}</tbody></table></div>`;
 }
@@ -1028,7 +1029,7 @@ function exportReport(){
   const head=['Tanggal','Kamar','Kategori','Status','Housekeeper','Jam HK start','Jam HK selesai','Waktu HK start-selesai (menit)','Jam SPV cek','Jam SPV selesai cek','Waktu pengecekan SPV (menit)','Waktu HK selesai - SPV cek (menit)','Total HK start - SPV selesai (menit)','Supervisor','Jeda/pause (menit)','Jam mulai queue','Tamu menunggu sampai ready (menit)','Skip DND/Double Sign','Courtesy operator','Request PMR (stayover)','Dikembalikan ke RA','Waktu perbaikan (menit)'];
   const T=x=>x==='--.--'||x==='–'?'':x.replace('.',':');
   const di=date===S.today?S.day:S.dayInfo[date],qEnd=di&&di.closed?di.closedAt:nowS();
-  const rows=done.map(r=>{const t=timesOf(r),ok=r.status==='COMPLETED';return [date,r.room,isSO(r)?'Stayover':'Checkout',ok?'Ready':isDnd(r)?dndLbl(r):ST[r.status].l,nameOf(r.assignedTo),T(t.hkStart),T(t.hkEnd),r.finishHkAt?M(t.hkDur):'',ok?T(t.spvStart):(r.spvStartAt?T(clk(r.spvStartAt)):''),ok?T(t.spvEnd):'',M(t.spvDur),M(t.wait),ok?M(t.total):'',r.spvId&&!isSO(r)?nameOf(r.spvId):'',mins(pauseOf(r)),r.queuedAt?T(clk(r.queuedAt))+(r.queueTop?' (TOP PRIORITY)':''):'',r.queuedAt?mins((ok?r.finishSpvAt:qEnd)-r.queuedAt):'',r.dndReason?`${dndLbl(r)} ${T(clk(r.dndAt))}${r.dndClearAt?'-'+T(clk(r.dndClearAt)):''} (cek ${(r.dndChecks||0)+1}x)`:'',r.csResult?`${CSL[r.csResult]} ${T(clk(r.csAt))}${r.csResult==='PMR'?' (bersih '+T(clk(r.csPmrAt))+')':''}${r.csBy?' - '+opName(r):''}`:'',r.reqPmrAt?`${T(clk(r.reqPmrAt))}${r.reqPmrBy?' - '+nameOf(r.reqPmrBy):''}`:'',r.retCount?`${r.retCount}x - ${RETL[r.retReason]||''} ${T(clk(r.retAt))}${t.ret?' - perbaikan '+T(t.redoStart)+'-'+T(t.redoEnd):''}${r.retBy?' - '+nameOf(r.retBy):''}${r.retNote?' ('+r.retNote+')':''}`:'',t.rework!=null?mins(t.rework):'']});
+  const rows=done.map(r=>{const t=timesOf(r),ok=r.status==='COMPLETED';return [date,r.room,isSO(r)?'Stayover':'Checkout',ok?'Ready':isDnd(r)?dndLbl(r):ST[r.status].l,nameOf(r.assignedTo),T(t.hkStart),T(t.hkEnd),r.finishHkAt?M(t.hkDur):'',ok?T(t.spvStart):(r.spvStartAt?T(clk(r.spvStartAt)):''),ok?T(t.spvEnd):'',M(t.spvDur),M(t.wait),ok?M(t.total):'',r.spvId&&!isSO(r)?nameOf(r.spvId):'',mins(pauseOf(r)),r.queuedAt?T(clk(r.queuedAt))+(r.queueTop?' (TOP PRIORITY)':''):'',r.queuedAt?mins((ok?r.finishSpvAt:qEnd)-r.queuedAt):'',r.dndReason?`${dndLbl(r)} ${T(clk(r.dndAt))}${r.dndClearAt?'-'+T(clk(r.dndClearAt)):''} (cek ${(r.dndChecks||0)+1}x)`:'',r.csResult?`${CSL[r.csResult]} ${T(clk(r.csAt))}${r.csResult==='PMR'?' (bersih '+T(clk(r.csPmrAt))+')':''}${r.csBy?' - '+opName(r):''}`:'',r.reqPmrAt?`${T(clk(r.reqPmrAt))}${r.reqPmrBy?' - '+nameOf(r.reqPmrBy):''}`:'',r.retCount?`${r.retCount}x - ${RETL[r.retReason]||''} ${T(clk(r.retAt))}${t.ret?' - perbaikan '+T(t.redoStart)+'-'+T(t.redoEnd)+(t.redoSpvEnd?' - cek ulang '+T(t.redoSpvStart)+'-'+T(t.redoSpvEnd):''):''}${r.retBy?' - '+nameOf(r.retBy):''}${r.retNote?' ('+r.retNote+')':''}`:'',t.rework!=null?mins(t.rework):'']});
   const q=v=>{v=String(v==null?'':v);return /[;"\n,]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
   const csv='﻿sep=;\r\n'+[head].concat(rows).map(a=>a.map(q).join(';')).join('\r\n');
   const name='Laporan-HK-'+date+'.csv';
