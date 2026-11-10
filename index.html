@@ -14,7 +14,7 @@
   <script>
     /* Alamat server (Google Apps Script). Ganti jika membuat deployment baru. */
     window.HK_API_URL = 'https://script.google.com/macros/s/AKfycbyyFZ7k-3dElnTu4hKc6IbNF9uVi5FnZiOTJ6N4Wszv9jNoRZQYKMee7GVqjIfr-QEaRA/exec';
-    window.HK_BUILD = '20261110173303';
+    window.HK_BUILD = '20261110173844';
     /* Pengganti google.script.run: memanggil server lewat POST {fn, args} */
     (function () {
       function runner() {
@@ -204,7 +204,7 @@ async function run(fn,ok){try{const r=await fn();if(ok)toast(typeof ok==='functi
 let toastT;function toast(m){const el=document.getElementById('toast');document.getElementById('toast-msg').textContent=m;el.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>el.hidden=true,3500)}
 function renderBusy(){document.querySelectorAll('[data-busy]').forEach(el=>el.classList.toggle('spin',!!S.busy))}
 
-const CLIENT_VERSION=34; /* versi Code.gs yang dibutuhkan tampilan ini. Naikkan HANYA jika Code.gs ikut berubah (harus sama dengan APP_VERSION di Code.gs) */
+const CLIENT_VERSION=35; /* versi Code.gs yang dibutuhkan tampilan ini. Naikkan HANYA jika Code.gs ikut berubah (harus sama dengan APP_VERSION di Code.gs) */
 /* satu permintaan getState pada satu waktu: cegah notifikasi dobel & beban server.
    Jika dipanggil saat masih memuat (mis. setelah menyimpan), dijalankan sekali lagi sesudahnya agar data terbaru terambil. */
 let refreshing=null,refreshNext=null;
@@ -991,7 +991,7 @@ function viewRecap(){
   const done=S.rooms.filter(r=>r.status==='COMPLETED'&&(!q||String(r.room).toUpperCase().startsWith(q))).sort((a,b)=>b.finishSpvAt-a.finishSpvAt);
   const shown=S.showAll?done:done.slice(0,40);
   return `${pageHead('',`${done.length} kamar ready hari ini`)}<div class="mb-4 sm:w-72">${searchBox('f-rq','Cari nomor kamar')}</div>
-  ${done.length?`<div class="grid gap-3 sm:gap-4 md:grid-cols-2 2xl:grid-cols-3">${shown.map(r=>recapCard(r,true)).join('')}</div>${done.length>40?`<div class="text-center mt-4"><button data-act="toggleAll" class="${bc('ghost')}">${S.showAll?'Tampilkan lebih sedikit':`Tampilkan semua (${done.length})`}</button></div>`:''}`
+  ${done.length?`<div class="grid gap-3 sm:gap-4 md:grid-cols-2 2xl:grid-cols-3">${shown.map(r=>recapCard(r,S.me.role!=='gm')).join('')}</div>${done.length>40?`<div class="text-center mt-4"><button data-act="toggleAll" class="${bc('ghost')}">${S.showAll?'Tampilkan lebih sedikit':`Tampilkan semua (${done.length})`}</button></div>`:''}`
   :card(empty('clock','Belum ada kamar ready','Kamar yang sudah diverifikasi muncul di sini.'))}`;
 }
 
