@@ -14,7 +14,7 @@
   <script>
     /* Alamat server (Google Apps Script). Ganti jika membuat deployment baru. */
     window.HK_API_URL = 'https://script.google.com/macros/s/AKfycbyyFZ7k-3dElnTu4hKc6IbNF9uVi5FnZiOTJ6N4Wszv9jNoRZQYKMee7GVqjIfr-QEaRA/exec';
-    window.HK_BUILD = '20261110164321';
+    window.HK_BUILD = '20261110173303';
     /* Pengganti google.script.run: memanggil server lewat POST {fn, args} */
     (function () {
       function runner() {
@@ -171,7 +171,7 @@ const ST={
 };
 const CAT={CHECKOUT:{l:'Checkout',chip:'bg-rose-50 text-rose-700 ring-rose-200',text:'text-rose-600'},STAYOVER:{l:'Stayover',chip:'bg-indigo-50 text-indigo-700 ring-indigo-200',text:'text-indigo-600'}};
 const catOf=c=>CAT[c]||CAT.CHECKOUT;
-const ROLE={superadmin:{l:'PENGUASA',chip:'bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-200'},admin:{l:'Admin',chip:'bg-brand-50 text-brand-700 ring-brand-200'},supervisor:{l:'Supervisor',chip:'bg-amber-50 text-amber-800 ring-amber-200'},housekeeper:{l:'Housekeeper',chip:'bg-sky-50 text-sky-700 ring-sky-200'},frontoffice:{l:'Front Office',chip:'bg-indigo-50 text-indigo-700 ring-indigo-200'},operator:{l:'Operator',chip:'bg-cyan-50 text-cyan-700 ring-cyan-200'}};
+const ROLE={superadmin:{l:'PENGUASA',chip:'bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-200'},admin:{l:'Admin',chip:'bg-brand-50 text-brand-700 ring-brand-200'},supervisor:{l:'Supervisor',chip:'bg-amber-50 text-amber-800 ring-amber-200'},housekeeper:{l:'Housekeeper',chip:'bg-sky-50 text-sky-700 ring-sky-200'},frontoffice:{l:'Front Office',chip:'bg-indigo-50 text-indigo-700 ring-indigo-200'},operator:{l:'Operator',chip:'bg-cyan-50 text-cyan-700 ring-cyan-200'},gm:{l:'General Manager',chip:'bg-violet-50 text-violet-700 ring-violet-200'}};
 const ORDER={CLEANING:0,PAUSED:1,PENDING:2,INSPECTION_READY:3,INSPECTING:4,COMPLETED:5,REFUSED:6};
 const ROOM_TYPES=['DBA','DBB','DBE','TWA','TWB','SKA','S2D','CA1A','CA2A','CA2P'];
 const AV=['bg-brand-100 text-brand-800','bg-sky-100 text-sky-800','bg-amber-100 text-amber-800','bg-rose-100 text-rose-800','bg-indigo-100 text-indigo-800','bg-emerald-100 text-emerald-800','bg-fuchsia-100 text-fuchsia-800','bg-orange-100 text-orange-800'];
@@ -204,7 +204,7 @@ async function run(fn,ok){try{const r=await fn();if(ok)toast(typeof ok==='functi
 let toastT;function toast(m){const el=document.getElementById('toast');document.getElementById('toast-msg').textContent=m;el.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>el.hidden=true,3500)}
 function renderBusy(){document.querySelectorAll('[data-busy]').forEach(el=>el.classList.toggle('spin',!!S.busy))}
 
-const CLIENT_VERSION=33; /* versi Code.gs yang dibutuhkan tampilan ini. Naikkan HANYA jika Code.gs ikut berubah (harus sama dengan APP_VERSION di Code.gs) */
+const CLIENT_VERSION=34; /* versi Code.gs yang dibutuhkan tampilan ini. Naikkan HANYA jika Code.gs ikut berubah (harus sama dengan APP_VERSION di Code.gs) */
 /* satu permintaan getState pada satu waktu: cegah notifikasi dobel & beban server.
    Jika dipanggil saat masih memuat (mis. setelah menyimpan), dijalankan sekali lagi sesudahnya agar data terbaru terambil. */
 let refreshing=null,refreshNext=null;
@@ -589,6 +589,7 @@ function navItems(){
   if(r==='supervisor')return ['inspect','dash','upload','recap','users'];
   if(r==='frontoffice')return ['fo','op','report']; /* laporan: hanya lihat, tidak bisa tutup/buka hari */
   if(r==='operator')return ['op','fo'];
+  if(r==='gm')return ['dash','report','recap']; /* GM: lihat saja */
   return ['hk'];
 }
 const defaultView=()=>S.me?navItems()[0]:'';
@@ -1450,7 +1451,7 @@ function hkCard(r,active){
 }
 
 /* ================= PENGGUNA ================= */
-const ROLE_ORDER=['superadmin','admin','supervisor','frontoffice','operator','housekeeper'];
+const ROLE_ORDER=['superadmin','admin','supervisor','frontoffice','operator','housekeeper','gm'];
 /* hak ubah akun (sama dengan aturan di server) */
 function rights(t){
   const u=S.me,self=u.id===t.id,m=['supervisor','housekeeper','frontoffice','operator'].includes(t.role);
@@ -1466,7 +1467,7 @@ function viewUsers(){
   const counts={};S.allUsers.forEach(u=>counts[u.role]=(counts[u.role]||0)+1);
   const actions=(u,justify)=>{const R=rights(u),canDel=S.me.role==='superadmin'&&u.id!==S.me.id&&u.role!=='superadmin';if(!(R.name||R.username||R.password||R.role||R.active||canDel))return '';
     return `<div class="flex flex-wrap gap-1.5 ${justify}">
-    ${R.role?`<select data-urole="${u.id}" aria-label="Role ${esc(u.name)}" class="${selectCls} !py-1.5 !text-xs">${['admin','supervisor','frontoffice','operator','housekeeper'].map(r=>`<option value="${r}" ${u.role===r?'selected':''}>${ROLE[r].l}</option>`).join('')}</select>`:''}
+    ${R.role?`<select data-urole="${u.id}" aria-label="Role ${esc(u.name)}" class="${selectCls} !py-1.5 !text-xs">${['admin','supervisor','frontoffice','operator','housekeeper','gm'].map(r=>`<option value="${r}" ${u.role===r?'selected':''}>${ROLE[r].l}</option>`).join('')}</select>`:''}
     ${(R.name||R.username||R.password)?`<button data-act="openEditUser" data-id="${u.id}" class="${bc('ghost','sm')}">${ic(R.name||R.username?'edit':'key','w-3.5 h-3.5')} ${R.name||R.username?'Edit':'Ganti password'}</button>`:''}
     ${R.active?`<button data-act="toggleActive" data-id="${u.id}" class="${bc(u.active?'dangerSoft':'soft','sm')}">${u.active?'Nonaktifkan':'Aktifkan'}</button>`:''}
     ${canDel?`<button data-act="delUserAsk" data-id="${u.id}" class="${bc('danger','sm')}" title="Hapus akun">${ic('trash','w-3.5 h-3.5')} Hapus</button>`:''}</div>`};
@@ -1565,7 +1566,7 @@ function renderModals(){
       <button data-act="logout" class="${bc('dangerSoft','md','w-full')}">${ic('logout')} Keluar</button></div>`,{close:'closeAcct',lbl:'Akun'});
   }
   if(S.addUser&&S.me){
-    const creatable=S.me.role==='superadmin'?['admin','supervisor','frontoffice','operator','housekeeper']:['supervisor','frontoffice','operator','housekeeper'];
+    const creatable=S.me.role==='superadmin'?['admin','supervisor','frontoffice','operator','housekeeper','gm']:['supervisor','frontoffice','operator','housekeeper'];
     const role=creatable.includes(dv('f-urole','housekeeper'))?dv('f-urole','housekeeper'):'housekeeper';
     h+=sheet(`${sheetHead('Tambah pengguna','','closeAddUser')}<div class="px-5 sm:px-6 pb-6 space-y-4 overflow-y-auto">
       <div>${label('f-uname','Nama lengkap')}<input id="f-uname" data-keep type="text" value="${esc(dv('f-uname',''))}" class="${field}" placeholder="Mis. Siti Rahma"></div>
