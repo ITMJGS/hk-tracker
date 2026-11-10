@@ -14,7 +14,7 @@
   <script>
     /* Alamat server (Google Apps Script). Ganti jika membuat deployment baru. */
     window.HK_API_URL = 'https://script.google.com/macros/s/AKfycbyyFZ7k-3dElnTu4hKc6IbNF9uVi5FnZiOTJ6N4Wszv9jNoRZQYKMee7GVqjIfr-QEaRA/exec';
-    window.HK_BUILD = '20261110195906';
+    window.HK_BUILD = '20261110200709';
     /* Pengganti google.script.run: memanggil server lewat POST {fn, args} */
     (function () {
       function runner() {
@@ -207,7 +207,7 @@ async function run(fn,ok){try{const r=await fn();if(ok)toast(typeof ok==='functi
 let toastT;function toast(m){const el=document.getElementById('toast');document.getElementById('toast-msg').textContent=m;el.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>el.hidden=true,3500)}
 function renderBusy(){document.querySelectorAll('[data-busy]').forEach(el=>el.classList.toggle('spin',!!S.busy))}
 
-const CLIENT_VERSION=36; /* versi Code.gs yang dibutuhkan tampilan ini. Naikkan HANYA jika Code.gs ikut berubah (harus sama dengan APP_VERSION di Code.gs) */
+const CLIENT_VERSION=37; /* versi Code.gs yang dibutuhkan tampilan ini. Naikkan HANYA jika Code.gs ikut berubah (harus sama dengan APP_VERSION di Code.gs) */
 /* satu permintaan getState pada satu waktu: cegah notifikasi dobel & beban server.
    Jika dipanggil saat masih memuat (mis. setelah menyimpan), dijalankan sekali lagi sesudahnya agar data terbaru terambil. */
 let refreshing=null,refreshNext=null;
@@ -387,6 +387,7 @@ const reqPmrChip=r=>reqPmrOn(r)?chip('PMR '+clk(r.reqPmrAt),reqPmrDue(r)?'bg-eme
 function pmrButton(r){
   if(r.status==='COMPLETED')return `<span class="text-[11px] text-slate-400">${r.reqPmrAt?'PMR selesai':'–'}</span>`;
   if(reqPmrOn(r))return `<span class="inline-flex items-center gap-1.5">${reqPmrChip(r)}${canReqPmr()?`<button data-act="cancelReqPmr" data-id="${esc(r.room)}" class="text-[11px] font-semibold text-slate-500 hover:text-rose-600" title="Batalkan Request PMR">${ic('x','w-3.5 h-3.5')}</button>`:''}</span>`;
+  if(r.status==='SKIPPED')return canReqPmr()?`<button data-act="openReqPmr" data-id="${esc(r.room)}" class="text-[11px] font-semibold text-emerald-700 hover:underline whitespace-nowrap" title="${esc(skLbl(r))}: tamu minta dibersihkan">Request PMR</button>`:`<span class="text-[11px] text-zinc-500">${esc(skLbl(r))}</span>`;
   if(r.status==='REFUSED')return canReqPmr()?`<button data-act="openReqPmr" data-id="${esc(r.room)}" class="text-[11px] font-semibold text-emerald-700 hover:underline whitespace-nowrap" title="Tamu berubah pikiran">Request PMR</button>`:'<span class="text-[11px] text-slate-400">–</span>';
   if(r.status!=='PENDING')return r.reqPmrAt?'<span class="text-[11px] text-emerald-700 font-semibold">PMR · sedang dibersihkan</span>':'<span class="text-[11px] text-slate-400">–</span>';
   return canReqPmr()?`<button data-act="openReqPmr" data-id="${esc(r.room)}" class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ring-emerald-300 text-emerald-700 hover:bg-emerald-50 whitespace-nowrap">${ic('plus','w-3 h-3')} Request PMR</button>`:'';
@@ -439,7 +440,7 @@ function csLine(r){const c=csRes(r);if(!c)return isDnd(r)?'<span class="text-amb
 const csChip=r=>{const c=csRes(r);return c==='PMR'?chip('PMR '+clk(r.csPmrAt),pmrDue(r)?'bg-emerald-600 text-white ring-emerald-600':'bg-emerald-50 text-emerald-700 ring-emerald-200'):c==='NOSERVICE'?chip('No service','bg-slate-100 text-slate-600 ring-slate-300'):c==='CALLED'?chip('Courtesy ✓','bg-cyan-50 text-cyan-700 ring-cyan-200'):c==='UNREACHABLE'?chip('Tak terhubung','bg-orange-50 text-orange-700 ring-orange-200'):''};
 const dndLbl=r=>DNDL[r.dndReason]||'DND';
 const dndChip=r=>chip(dndLbl(r),dndLate(r)?'bg-rose-600 text-white ring-rose-600':'bg-slate-800 text-white ring-slate-800','bg-white');
-const rStChip=r=>isDnd(r)?dndChip(r):stChip(r.status);
+const rStChip=r=>isDnd(r)?dndChip(r):r.status==='SKIPPED'?chip('Skip · '+esc(skLbl(r)),ST.SKIPPED.chip,ST.SKIPPED.dot):stChip(r.status);
 const dndLeftAt=due=>{if(dndNoMore(due))return 'tidak wajib cek ulang lagi hari ini (lewat 18.00)';const d=due-nowS();return d>0?`dalam ${Math.ceil(d/60000)} mnt`:`terlambat ${mins(-d)} mnt`};
 const dndLeft=r=>dndLeftAt(dndDue(r));
 const catChip=c=>chip(catOf(c).l,catOf(c).chip);
@@ -785,13 +786,14 @@ function viewDash(){
   ${queueBalanceCard()}
   ${isAdmin()?`<div class="lg:hidden -mt-1 mb-4 grid grid-cols-2 gap-2"><button data-act="nav" data-v="upload" class="${bc('ghost')}">${ic('upload')} Upload</button><button data-act="openClose" data-d="${S.today}" class="${bc('dark')}">${ic('lock')} Tutup hari</button></div>`:''}
   <div class="hidden lg:flex items-end justify-between mb-5"><div><p class="text-sm text-slate-500">${greet()},</p><p class="text-2xl font-extrabold text-slate-900 tracking-tight">${esc(S.me.name)}</p></div>${isAdmin()?`<div class="flex gap-2"><button data-act="nav" data-v="upload" class="${bc('ghost')}">${ic('upload')} Upload task sheet</button><button data-act="openClose" data-d="${S.today}" class="${bc('dark')}">${ic('lock')} Tutup hari</button></div>`:''}</div>
-  <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
+  <div class="grid grid-cols-2 md:grid-cols-3 ${cnt(R,'SKIPPED')?'md:grid-cols-4 xl:grid-cols-7':'xl:grid-cols-6'} gap-3 sm:gap-4">
     ${kpi('bed','bg-slate-100 text-slate-600','Total kamar',total,`${R.filter(r=>r.category==='CHECKOUT').length} CO · ${R.filter(r=>r.category==='STAYOVER').length} SO`)}
     ${kpi('check','bg-emerald-50 text-emerald-600','Ready',ready,(()=>{const [a,c,so]=progSplit(R);return `${a.pct}% · CO ${c.done}/${c.total} · SO ${so.done}/${so.total}`})())}
     ${kpi('dcheck','bg-sky-50 text-sky-600','Tunggu / cek SPV',wait+chk,`${chk} sedang dicek`)}
     ${kpi('clock','bg-amber-50 text-amber-600','Dikerjakan',work,`${cnt(R,'PAUSED')} dijeda`)}
     ${kpi('inbox','bg-slate-100 text-slate-500','Belum mulai',pend,`${R.filter(isDnd).length?R.filter(isDnd).length+' DND/Double Sign · ':''}${R.filter(r=>!r.assignedTo).length} belum di-assign`)}
     ${kpi('ban','bg-stone-100 text-stone-600','Service Refused',cnt(R,'REFUSED'),(()=>{const L=R.filter(r=>r.status==='REFUSED'),c=L.filter(r=>r.refusedVia==='COURTESY').length;return L.length?`${L.length-c} dari RA · ${c} hasil courtesy`:'stayover · tamu menolak'})())}
+    ${cnt(R,'SKIPPED')?kpi('skip','bg-zinc-100 text-zinc-600','Skip stayover',cnt(R,'SKIPPED'),Object.keys(SKL).map(k=>[k,R.filter(r=>r.status==='SKIPPED'&&r.skipStayKind===k).length]).filter(x=>x[1]).map(([k,n])=>n+' '+SKL[k]).join(' · ')):''}
   </div>
   <div class="mt-4">${progressCard(R)}</div>
   ${spvDashCard(R)}
@@ -886,6 +888,8 @@ function importPreview(){
 /* ================= KAMAR ================= */
 /* Admin: selesaikan kamar manual + isi jamnya (kamar yang dibersihkan sebelum shift) */
 const manualBtn=r=>isAdmin()&&r.status!=='COMPLETED'?`<button data-act="openManual" data-id="${esc(r.room)}" class="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-bold text-emerald-700 hover:bg-emerald-50 ring-1 ring-inset ring-emerald-200 mr-1" title="Tandai selesai & isi jam (kamar dibersihkan sebelum shift)">${ic('check','w-3.5 h-3.5')} Selesai manual</button>`:'';
+/* Admin & PENGUASA: skip kamar stayover (Sleep Out / No Show / By Call) langsung dari daftar Kamar */
+const skipSoBtn=r=>!isAdmin()||r.category!=='STAYOVER'?'':r.status==='SKIPPED'?`<button data-act="ask" data-type="undo" data-id="${esc(r.room)}" class="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-semibold text-zinc-600 hover:bg-zinc-100 mr-1" title="Batalkan skip stayover (${esc(skLbl(r))})">${ic('undo','w-3.5 h-3.5')} Batal skip</button>`:r.status==='PENDING'&&!isDnd(r)?`<button data-act="openSkip" data-so="1" data-id="${esc(r.room)}" class="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-bold text-zinc-700 hover:bg-zinc-100 ring-1 ring-inset ring-zinc-300 mr-1" title="Sleep Out / No Show / By Call">${ic('skip','w-3.5 h-3.5')} Skip</button>`:'';
 const canExtend=()=>!!S.me&&['superadmin','admin','frontoffice'].includes(S.me.role); /* tamu extend: FO, admin, PENGUASA */
 const extendBtn=r=>!canExtend()?'':r.extendAt?`<button data-act="extendUndo" data-id="${esc(r.room)}" class="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-semibold text-slate-500 hover:bg-slate-100 mr-1" title="Batalkan extend (salah tekan)">${ic('undo','w-3.5 h-3.5')} Batal extend</button>`:r.category==='CHECKOUT'&&r.status!=='COMPLETED'?`<button data-act="extendAsk" data-id="${esc(r.room)}" class="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-bold text-indigo-700 hover:bg-indigo-50 ring-1 ring-inset ring-indigo-200 mr-1" title="Tamu extend: kamar jadi stayover, tidak perlu dicek supervisor">${ic('calendar','w-3.5 h-3.5')} Extend</button>`:'';
 const extChip=r=>r.extendAt?`<span class="text-[10px] font-bold text-white bg-indigo-600 rounded px-1 py-0.5" title="Tamu extend · diubah ${esc(nameOf(r.extendBy))} ${clk(r.extendAt)}">Extend</span>`:'';
@@ -908,9 +912,9 @@ function viewRooms(){
   const table=`<div class="hidden md:block overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-xs text-slate-500 border-y border-slate-100 bg-slate-50/60"><th class="font-semibold px-5 py-2.5">Kamar</th><th class="font-semibold px-3 py-2.5">Reservasi</th><th class="font-semibold px-3 py-2.5">Housekeeper</th><th class="font-semibold px-3 py-2.5">Status</th><th class="font-semibold px-3 py-2.5">Queue / Request PMR</th><th class="font-semibold px-3 py-2.5">Waktu</th><th class="px-5 py-2.5"></th></tr></thead>
     <tbody class="divide-y divide-slate-100">${shown.map(r=>`<tr class="${isQ(r)?'bg-rose-50/70 hover:bg-rose-50':'hover:bg-slate-50/60'} align-middle"><td class="px-5 py-3 ${isQ(r)?'border-l-4 border-rose-500':''}"><p class="font-extrabold text-slate-900">${esc(r.room)}</p><p class="text-xs text-slate-500 whitespace-nowrap">${esc(r.roomType)} · Lt ${esc(floorOf(r))}</p></td>
       <td class="px-3 py-3"><div class="flex flex-wrap gap-1">${resvChip(r)||catChip(r.category)}${extChip(r)}${flagChips(r)}</div></td><td class="px-3 py-3">${assignCell(r)}</td><td class="px-3 py-3">${rStChip(r)}</td><td class="px-3 py-3">${qToggle(r)}</td>
-      <td class="px-3 py-3 text-xs text-slate-500 whitespace-nowrap font-mono">${r.startAt?clk(firstStart(r))+(r.finishHkAt?' – '+clk(r.finishHkAt):''):'–'}${r.retCount?' <span class="text-orange-600 font-bold">↩</span>':''}</td><td class="px-4 py-3"><div class="flex flex-col items-end gap-1 [&>*]:mr-0">${extendBtn(r)}${manualBtn(r)}${r.status==='PENDING'?delBtn('r'+r.room,'delRoom',r.room,'Hapus kamar '+r.room):''}</div></td></tr>`).join('')}</tbody></table></div>`;
+      <td class="px-3 py-3 text-xs text-slate-500 whitespace-nowrap font-mono">${r.startAt?clk(firstStart(r))+(r.finishHkAt?' – '+clk(r.finishHkAt):''):'–'}${r.retCount?' <span class="text-orange-600 font-bold">↩</span>':''}</td><td class="px-4 py-3"><div class="flex flex-col items-end gap-1 [&>*]:mr-0">${extendBtn(r)}${skipSoBtn(r)}${manualBtn(r)}${r.status==='PENDING'?delBtn('r'+r.room,'delRoom',r.room,'Hapus kamar '+r.room):''}</div></td></tr>`).join('')}</tbody></table></div>`;
   const mobile=`<div class="md:hidden divide-y divide-slate-100 border-t border-slate-100">${shown.map(r=>`<div class="px-4 py-3 space-y-2 ${isQ(r)?'bg-rose-50/70 border-l-4 border-rose-500':''}"><div class="flex items-start justify-between gap-3"><div><p class="font-extrabold text-slate-900 text-lg leading-none">${esc(r.room)}</p><p class="text-xs text-slate-500 mt-1">${esc(r.roomType)} · Lt ${esc(floorOf(r))}</p></div><div class="flex flex-col items-end gap-1.5">${rStChip(r)}${qToggle(r)}</div></div>
-    <div class="flex flex-wrap gap-1">${resvChip(r)||catChip(r.category)}${extChip(r)}${flagChips(r)}</div><div class="flex items-center gap-2"><div class="flex-1 min-w-0">${assignCell(r)}</div>${extendBtn(r)}${manualBtn(r)}${r.status==='PENDING'?delBtn('r'+r.room,'delRoom',r.room,'Hapus kamar '+r.room):''}</div></div>`).join('')}</div>`;
+    <div class="flex flex-wrap gap-1">${resvChip(r)||catChip(r.category)}${extChip(r)}${flagChips(r)}</div><div class="flex items-center gap-2"><div class="flex-1 min-w-0">${assignCell(r)}</div>${extendBtn(r)}${skipSoBtn(r)}${manualBtn(r)}${r.status==='PENDING'?delBtn('r'+r.room,'delRoom',r.room,'Hapus kamar '+r.room):''}</div></div>`).join('')}</div>`;
   const people=hks.map(h=>{const m=R.filter(r=>r.assignedTo===h.id);const co=m.filter(r=>r.category==='CHECKOUT').length;const d=m.filter(hkDone).length;
     return `<button data-act="openAssign" data-id="${h.id}" class="text-left rounded-2xl ring-1 ring-inset ring-slate-200 hover:ring-brand-300 hover:bg-brand-50/30 p-3.5 space-y-2.5 transition"><div class="flex items-center gap-3">${avatar(h.name)}<div class="min-w-0 flex-1"><p class="font-semibold text-slate-900 truncate">${esc(h.name)}</p><p class="text-xs text-slate-500">Ketuk untuk assign kamar</p></div><span class="text-sm font-extrabold text-slate-900">${m.length}</span></div>
       ${bar(d,m.length||1,'bg-brand-500','h-1.5')}<p class="text-[11px] text-slate-500"><span class="text-rose-600 font-semibold">${co} CO</span> · <span class="text-indigo-600 font-semibold">${m.length-co} SO</span> · ${d} selesai</p></button>`}).join('');
@@ -1083,28 +1087,28 @@ function reportData(date){
   const all=((date===S.today?S.rooms:S.report[date])||[]).slice().sort(roomSort);
   const di=date===S.today?S.day:S.dayInfo[date],end=di&&di.closed?di.closedAt:nowS();
   const CO=all.filter(r=>r.category==='CHECKOUT'),SO=all.filter(r=>r.category==='STAYOVER');
-  const rd=a=>a.filter(r=>r.status==='COMPLETED'),rf=a=>a.filter(r=>r.status==='REFUSED');
+  const rd=a=>a.filter(r=>r.status==='COMPLETED'),rf=a=>a.filter(r=>r.status==='REFUSED'),sk=a=>a.filter(r=>r.status==='SKIPPED');
   const pct=(a,b)=>b?Math.round(a/b*100):0,avg=a=>a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length):null;
   const lo=a=>a.length?Math.min(...a):null,hi=a=>a.length?Math.max(...a):null;
   const cleaned=a=>a.filter(r=>r.startAt&&r.finishHkAt&&r.status!=='REFUSED');
   const cl=a=>cleaned(a).map(r=>mins(hkSpan(r))),tot=a=>rd(a).filter(r=>r.startAt).map(r=>mins(totalSpan(r)));
   const spvDone=rd(CO).filter(r=>r.spvStartAt),waitM=spvDone.filter(r=>r.finishHkAt).map(r=>mins(spvWait(r))),chkM=spvDone.map(r=>mins(spvCheck(r)));
-  const cat=(l,a)=>({l,total:a.length,ready:rd(a).length,pct:pct(rd(a).length,a.length),refused:rf(a).length,left:a.length-rd(a).length-rf(a).length-a.filter(r=>r.status==='SKIPPED').length});
+  const cat=(l,a)=>({l,total:a.length,ready:rd(a).length,pct:pct(rd(a).length,a.length),refused:rf(a).length,skipped:sk(a).length,left:a.length-rd(a).length-rf(a).length-sk(a).length});
   const statusRows=[['Belum mulai',all.filter(r=>r.status==='PENDING'&&!isDnd(r)).length],['DND / Double Sign',all.filter(isDnd).length],['Sedang dibersihkan',all.filter(r=>r.status==='CLEANING').length],
     ['Dijeda',all.filter(r=>r.status==='PAUSED').length],['Menunggu cek SPV',all.filter(r=>r.status==='INSPECTION_READY').length],['Sedang dicek SPV',all.filter(r=>r.status==='INSPECTING').length]];
   const queue=all.filter(r=>r.queuedAt).sort((a,b)=>a.queuedAt-b.queuedAt).map(r=>{const ok=r.status==='COMPLETED';return {room:r.room,hk:nameOf(r.assignedTo),top:!!r.queueTop,start:T_(clk(r.queuedAt)),ready:ok?T_(clk(r.finishSpvAt)):'',wait:mins((ok?r.finishSpvAt:end)-r.queuedAt),status:ok?'Ready':(isDnd(r)?dndLbl(r):ST[r.status].l)}});
   const qW=queue.map(q=>q.wait);
   const byHk={};all.forEach(r=>{const k=r.assignedTo||'~'+(r.attendantName||'-');(byHk[k]=byHk[k]||[]).push(r)});
   const perRA=Object.entries(byHk).map(([k,a])=>({name:k[0]==='~'?k.slice(1):nameOf(k),total:a.length,co:a.filter(r=>r.category==='CHECKOUT').length,so:a.filter(r=>r.category==='STAYOVER').length,
-    ready:rd(a).length,refused:rf(a).length,cCO:avg(cl(a.filter(r=>r.category==='CHECKOUT'))),cSO:avg(cl(a.filter(r=>r.category==='STAYOVER'))),pause:mins(a.reduce((s,r)=>s+pauseOf(r),0))})).sort((a,b)=>b.total-a.total||a.name.localeCompare(b.name));
+    ready:rd(a).length,refused:rf(a).length,skipped:sk(a).length,cCO:avg(cl(a.filter(r=>r.category==='CHECKOUT'))),cSO:avg(cl(a.filter(r=>r.category==='STAYOVER'))),pause:mins(a.reduce((s,r)=>s+pauseOf(r),0))})).sort((a,b)=>b.total-a.total||a.name.localeCompare(b.name));
   const bySpv={};spvDone.forEach(r=>(bySpv[r.spvId]=bySpv[r.spvId]||[]).push(r));
   const perSPV=Object.entries(bySpv).map(([id,a])=>{const w=a.filter(r=>r.finishHkAt).map(r=>mins(spvWait(r))),c=a.map(r=>mins(spvCheck(r)));return {name:nameOf(id),checked:a.length,avgWait:avg(w),maxWait:hi(w),avgCheck:avg(c)}}).sort((a,b)=>b.checked-a.checked);
   const notReady=all.filter(r=>r.status!=='COMPLETED'&&r.status!=='REFUSED'&&r.status!=='SKIPPED').map(r=>({room:r.room,cat:isSO(r)?'Stayover':'Checkout',status:(isDnd(r)?dndLbl(r)+' (dicek '+((r.dndChecks||0)+1)+'x)':ST[r.status].l)+(r.extendAt?' (extend)':''),hk:nameOf(r.assignedTo),queue:isQ(r)?(r.queueTop?'TOP PRIORITY':'Tamu menunggu'):''}));
   const refused=all.filter(r=>r.status==='REFUSED'||r.status==='SKIPPED').map(r=>({room:r.room,hk:nameOf(r.assignedTo),at:T_(clk(r.status==='SKIPPED'?r.skipStayAt:r.refusedAt)),via:r.status==='SKIPPED'?'Skip stayover · '+skLbl(r):r.refusedVia==='COURTESY'?'Konfirmasi operator':'RA'}));
   const M=v=>v==null?'':mins(v);
-  const head=['Kamar','Kategori','Status','Housekeeper','Jam HK start','Jam HK selesai','Jeda (mnt)','Waktu bersih pengerjaan (mnt)','Jam SPV cek','Jam SPV selesai cek','Lama cek SPV (mnt)','HK selesai - SPV cek (mnt)','Total HK start - SPV selesai (mnt)','Supervisor','Jam mulai queue','Tamu menunggu (mnt)','DND / Double Sign','Courtesy operator','Request PMR','Dikembalikan ke RA','Waktu perbaikan (mnt)'];
+  const head=['Kamar','Kategori','Status','Housekeeper','Jam HK start','Jam HK selesai','Jeda (mnt)','Waktu bersih pengerjaan (mnt)','Jam SPV cek','Jam SPV selesai cek','Lama cek SPV (mnt)','HK selesai - SPV cek (mnt)','Total HK start - SPV selesai (mnt)','Supervisor','Jam mulai queue','Tamu menunggu (mnt)','DND / Double Sign','Courtesy operator','Request PMR','Dikembalikan ke RA','Waktu perbaikan (mnt)','Skip stayover'];
   const done=all.slice().sort((a,b)=>(a.status==='COMPLETED'?0:1)-(b.status==='COMPLETED'?0:1)||roomSort(a,b));
-  const rows=done.map(r=>{const t=timesOf(r),ok=r.status==='COMPLETED';return [r.room,isSO(r)?'Stayover':'Checkout',(ok?(r.manualAt?'Ready (manual)':'Ready'):isDnd(r)?dndLbl(r):ST[r.status].l)+(r.extendAt?' (extend)':''),nameOf(r.assignedTo),T_(t.hkStart),T_(t.hkEnd),r.startAt?mins(pauseOf(r)):'',r.finishHkAt?M(t.hkDur):'',ok?T_(t.spvStart):(r.spvStartAt?T_(clk(r.spvStartAt)):''),ok?T_(t.spvEnd):'',t.spvDur==null?'':M(t.spvDur),t.wait==null?'':M(t.wait),ok&&r.startAt?M(t.total):'',r.spvId&&!isSO(r)?nameOf(r.spvId):'',r.queuedAt?T_(clk(r.queuedAt))+(r.queueTop?' (TOP)':''):'',r.queuedAt?mins((ok?r.finishSpvAt:end)-r.queuedAt):'',r.dndReason?`${dndLbl(r)} ${T_(clk(r.dndAt))}${r.dndClearAt?'-'+T_(clk(r.dndClearAt)):''} (cek ${(r.dndChecks||0)+1}x)`:'',r.csResult?`${CSL[r.csResult]} ${T_(clk(r.csAt))}${r.csResult==='PMR'?' (bersih '+T_(clk(r.csPmrAt))+')':''}${r.csBy?' - '+opName(r):''}`:'',r.reqPmrAt?`${T_(clk(r.reqPmrAt))}${r.reqPmrBy?' - '+nameOf(r.reqPmrBy):''}`:'',r.retCount?`${r.retCount}x - ${RETL[r.retReason]||''} ${T_(clk(r.retAt))}${r.retBy?' - '+nameOf(r.retBy):''}${r.retNote?' ('+r.retNote+')':''}`:'',t.rework!=null?mins(t.rework):'']});
+  const rows=done.map(r=>{const t=timesOf(r),ok=r.status==='COMPLETED';return [r.room,isSO(r)?'Stayover':'Checkout',(ok?(r.manualAt?'Ready (manual)':'Ready'):isDnd(r)?dndLbl(r):r.status==='SKIPPED'?'Skip stayover · '+skLbl(r):ST[r.status].l)+(r.extendAt?' (extend)':''),nameOf(r.assignedTo),T_(t.hkStart),T_(t.hkEnd),r.startAt?mins(pauseOf(r)):'',r.finishHkAt?M(t.hkDur):'',ok?T_(t.spvStart):(r.spvStartAt?T_(clk(r.spvStartAt)):''),ok?T_(t.spvEnd):'',t.spvDur==null?'':M(t.spvDur),t.wait==null?'':M(t.wait),ok&&r.startAt?M(t.total):'',r.spvId&&!isSO(r)?nameOf(r.spvId):'',r.queuedAt?T_(clk(r.queuedAt))+(r.queueTop?' (TOP)':''):'',r.queuedAt?mins((ok?r.finishSpvAt:end)-r.queuedAt):'',r.dndReason?`${dndLbl(r)} ${T_(clk(r.dndAt))}${r.dndClearAt?'-'+T_(clk(r.dndClearAt)):''} (cek ${(r.dndChecks||0)+1}x)`:'',r.csResult?`${CSL[r.csResult]} ${T_(clk(r.csAt))}${r.csResult==='PMR'?' (bersih '+T_(clk(r.csPmrAt))+')':''}${r.csBy?' - '+opName(r):''}`:'',r.reqPmrAt?`${T_(clk(r.reqPmrAt))}${r.reqPmrBy?' - '+nameOf(r.reqPmrBy):''}`:'',r.retCount?`${r.retCount}x - ${RETL[r.retReason]||''} ${T_(clk(r.retAt))}${r.retBy?' - '+nameOf(r.retBy):''}${r.retNote?' ('+r.retNote+')':''}`:'',t.rework!=null?mins(t.rework):'',r.skipStayKind?`${skLbl(r)} ${T_(clk(r.skipStayAt))}${r.skipStayBy?' - '+nameOf(r.skipStayBy):''}${r.status!=='SKIPPED'?' (lalu tamu minta dibersihkan)':''}`:'']});
   return {date,dateLong:fmtDate(date),closed:!!(di&&di.closed),statusTxt:di&&di.closed?`Ditutup ${new Date(di.closedAt).toLocaleString('id-ID',{timeZone:'Asia/Jakarta',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})} oleh ${di.closedBy}`:'Belum ditutup (data sementara)',
     made:new Date(nowS()).toLocaleString('id-ID',{timeZone:'Asia/Jakarta',day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'}),by:S.me?S.me.name:'',
     cats:[cat('Checkout',CO),cat('Stayover',SO),cat('Total',all)],statusRows,dnd:all.filter(isDnd).length,
@@ -1146,13 +1150,13 @@ function exportXlsx(){
   const H=t=>({v:t,s:3}),tx=v=>({v:v==null?'':v,s:4}),nm=v=>({v:v==null?'':v,s:5}),bt=v=>({v,s:7}),bn=v=>({v:v==null?'':v,s:8}),sec=t=>[{v:t,s:6,span:6}];
   /* Ringkasan */
   const R=[[{v:'Laporan Harian Housekeeping',s:1,span:6}],[{v:D.dateLong,s:2,span:6}],[{v:D.statusTxt+' · dibuat '+D.made+(D.by?' oleh '+D.by:''),s:2,span:6}],null,
-    sec('Status kamar'),[H('Kategori'),H('Total kamar'),H('Ready'),H('% ready'),H('Belum ready'),H('Service Refused')],
-    ...D.cats.map((c,i)=>{const f=i===2?bn:nm;return [i===2?bt(c.l):tx(c.l),f(c.total),f(c.ready),{v:c.total?c.ready/c.total:0,s:i===2?10:9},f(c.left),f(c.refused)]}),null,
+    sec('Status kamar'),[H('Kategori'),H('Total kamar'),H('Ready'),H('% ready'),H('Belum ready'),H('Service Refused'),H('Skip stayover')],
+    ...D.cats.map((c,i)=>{const f=i===2?bn:nm;return [i===2?bt(c.l):tx(c.l),f(c.total),f(c.ready),{v:c.total?c.ready/c.total:0,s:i===2?10:9},f(c.left),f(c.refused),f(c.skipped)]}),null,
     sec('Rata-rata waktu (menit)'),[H('Metrik'),H('Checkout'),H('Stayover'),H('Tercepat'),H('Terlama'),H('')],...D.times.map(t=>[tx(t[0]),nm(t[1]),nm(t[2]),nm(t[3]),nm(t[4]),{v:'',s:0}]),null,
     sec('Kamar belum ready'),[H('Status'),H('Jumlah')],...D.statusRows.map(s=>[tx(s[0]),nm(s[1])]),null,
     sec('Tamu menunggu (Queue)'),[H('Jumlah kamar'),H('Top Priority'),H('Rata-rata tunggu (mnt)'),H('Tercepat (mnt)'),H('Terlama (mnt)')],[nm(D.qStat.n),nm(D.qStat.top),nm(D.qStat.avg),nm(D.qStat.lo),nm(D.qStat.hi)],null,
-    sec('Per housekeeper'),[H('Housekeeper'),H('Kamar'),H('Checkout'),H('Stayover'),H('Ready'),H('Service Refused'),H('Rata-rata bersih CO (mnt)'),H('Rata-rata bersih SO (mnt)'),H('Total jeda (mnt)')],
-    ...D.perRA.map(p=>[tx(p.name),nm(p.total),nm(p.co),nm(p.so),nm(p.ready),nm(p.refused),nm(p.cCO),nm(p.cSO),nm(p.pause)]),null,
+    sec('Per housekeeper'),[H('Housekeeper'),H('Kamar'),H('Checkout'),H('Stayover'),H('Ready'),H('Service Refused'),H('Skip stayover'),H('Rata-rata bersih CO (mnt)'),H('Rata-rata bersih SO (mnt)'),H('Total jeda (mnt)')],
+    ...D.perRA.map(p=>[tx(p.name),nm(p.total),nm(p.co),nm(p.so),nm(p.ready),nm(p.refused),nm(p.skipped),nm(p.cCO),nm(p.cSO),nm(p.pause)]),null,
     sec('Per supervisor (kamar checkout)'),[H('Supervisor'),H('Kamar dicek'),H('Rata-rata HK selesai - SPV cek (mnt)'),H('Terlama (mnt)'),H('Rata-rata lama cek (mnt)')],
     ...(D.perSPV.length?D.perSPV.map(p=>[tx(p.name),nm(p.checked),nm(p.avgWait),nm(p.maxWait),nm(p.avgCheck)]):[[tx('Belum ada kamar yang dicek')]])];
   const detail=[D.head.map(H),...D.rows.map(r=>r.map(v=>typeof v==='number'?nm(v):tx(v)))];
@@ -1203,20 +1207,20 @@ async function exportPdf(){
   y-=68;
   /* kartu ringkasan */
   const tc=D.cats[2],co=D.cats[0],so=D.cats[1];
-  const cards=[['Kamar ready',`${tc.ready} / ${tc.total}`,`${tc.pct}% dari semua kamar`],['Checkout ready',`${co.ready} / ${co.total}`,`${co.pct}%`],['Stayover ready',`${so.ready} / ${so.total}`,`${so.pct}%${so.refused?' · '+so.refused+' service refused':''}`],
+  const cards=[['Kamar ready',`${tc.ready} / ${tc.total}`,`${tc.pct}% dari semua kamar`],['Checkout ready',`${co.ready} / ${co.total}`,`${co.pct}%`],['Stayover ready',`${so.ready} / ${so.total}`,`${so.pct}%${so.refused?' · '+so.refused+' refused':''}${so.skipped?' · '+so.skipped+' skip':''}`],
     ['Rata-rata bersih',`${D.times[0][1]??'-'} / ${D.times[0][2]??'-'}`,'menit · checkout / stayover'],['Rata-rata sampai ready',`${D.times[1][1]??'-'} / ${D.times[1][2]??'-'}`,'menit · checkout / stayover'],['Tamu menunggu',String(D.qStat.n),D.qStat.n?`rata-rata ${D.qStat.avg} mnt · terlama ${D.qStat.hi} mnt`:'tidak ada']];
   const cw=(CW-5*8)/6;cards.forEach((c,i)=>{const x=M+i*(cw+8);page.drawRectangle({x,y:y-58,width:cw,height:58,color:C.brandL,borderColor:C.line,borderWidth:.5});
     text(c[0],x+8,y-15,{size:8,bold:true,color:C.brand,w:cw-16});text(c[1],x+8,y-35,{size:16,bold:true,w:cw-16});text(c[2],x+8,y-49,{size:7,color:C.mut,w:cw-16})});
   y-=72;
   heading('Status kamar',3);
-  table([{h:'Kategori',w:3},{h:'Total kamar',w:2,a:'right'},{h:'Ready',w:2,a:'right'},{h:'% ready',w:2,a:'right'},{h:'Belum ready',w:2,a:'right'},{h:'Service Refused',w:2,a:'right'}],D.cats.map(c=>[c.l,c.total,c.ready,c.pct+'%',c.left,c.refused]),{boldLast:true});
+  table([{h:'Kategori',w:3},{h:'Total kamar',w:2,a:'right'},{h:'Ready',w:2,a:'right'},{h:'% ready',w:2,a:'right'},{h:'Belum ready',w:2,a:'right'},{h:'Service Refused',w:2,a:'right'},{h:'Skip stayover',w:2,a:'right'}],D.cats.map(c=>[c.l,c.total,c.ready,c.pct+'%',c.left,c.refused,c.skipped]),{boldLast:true});
   heading('Rata-rata waktu',4);
   table([{h:'Metrik',w:5},{h:'Checkout',w:2,a:'right'},{h:'Stayover',w:2,a:'right'},{h:'Tercepat',w:2,a:'right'},{h:'Terlama',w:2,a:'right'}],D.times.map(t=>[t[0],mm(t[1]),t[2]==null?'-':mm(t[2]),mm(t[3]),mm(t[4])]));
   const left=D.statusRows.filter(s=>s[1]);
   if(left.length){heading('Kamar belum ready',left.length);table([{h:'Status',w:5},{h:'Jumlah',w:2,a:'right'}],left)}
   heading('Per housekeeper',D.perRA.length);
-  table([{h:'Housekeeper',w:5},{h:'Kamar',w:1.4,a:'right'},{h:'CO',w:1.2,a:'right'},{h:'SO',w:1.2,a:'right'},{h:'Ready',w:1.4,a:'right'},{h:'Refused',w:1.5,a:'right'},{h:'Rata bersih CO',w:2.2,a:'right'},{h:'Rata bersih SO',w:2.2,a:'right'},{h:'Total jeda',w:1.8,a:'right'}],
-    D.perRA.map(p=>[p.name,p.total,p.co,p.so,p.ready,p.refused,mm(p.cCO),mm(p.cSO),p.pause?p.pause+' mnt':'-']));
+  table([{h:'Housekeeper',w:5},{h:'Kamar',w:1.4,a:'right'},{h:'CO',w:1.2,a:'right'},{h:'SO',w:1.2,a:'right'},{h:'Ready',w:1.4,a:'right'},{h:'Refused',w:1.5,a:'right'},{h:'Skip',w:1.2,a:'right'},{h:'Rata bersih CO',w:2.2,a:'right'},{h:'Rata bersih SO',w:2.2,a:'right'},{h:'Total jeda',w:1.8,a:'right'}],
+    D.perRA.map(p=>[p.name,p.total,p.co,p.so,p.ready,p.refused,p.skipped,mm(p.cCO),mm(p.cSO),p.pause?p.pause+' mnt':'-']));
   heading('Per supervisor (kamar checkout)',D.perSPV.length||1);
   if(D.perSPV.length)table([{h:'Supervisor',w:5},{h:'Kamar dicek',w:2,a:'right'},{h:'Rata HK selesai - SPV cek',w:3,a:'right'},{h:'Terlama',w:2,a:'right'},{h:'Rata lama cek',w:2.4,a:'right'}],D.perSPV.map(p=>[p.name,p.checked,mm(p.avgWait),mm(p.maxWait),mm(p.avgCheck)]));
   else{text('Belum ada kamar checkout yang dicek supervisor.',M,y-10,{size:8.5,color:C.mut});y-=20}
@@ -1443,8 +1447,8 @@ function hkCard(r,active){
       <p class="font-bold flex items-center gap-1.5">${ic(late?'bell':'clock','w-3.5 h-3.5')} ${late?'Waktunya cek ulang':dndNoMore(dndDue(r))?'Tidak wajib cek ulang':'Cek ulang '+clk(dndDue(r))} <span class="font-semibold ${late?'text-rose-700':'text-slate-500'}" data-dnd="${dndDue(r)}">· ${dndLeft(r)}</span></p>
       <p class="mt-0.5">${esc(dndLbl(r))} sejak ${clk(r.dndAt)} · sudah dicek ${(r.dndChecks||0)+1}x · terakhir ${clk(r.dndCheckAt||r.dndAt)}</p></div>
     <div class="grid grid-cols-2 gap-2"><button data-act="ask" data-type="recheck" data-id="${esc(r.room)}" class="${bc(late?'danger':'soft','md')}">${ic('refresh','w-4 h-4')} Masih ${esc(dndLbl(r))}</button>${locked?`<span class="text-[11px] text-slate-500 self-center text-center leading-tight">Selesaikan kamar ${esc(active.room)} dulu untuk Start</span>`:`<button data-act="ask" data-type="start" data-id="${esc(r.room)}" class="${bc('dark','md')}">${ic('play')} Start</button>`}</div>
-    <div class="flex justify-center gap-4"><button data-act="ask" data-type="refuse" data-id="${esc(r.room)}" class="text-[11px] font-semibold text-stone-600 hover:text-stone-900">Tamu menolak (Service Refused)</button><button data-act="ask" data-type="unskip" data-id="${esc(r.room)}" class="text-[11px] font-semibold text-slate-500 hover:text-slate-800">Batalkan skip</button></div>`}
-  else if(reqPmrOn(r)){const due=reqPmrDue(r);act=`<div class="rounded-xl ring-1 ring-inset ${due?'bg-emerald-600 text-white ring-emerald-600':'bg-emerald-50 ring-emerald-200 text-emerald-900'} px-3 py-2.5 text-xs"><p class="font-bold flex items-center gap-1.5">${ic('bell','w-3.5 h-3.5')} ${due?'Request PMR · bersihkan sekarang':'Request PMR pukul '+clk(r.reqPmrAt)}</p><p class="mt-0.5 ${due?'text-emerald-50':''}">dari ${esc(r.reqPmrBy&&usersById()[r.reqPmrBy]?nameOf(r.reqPmrBy):'front office')} ${clk(r.reqPmrMade)}${r.reqPmrNote?` · "${esc(r.reqPmrNote)}"`:''}</p></div>
+    <div class="flex flex-wrap justify-center gap-x-4 gap-y-1"><button data-act="ask" data-type="refuse" data-id="${esc(r.room)}" class="text-[11px] font-semibold text-stone-600 hover:text-stone-900">Tamu menolak (Service Refused)</button><button data-act="openSkip" data-so="1" data-id="${esc(r.room)}" class="text-[11px] font-semibold text-zinc-600 hover:text-zinc-900">Sleep Out / No Show / By Call</button><button data-act="ask" data-type="unskip" data-id="${esc(r.room)}" class="text-[11px] font-semibold text-slate-500 hover:text-slate-800">Batalkan skip</button></div>`}
+  else if(reqPmrOn(r)){const due=reqPmrDue(r);act=`<div class="rounded-xl ring-1 ring-inset ${due?'bg-emerald-600 text-white ring-emerald-600':'bg-emerald-50 ring-emerald-200 text-emerald-900'} px-3 py-2.5 text-xs"><p class="font-bold flex items-center gap-1.5">${ic('bell','w-3.5 h-3.5')} ${due?'Request PMR · bersihkan sekarang':'Request PMR pukul '+clk(r.reqPmrAt)}</p><p class="mt-0.5 ${due?'text-emerald-50':''}">dari ${esc(r.reqPmrBy&&usersById()[r.reqPmrBy]?nameOf(r.reqPmrBy):'front office')} ${clk(r.reqPmrMade)}${r.reqPmrNote?` · "${esc(r.reqPmrNote)}"`:''}${r.skipStayKind?` · sebelumnya ${esc(skLbl(r))}`:''}</p></div>
     ${locked?`<p class="text-[11px] text-slate-500 text-center">Selesaikan kamar ${esc(active.room)} dulu untuk Start</p>`:`<button data-act="ask" data-type="start" data-id="${esc(r.room)}" class="${bc(due?'success':'dark','md','w-full')}">${ic('play')} Start</button>`}`}
   else if(r.status==='PENDING'&&r.category!=='STAYOVER')act=locked?'':`<button data-act="ask" data-type="start" data-id="${esc(r.room)}" class="${bc('dark','md','w-full')}">${ic('play')} Start</button>`; /* kamar checkout tidak bisa di-skip */
   else if(r.status==='PENDING')act=`<div class="grid ${locked?'':'grid-cols-[auto_1fr]'} gap-2"><button data-act="openSkip" data-id="${esc(r.room)}" class="${bc('ghost','md')}" title="Skip: DND / Double Sign / Service Refused / Sleep Out / No Show / By Call">${ic('skip','w-4 h-4')} Skip</button>${locked?'':`<button data-act="ask" data-type="start" data-id="${esc(r.room)}" class="${bc('dark','md','w-full')}">${ic('play')} Start</button>`}</div>`;
@@ -1650,9 +1654,9 @@ function renderModals(){
     else S.pmr=null;}
   if(S.skip&&S.me){const r=S.rooms.find(x=>x.room===S.skip.room);
     if(r){const pick=S.skip.reason||'';const opt=(k,t,d,i)=>`<label class="cursor-pointer"><input type="radio" name="skipr" value="${k}" data-skippick class="peer sr-only" ${pick===k?'checked':''}><span class="flex items-center gap-3 rounded-2xl ring-1 ring-inset ring-slate-200 peer-checked:ring-2 peer-checked:ring-slate-900 peer-checked:bg-slate-50 peer-focus-visible:ring-2 peer-focus-visible:ring-brand-500 p-3.5"><span class="w-11 h-11 rounded-xl bg-slate-900 text-white flex items-center justify-center text-[11px] font-extrabold shrink-0">${i}</span><span class="min-w-0"><span class="block text-sm font-bold text-slate-900">${t}</span><span class="block text-xs text-slate-500">${d}</span></span></span></label>`;
-    h+=sheet(`${sheetHead('Skip kamar '+esc(r.room),'Kenapa kamar belum bisa dibersihkan?','closeSkip')}<div class="px-5 sm:px-6 pb-6 space-y-3 overflow-y-auto">
-      ${opt('DND','DND','Do Not Disturb — tamu tidak ingin diganggu','DND')}${opt('DOUBLE','Double Sign','Ada tanda double lock / double sign di pintu','DS')}${opt('REFUSED','Service Refused','Tamu menolak kamarnya dibersihkan hari ini','SR')}
-      ${r.category==='STAYOVER'?`<p class="text-[11px] font-bold uppercase tracking-wide text-slate-400 pt-1">Tidak perlu dibersihkan</p>`+opt('SLEEPOUT','Sleep Out','Tamu tidak tidur di kamar semalam','SL')+opt('NOSHOW','No Show','Tamu tidak datang / kamar tidak dipakai','NS')+opt('BYCALL','By Call','Dibersihkan hanya jika tamu menelepon','BC'):''}
+    h+=sheet(`${sheetHead('Skip kamar '+esc(r.room),S.skip.so?`Stayover · ${esc(nameOf(r.assignedTo))} · kenapa tidak perlu dibersihkan?`:'Kenapa kamar belum bisa dibersihkan?','closeSkip')}<div class="px-5 sm:px-6 pb-6 space-y-3 overflow-y-auto">
+      ${S.skip.so?'':opt('DND','DND','Do Not Disturb — tamu tidak ingin diganggu','DND')+opt('DOUBLE','Double Sign','Ada tanda double lock / double sign di pintu','DS')+opt('REFUSED','Service Refused','Tamu menolak kamarnya dibersihkan hari ini','SR')}
+      ${r.category==='STAYOVER'?(S.skip.so?'':`<p class="text-[11px] font-bold uppercase tracking-wide text-slate-400 pt-1">Tidak perlu dibersihkan</p>`)+opt('SLEEPOUT','Sleep Out','Tamu tidak tidur di kamar semalam','SL')+opt('NOSHOW','No Show','Tamu tidak datang / kamar tidak dipakai','NS')+opt('BYCALL','By Call','Dibersihkan hanya jika tamu menelepon','BC'):''}
       ${pick==='REFUSED'?`<div class="flex gap-2 rounded-xl bg-stone-100 ring-1 ring-inset ring-stone-300 p-3 text-xs text-stone-800">${ic('info','w-4 h-4 shrink-0')}<span>Status kamar menjadi <b>Service Refused</b> (bukan Ready) dan tidak perlu dicek ulang. Bisa dibatalkan dengan Undo.</span></div>`:''}
       ${SKL[pick]?`<div class="flex gap-2 rounded-xl bg-zinc-100 ring-1 ring-inset ring-zinc-300 p-3 text-xs text-zinc-800">${ic('info','w-4 h-4 shrink-0')}<span>Kamar pindah ke kategori <b>Skip stayover · ${SKL[pick]}</b>: tidak dibersihkan, tidak dihitung ready, dan tidak perlu dicek ulang. Bisa dibatalkan dengan Undo.</span></div>`:''}
       <div class="${pick==='REFUSED'||SKL[pick]?'hidden':'flex'} gap-2 rounded-xl bg-amber-50 ring-1 ring-inset ring-amber-200 p-3 text-xs text-amber-900">${ic('clock','w-4 h-4 shrink-0')}<span>Kamar <b>tidak dihitung selesai</b> dan tetap Belum mulai. Anda wajib <b>cek ulang setiap 1 jam pada pukul 13.00–18.00</b> (pengingat berbunyi). Jika sign sudah hilang, tekan Start.</span></div>
@@ -1799,7 +1803,7 @@ const A={
       msg:res==='RESET'?(r.status==='REFUSED'?'Status Service Refused dibatalkan dan kamar kembali ke daftar Perlu courtesy.':'Kamar kembali ke daftar Perlu courtesy.'):`Status kamar menjadi <b>Service Refused</b> (bukan Ready). ${esc(nameOf(r.assignedTo))} diberi tahu dan tidak perlu cek ulang lagi.`,btnV:'dark',btn:res==='RESET'?'Ya, batalkan':'Ya, Service Refused',onYes:go};render()},
   spvToday(){S.spvDate='';render()},
   fofilter(el){S.drafts['f-fof']=el.dataset.v;S.showAll=false;render()},
-  openSkip(el){S.skip={room:el.dataset.id,reason:''};render()},
+  openSkip(el){S.skip={room:el.dataset.id,reason:'',so:!!el.dataset.so};render()},
   extendAsk(el){const room=el.dataset.id,r=S.rooms.find(x=>x.room===room)||{};
     const st=r.status==='INSPECTION_READY'?'RA sudah selesai, jadi kamar langsung <b>ready</b>.':r.status==='INSPECTING'?'Supervisor sedang mengecek; kamar ready setelah cek selesai.':'Saat RA selesai, kamar langsung ready tanpa cek supervisor.';
     S.confirm={icon:'calendar',iconCls:'bg-indigo-50 text-indigo-600',title:`Tamu kamar ${esc(room)} extend?`,msg:`Kamar diubah dari checkout menjadi <b>stayover</b>. ${st}${isQ(r)?' Queue tamu baru untuk kamar ini akan dimatikan; pindahkan tamu ke kamar lain.':''}`,btnV:'primary',btn:'Ya, extend',onYes:async()=>{const upd=await run(()=>api('extendRoom',S.today,room),`Kamar ${room} ditandai extend (stayover)`);if(upd){const i=S.rooms.findIndex(x=>x.room===upd.room);if(i>=0)S.rooms[i]=upd;render()}}};render()},
@@ -2070,6 +2074,10 @@ function detectEvents(prev,next){
     const rt=next.filter(r=>r.assignedTo===me.id&&r.retAt&&P.get(r.room)&&P.get(r.room).retAt!==r.retAt);
     rt.forEach(r=>{const t=`Kamar ${r.room} dikembalikan oleh SPV (${(RETL[r.retReason]||'').toLowerCase()})`;notify('alarm',t,(r.retNote?'"'+r.retNote+'" · ':'')+nameOf(r.retBy)+' · perbaiki lalu Finish lagi','assign');toast(t)});
     const ns=next.filter(r=>r.assignedTo===me.id&&r.status==='REFUSED'&&r.refusedVia==='COURTESY'&&P.get(r.room)&&P.get(r.room).status!=='REFUSED');
+    const sk=next.filter(r=>r.assignedTo===me.id&&r.status==='SKIPPED'&&r.skipStayBy&&r.skipStayBy!==me.id&&P.get(r.room)&&P.get(r.room).status!=='SKIPPED');
+    sk.forEach(r=>notify('info',`Kamar ${r.room}: ${skLbl(r)}`,`Ditandai ${nameOf(r.skipStayBy)} · tidak perlu dibersihkan hari ini.`,'assign'));
+    const back=next.filter(r=>r.assignedTo===me.id&&r.status==='PENDING'&&!reqPmrOn(r)&&P.get(r.room)&&P.get(r.room).status==='SKIPPED'&&r.updatedBy!==me.id);
+    if(back.length)notify('info',`Kamar ${back.map(r=>r.room).join(', ')} kembali ke daftar`,'Skip stayover dibatalkan admin. Kamar perlu dibersihkan.','assign');
     if(ns.length)notify('info',`Kamar ${ns.map(r=>r.room).join(', ')}: Service Refused`,'Hasil courtesy operator: tamu menolak dibersihkan. Tidak perlu cek ulang.','pmr');
   }
   { /* kamar dinaikkan ke Top Priority → RA pemegang & supervisor lantainya */
