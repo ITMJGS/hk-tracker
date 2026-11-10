@@ -14,7 +14,7 @@
   <script>
     /* Alamat server (Google Apps Script). Ganti jika membuat deployment baru. */
     window.HK_API_URL = 'https://script.google.com/macros/s/AKfycbyyFZ7k-3dElnTu4hKc6IbNF9uVi5FnZiOTJ6N4Wszv9jNoRZQYKMee7GVqjIfr-QEaRA/exec';
-    window.HK_BUILD = '20261110095614';
+    window.HK_BUILD = '20261110101801';
     /* Pengganti google.script.run: memanggil server lewat POST {fn, args} */
     (function () {
       function runner() {
@@ -204,7 +204,7 @@ async function run(fn,ok){try{const r=await fn();if(ok)toast(typeof ok==='functi
 let toastT;function toast(m){const el=document.getElementById('toast');document.getElementById('toast-msg').textContent=m;el.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>el.hidden=true,3500)}
 function renderBusy(){document.querySelectorAll('[data-busy]').forEach(el=>el.classList.toggle('spin',!!S.busy))}
 
-const CLIENT_VERSION=30; /* versi Code.gs yang dibutuhkan tampilan ini. Naikkan HANYA jika Code.gs ikut berubah (harus sama dengan APP_VERSION di Code.gs) */
+const CLIENT_VERSION=31; /* versi Code.gs yang dibutuhkan tampilan ini. Naikkan HANYA jika Code.gs ikut berubah (harus sama dengan APP_VERSION di Code.gs) */
 /* satu permintaan getState pada satu waktu: cegah notifikasi dobel & beban server.
    Jika dipanggil saat masih memuat (mis. setelah menyimpan), dijalankan sekali lagi sesudahnya agar data terbaru terambil. */
 let refreshing=null,refreshNext=null;
@@ -834,11 +834,14 @@ function delSheetCard(){
 }
 function importPreview(){
   const I=S.imp,rows=I.parsed.rows;
-  const atts={};for(const r of rows){const k=r.attendant||'(tanpa nama)';const a=atts[k]=atts[k]||{n:0,co:0,so:0};a.n++;r.category==='CHECKOUT'?a.co++:a.so++}
+  const atts={};for(const r of rows){const k=String(r.attendant||'').trim()||'(tanpa nama)';const a=atts[k]=atts[k]||{n:0,co:0,so:0};a.n++;r.category==='CHECKOUT'?a.co++:a.so++}
   /* cocokkan ke akun lewat USERNAME (Galang Pratama → galang.pratama); cadangan: nama akun */
   const hks=S.users.filter(u=>u.role==='housekeeper'),byU={},byN={};hks.forEach(u=>{if(u.username)byU[u.username]=u;byN[norm(u.name)]=u});
-  const acct=n=>byU[unameOf(n)]||byN[norm(n)]||null;
+  const auto=n=>byU[unameOf(n)]||byN[norm(n)]||null,byId=Object.fromEntries(hks.map(u=>[u.id,u])),M=I.map||{};
+  /* pilihan manual di pratinjau (mis. nama di task sheet typo): id akun, '__new' = buat akun baru, kosong = otomatis */
+  const acct=n=>{const c=M[n];return c==='__new'?null:c&&byId[c]?byId[c]:auto(n)};
   const isNew=n=>n!=='(tanpa nama)'&&!acct(n);
+  const opts=hks.slice().sort((a,b)=>a.name.localeCompare(b.name));
   const newCount=Object.keys(atts).filter(isNew).length,co=rows.filter(r=>r.category==='CHECKOUT').length;
   const ex=I.date===S.today?S.rooms:(S.report[I.date]||null);
   const inFile=new Set(rows.map(r=>r.room));
@@ -852,8 +855,11 @@ function importPreview(){
       <div class="flex flex-wrap items-center justify-between gap-3"><label for="f-impdate" class="text-sm font-semibold text-slate-700">Tanggal tugas</label><input type="date" id="f-impdate" value="${I.date}" class="${selectCls}"></div>
       <p class="text-xs text-slate-500">${rows.filter(r=>r.arrivalFlag).length} kamar <b class="text-fuchsia-700">! Arrival</b> · ${rows.filter(r=>r.skip).length} kamar <b>#&nbsp;Skip</b></p>
       <div><p class="text-sm font-bold text-slate-900 mb-2">${Object.keys(atts).length} attendant${newCount?` <span class="font-medium text-brand-700">· ${newCount} akun baru</span>`:''}</p>
-        <div class="grid sm:grid-cols-2 gap-1.5 max-h-72 overflow-y-auto pr-1">${Object.entries(atts).map(([n,a])=>`<div class="flex items-center gap-2.5 rounded-xl ring-1 ring-inset ring-slate-200 px-2.5 py-2">${avatar(n,'w-7 h-7 text-[10px]')}<span class="flex-1 min-w-0"><span class="block text-sm font-semibold text-slate-800 truncate">${esc(n)}</span><span class="block text-[11px] ${isNew(n)?'text-brand-700':'text-slate-500'} truncate">${n==='(tanpa nama)'?'':isNew(n)?'akun housekeeper baru akan dibuat':'@'+esc((acct(n).username)||unameOf(n))+(norm(acct(n).name)!==norm(n)?' · '+esc(acct(n).name):'')}</span></span>${isNew(n)?chip('baru','bg-brand-50 text-brand-700 ring-brand-200'):''}<span class="text-xs text-slate-500 whitespace-nowrap"><b class="text-slate-800">${a.n}</b> · <span class="text-rose-600">${a.co}</span>/<span class="text-indigo-600">${a.so}</span></span></div>`).join('')}</div>
-        <p class="text-[11px] text-slate-400 mt-1.5">Total · <span class="text-rose-600">checkout</span>/<span class="text-indigo-600">stayover</span></p></div>
+        <div class="grid gap-1.5 max-h-96 overflow-y-auto pr-1">${Object.entries(atts).map(([n,a])=>{const c=M[n]||'',ac=acct(n),manual=!!c,au=auto(n);
+          const line=n==='(tanpa nama)'?'kamar tanpa attendant, assign manual nanti':ac?'@'+esc(ac.username||'')+(norm(ac.name)!==norm(n)?' · '+esc(ac.name):'')+(manual?' · dipilih manual':''):'akun housekeeper baru akan dibuat'+(manual?' · dipilih manual':'');
+          return `<div class="rounded-xl ring-1 ring-inset ${manual?'ring-brand-300 bg-brand-50/40':'ring-slate-200'} px-2.5 py-2 flex flex-col gap-2"><div class="flex items-center gap-2.5 min-w-0">${avatar(n,'w-7 h-7 text-[10px]')}<span class="flex-1 min-w-0"><span class="block text-sm font-semibold text-slate-800 truncate">${esc(n)}</span><span class="block text-[11px] ${isNew(n)?'text-brand-700':'text-slate-500'} truncate">${line}</span></span>${isNew(n)?chip('baru','bg-brand-50 text-brand-700 ring-brand-200'):''}<span class="text-xs text-slate-500 whitespace-nowrap"><b class="text-slate-800">${a.n}</b> · <span class="text-rose-600">${a.co}</span>/<span class="text-indigo-600">${a.so}</span></span></div>
+            ${n==='(tanpa nama)'?'':`<select data-impmap="${esc(n)}" aria-label="Akun untuk ${esc(n)}" class="${selectCls} !py-1.5 text-xs w-full"><option value="" ${c===''?'selected':''}>Otomatis: ${au?'@'+esc(au.username||au.name):'buat akun baru'}</option><optgroup label="Pilih akun yang sudah ada">${opts.map(u=>`<option value="${esc(u.id)}" ${c===u.id?'selected':''}>${esc(u.name)}${u.username?' · @'+esc(u.username):''}${u.active?'':' (nonaktif)'}</option>`).join('')}</optgroup><option value="__new" ${c==='__new'?'selected':''}>Buat akun baru "${esc(n)}"</option></select>`}</div>`}).join('')}</div>
+        <p class="text-[11px] text-slate-400 mt-1.5">Total · <span class="text-rose-600">checkout</span>/<span class="text-indigo-600">stayover</span> · Nama typo? Pilih akun yang benar di daftar pilihan.</p></div>
       ${I.parsed.warnings.length?`<div class="rounded-xl bg-amber-50 ring-1 ring-inset ring-amber-200 p-3 text-xs text-amber-900">${I.parsed.warnings.slice(0,5).map(esc).join('<br>')}</div>`:''}
       ${ex&&ex.length?`<div class="rounded-xl bg-brand-50 ring-1 ring-inset ring-brand-200 p-3 text-xs text-brand-900 space-y-2"><p>Sudah ada <b>${ex.length}</b> kamar di tanggal ini. Kamar yang sama diperbarui; yang sedang/sudah dikerjakan tidak diubah penugasannya.</p>
         ${missing?`<label class="flex items-start gap-2"><input type="checkbox" id="f-rmmissing" data-keep class="mt-0.5 accent-brand-600" ${dv('f-rmmissing',false)?'checked':''}> Hapus ${missing} kamar yang belum dimulai dan tidak ada di file ini</label>`:''}</div>`:''}
@@ -1821,7 +1827,7 @@ const A={
     const I=S.imp;if(!I||I.state!=='preview')return;
     S.imp=Object.assign({},I,{state:'writing'});render();
     try{
-      const res=await api('importTaskSheet',{date:I.date,fileName:I.fileName,removeMissing:!!dv('f-rmmissing',false),rows:I.parsed.rows});
+      const res=await api('importTaskSheet',{date:I.date,fileName:I.fileName,removeMissing:!!dv('f-rmmissing',false),rows:I.parsed.rows,map:I.map||{}});
       S.imp={state:'done',fileName:I.fileName,result:res};
       if(res.newUsers.length)S.creds={title:res.newUsers.length+' akun housekeeper baru',list:res.newUsers};
       delete S.report[res.date];await refresh(true);render();
@@ -2058,6 +2064,7 @@ document.addEventListener('change',async e=>{
   else if(el.hasAttribute('data-unrpick')){if(S.unreach){S.unreach.reason=el.value;render()}}
   else if(el.hasAttribute('data-pmrmode')){if(S.pmr){S.pmr.mode=el.value;render()}}
   else if(el.hasAttribute('data-skippick')){if(S.skip){S.skip.reason=el.value;render()}}
+  else if(el.hasAttribute('data-impmap')){if(S.imp){const m=S.imp.map=S.imp.map||{};if(el.value)m[el.dataset.impmap]=el.value;else delete m[el.dataset.impmap];render()}}
   else if(el.hasAttribute('data-retpick')){if(S.ret){S.ret.reason=el.value;S.ret.note=(document.getElementById('ret-note')||{}).value||'';render()}}
   else if(el.id==='f-pdf'){handleFile(el.files&&el.files[0]);el.value=''}
   else if(el.dataset.queue){const room=el.dataset.queue,on=el.checked,r0=S.rooms.find(x=>x.room===room);
