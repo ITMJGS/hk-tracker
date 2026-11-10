@@ -14,7 +14,7 @@
   <script>
     /* Alamat server (Google Apps Script). Ganti jika membuat deployment baru. */
     window.HK_API_URL = 'https://script.google.com/macros/s/AKfycbyyFZ7k-3dElnTu4hKc6IbNF9uVi5FnZiOTJ6N4Wszv9jNoRZQYKMee7GVqjIfr-QEaRA/exec';
-    window.HK_BUILD = '20261110101801';
+    window.HK_BUILD = '20261110104104';
     /* Pengganti google.script.run: memanggil server lewat POST {fn, args} */
     (function () {
       function runner() {
@@ -262,7 +262,7 @@ function doLocalLogout(msg){
 function parseTaskSheet(pages){
   const COLS=[['flag',0,20],['room',20,45],['type',45,70],['rs',70,95],['fo',95,120],['am',120,140],['pm',140,165],['resv',165,240],['next',240,282],['td',282,297],['title',297,335],['name',335,385],['arr',385,428],['arrt',428,468],['dep',468,505],['dept',505,545],['vip',545,562],['adl',562,578],['chl',578,598],['spec',598,660],['instr',660,1e9]];
   const colOf=x=>{for(const c of COLS)if(x>=c[1]&&x<c[2])return c[0]};
-  let date='',att='',seq=0;const rows=[],warnings=[];
+  let date='',att='',seq=0,inSum=false,expected=0;const rows=[],warnings=[];
   for(const pg of pages){
     const words=[];
     for(const it of pg.items){
@@ -277,9 +277,12 @@ function parseTaskSheet(pages){
       l.ws.sort((a,b)=>a.x-b.x);
       const txt=l.ws.map(w=>w.t).join(' ');
       if(!date){const m=txt.match(/Task Date From\s+(\d{2})\/(\d{2})\/(\d{2})/);if(m)date='20'+m[3]+'-'+m[2]+'-'+m[1]}
+      if(/Report Summary/.test(txt))inSum=true;
+      /* ringkasan akhir laporan Opera: "Total <jml task sheet> <Total Rooms> ..." dipakai untuk memeriksa jumlah kamar terbaca */
+      if(inSum&&/^Total\b/.test(txt)){const nums=txt.match(/\d+/g)||[];if(nums.length>=6)expected=+nums[1]}
       if(/^Instructions\b/.test(txt)){att=l.ws.filter(w=>w.x>90).map(w=>w.t).join(' ').trim();continue}
       if(l.ws[0].t==='No'&&l.ws[0].x<40&&l.y<200){inRows=true;continue}
-      if(/^(Total|Filter|Page)/.test(txt)||l.y>540){inRows=false;cur=null;continue}
+      if(/^(Total|Filter|Page|Task Code|Show )/.test(txt)||l.y>=546){inRows=false;cur=null;continue}
       if(!inRows)continue;
       const d={};for(const w of l.ws){const c=colOf(w.x);(d[c]=d[c]||[]).push(w.t)}
       const rw=d.room&&d.room[0];
@@ -301,6 +304,7 @@ function parseTaskSheet(pages){
       nextArr:((r.nx&&r.nx.arrt)||r.next||'').replace(/^00:00$/,''),nextAdults:(r.nx&&r.nx.adl)||''});
   }
   if(out.some(r=>!r.attendant))warnings.push('Ada kamar tanpa nama attendant; kamar itu masuk sebagai belum di-assign.');
+  if(expected&&expected!==out.length)warnings.unshift(`Perhatian: task sheet mencatat ${expected} kamar, tetapi yang terbaca ${out.length} kamar. Cocokkan dengan laporan Opera sebelum import, lalu kabari pengembang.`);
   return {date,rows:out,warnings};
 }
 let pdfReady=null;
