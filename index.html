@@ -14,7 +14,7 @@
   <script>
     /* Alamat server (Google Apps Script). Ganti jika membuat deployment baru. */
     window.HK_API_URL = 'https://script.google.com/macros/s/AKfycbyyFZ7k-3dElnTu4hKc6IbNF9uVi5FnZiOTJ6N4Wszv9jNoRZQYKMee7GVqjIfr-QEaRA/exec';
-    window.HK_BUILD = '20261107175318';
+    window.HK_BUILD = '20261110094249';
     /* Pengganti google.script.run: memanggil server lewat POST {fn, args} */
     (function () {
       function runner() {
@@ -204,7 +204,7 @@ async function run(fn,ok){try{const r=await fn();if(ok)toast(typeof ok==='functi
 let toastT;function toast(m){const el=document.getElementById('toast');document.getElementById('toast-msg').textContent=m;el.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>el.hidden=true,3500)}
 function renderBusy(){document.querySelectorAll('[data-busy]').forEach(el=>el.classList.toggle('spin',!!S.busy))}
 
-const CLIENT_VERSION=29; /* versi Code.gs yang dibutuhkan tampilan ini. Naikkan HANYA jika Code.gs ikut berubah (harus sama dengan APP_VERSION di Code.gs) */
+const CLIENT_VERSION=30; /* versi Code.gs yang dibutuhkan tampilan ini. Naikkan HANYA jika Code.gs ikut berubah (harus sama dengan APP_VERSION di Code.gs) */
 /* satu permintaan getState pada satu waktu: cegah notifikasi dobel & beban server.
    Jika dipanggil saat masih memuat (mis. setelah menyimpan), dijalankan sekali lagi sesudahnya agar data terbaru terambil. */
 let refreshing=null,refreshNext=null;
@@ -320,6 +320,8 @@ function loadPdfJs(){
 const usersById=()=>{const m={};S.users.forEach(u=>m[u.id]=u);(S.allUsers||[]).forEach(u=>m[u.id]=Object.assign({},m[u.id],u));return m};
 const nameOf=id=>{if(!id)return 'Belum di-assign';const u=usersById()[id];if(u)return u.name;const dn=(S.deletedNames||{})[id];return dn?dn+' (dihapus)':'(akun dihapus)'};
 const hkList=()=>S.users.filter(u=>u.role==='housekeeper'&&u.active).sort((a,b)=>a.name.localeCompare(b.name));
+/* username dari nama attendant, sama dengan server: "Galang Pratama" → "galang.pratama" */
+const unameOf=n=>{let b=String(n).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'.').replace(/^\.+|\.+$/g,'').slice(0,24)||'user';return b.length<3?b+'.hk':b};
 const roomSort=(a,b)=>String(a.room).localeCompare(String(b.room),undefined,{numeric:true});
 const seqSort=(a,b)=>((a.seq||0)-(b.seq||0))||roomSort(a,b);
 const dv=(id,def)=>id in S.drafts?S.drafts[id]:def;
@@ -804,7 +806,7 @@ function viewUpload(){
       <span class="text-base font-bold text-slate-900">Pilih PDF Task Sheet Report</span><span class="text-sm text-slate-500">atau seret file ke sini · format Opera hsk_tasksheet</span></label>
     <input type="file" id="f-pdf" accept="application/pdf,.pdf" class="sr-only">
     <ul class="grid sm:grid-cols-3 gap-3 text-xs text-slate-600">
-      <li class="flex gap-2 rounded-xl bg-slate-50 p-3">${ic('users','w-4 h-4 text-brand-600')}<span>Nama di baris <b>Instructions</b> jadi akun housekeeper</span></li>
+      <li class="flex gap-2 rounded-xl bg-slate-50 p-3">${ic('users','w-4 h-4 text-brand-600')}<span>Nama di baris <b>Instructions</b> dicocokkan ke <b>username</b> housekeeper (Galang Pratama → galang.pratama)</span></li>
       <li class="flex gap-2 rounded-xl bg-slate-50 p-3">${ic('door','w-4 h-4 text-rose-600')}<span><b>Due Out/Departed</b> = Checkout, dicek supervisor</span></li>
       <li class="flex gap-2 rounded-xl bg-slate-50 p-3">${ic('bed','w-4 h-4 text-indigo-600')}<span><b>Stayover</b> langsung ready setelah Finish</span></li></ul></div>`);
   let side='';
@@ -833,8 +835,10 @@ function delSheetCard(){
 function importPreview(){
   const I=S.imp,rows=I.parsed.rows;
   const atts={};for(const r of rows){const k=r.attendant||'(tanpa nama)';const a=atts[k]=atts[k]||{n:0,co:0,so:0};a.n++;r.category==='CHECKOUT'?a.co++:a.so++}
-  const known=new Set(S.users.filter(u=>u.role==='housekeeper').map(u=>norm(u.name)));
-  const isNew=n=>n!=='(tanpa nama)'&&!known.has(norm(n));
+  /* cocokkan ke akun lewat USERNAME (Galang Pratama → galang.pratama); cadangan: nama akun */
+  const hks=S.users.filter(u=>u.role==='housekeeper'),byU={},byN={};hks.forEach(u=>{if(u.username)byU[u.username]=u;byN[norm(u.name)]=u});
+  const acct=n=>byU[unameOf(n)]||byN[norm(n)]||null;
+  const isNew=n=>n!=='(tanpa nama)'&&!acct(n);
   const newCount=Object.keys(atts).filter(isNew).length,co=rows.filter(r=>r.category==='CHECKOUT').length;
   const ex=I.date===S.today?S.rooms:(S.report[I.date]||null);
   const inFile=new Set(rows.map(r=>r.room));
@@ -848,7 +852,7 @@ function importPreview(){
       <div class="flex flex-wrap items-center justify-between gap-3"><label for="f-impdate" class="text-sm font-semibold text-slate-700">Tanggal tugas</label><input type="date" id="f-impdate" value="${I.date}" class="${selectCls}"></div>
       <p class="text-xs text-slate-500">${rows.filter(r=>r.arrivalFlag).length} kamar <b class="text-fuchsia-700">! Arrival</b> · ${rows.filter(r=>r.skip).length} kamar <b>#&nbsp;Skip</b></p>
       <div><p class="text-sm font-bold text-slate-900 mb-2">${Object.keys(atts).length} attendant${newCount?` <span class="font-medium text-brand-700">· ${newCount} akun baru</span>`:''}</p>
-        <div class="grid sm:grid-cols-2 gap-1.5 max-h-72 overflow-y-auto pr-1">${Object.entries(atts).map(([n,a])=>`<div class="flex items-center gap-2.5 rounded-xl ring-1 ring-inset ring-slate-200 px-2.5 py-2">${avatar(n,'w-7 h-7 text-[10px]')}<span class="flex-1 min-w-0 text-sm font-semibold text-slate-800 truncate">${esc(n)}</span>${isNew(n)?chip('baru','bg-brand-50 text-brand-700 ring-brand-200'):''}<span class="text-xs text-slate-500 whitespace-nowrap"><b class="text-slate-800">${a.n}</b> · <span class="text-rose-600">${a.co}</span>/<span class="text-indigo-600">${a.so}</span></span></div>`).join('')}</div>
+        <div class="grid sm:grid-cols-2 gap-1.5 max-h-72 overflow-y-auto pr-1">${Object.entries(atts).map(([n,a])=>`<div class="flex items-center gap-2.5 rounded-xl ring-1 ring-inset ring-slate-200 px-2.5 py-2">${avatar(n,'w-7 h-7 text-[10px]')}<span class="flex-1 min-w-0"><span class="block text-sm font-semibold text-slate-800 truncate">${esc(n)}</span><span class="block text-[11px] ${isNew(n)?'text-brand-700':'text-slate-500'} truncate">${n==='(tanpa nama)'?'':isNew(n)?'akun housekeeper baru akan dibuat':'@'+esc((acct(n).username)||unameOf(n))+(norm(acct(n).name)!==norm(n)?' · '+esc(acct(n).name):'')}</span></span>${isNew(n)?chip('baru','bg-brand-50 text-brand-700 ring-brand-200'):''}<span class="text-xs text-slate-500 whitespace-nowrap"><b class="text-slate-800">${a.n}</b> · <span class="text-rose-600">${a.co}</span>/<span class="text-indigo-600">${a.so}</span></span></div>`).join('')}</div>
         <p class="text-[11px] text-slate-400 mt-1.5">Total · <span class="text-rose-600">checkout</span>/<span class="text-indigo-600">stayover</span></p></div>
       ${I.parsed.warnings.length?`<div class="rounded-xl bg-amber-50 ring-1 ring-inset ring-amber-200 p-3 text-xs text-amber-900">${I.parsed.warnings.slice(0,5).map(esc).join('<br>')}</div>`:''}
       ${ex&&ex.length?`<div class="rounded-xl bg-brand-50 ring-1 ring-inset ring-brand-200 p-3 text-xs text-brand-900 space-y-2"><p>Sudah ada <b>${ex.length}</b> kamar di tanggal ini. Kamar yang sama diperbarui; yang sedang/sudah dikerjakan tidak diubah penugasannya.</p>
