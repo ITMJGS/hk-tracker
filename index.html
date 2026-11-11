@@ -14,7 +14,7 @@
   <script>
     /* Alamat server (Google Apps Script). Ganti jika membuat deployment baru. */
     window.HK_API_URL = 'https://script.google.com/macros/s/AKfycbyyFZ7k-3dElnTu4hKc6IbNF9uVi5FnZiOTJ6N4Wszv9jNoRZQYKMee7GVqjIfr-QEaRA/exec';
-    window.HK_BUILD = '20261112000712';
+    window.HK_BUILD = '20261112000930';
     /* Pengganti google.script.run: memanggil server lewat POST {fn, args} */
     (function () {
       function runner() {
@@ -2107,7 +2107,7 @@ function checkQueueAlerts(){
   const fresh=rel.filter(r=>!seen.has(qKey(r)));
   if(!fresh.length)return;
   S.qAlert=rel;
-  notify('alarm',(fresh.some(isTop)?'★ TOP PRIORITY · ':'')+'Rush · '+[...new Set(fresh.map(r=>RUSHL[r.rushReason]||'Queuing Room'))].join(', '),'Kamar '+fresh.map(r=>r.room).join(', ')+(S.me.role==='housekeeper'?' — kerjakan lebih dulu':' — segera cek'),'queue');
+  notify('alarm',(fresh.some(isTop)?'★ TOP PRIORITY · ':'')+'Rush · '+[...new Set(fresh.map(rushLbl))].join(', '),'Kamar '+fresh.map(r=>r.room).join(', ')+(S.me.role==='housekeeper'?' — kerjakan lebih dulu':' — segera cek'),'queue');
 }
 
 /* ================= BUNYI & NOTIFIKASI ================= */
