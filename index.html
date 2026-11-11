@@ -14,7 +14,7 @@
   <script>
     /* Alamat server (Google Apps Script). Ganti jika membuat deployment baru. */
     window.HK_API_URL = 'https://script.google.com/macros/s/AKfycbyyFZ7k-3dElnTu4hKc6IbNF9uVi5FnZiOTJ6N4Wszv9jNoRZQYKMee7GVqjIfr-QEaRA/exec';
-    window.HK_BUILD = '20261111210704';
+    window.HK_BUILD = '20261111211323';
     /* Pengganti google.script.run: memanggil server lewat POST {fn, args} */
     (function () {
       function runner() {
@@ -399,7 +399,6 @@ const gnotes=r=>{try{const L=JSON.parse(r.gNotes||'[]');return Array.isArray(L)?
 const openNotes=r=>gnotes(r).filter(n=>!n.doneAt);
 const canNote=()=>!!S.me&&['superadmin','admin','frontoffice'].includes(S.me.role);
 const noteBtn=r=>{if(!canNote())return '';const n=openNotes(r).length,all=gnotes(r).length;return `<button data-act="openNote" data-id="${esc(r.room)}" class="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-bold ${n?'bg-amber-100 text-amber-900 ring-amber-300':'text-slate-600 ring-slate-200 hover:bg-slate-50'} ring-1 ring-inset mr-1" title="Notes untuk RA (permintaan tamu)">${ic('edit','w-3.5 h-3.5')} Notes${n?' · '+n:all?' ✓':''}</button>`};
-const NOTE_QUICK=['Extra towel','Extra pillow','Extra bed','Air mineral','Amenities','Baby cot','Ganti sprei','Buang sampah'];
 function pmrButton(r){
   if(r.status==='COMPLETED')return `<span class="text-[11px] text-slate-400">${r.reqPmrAt?'PMR selesai':'–'}</span>`;
   if(reqPmrOn(r))return `<span class="inline-flex items-center gap-1.5">${reqPmrChip(r)}${callBtn(r)}${canReqPmr()?`<button data-act="cancelReqPmr" data-id="${esc(r.room)}" class="text-[11px] font-semibold text-slate-500 hover:text-rose-600" title="Batalkan Request PMR">${ic('x','w-3.5 h-3.5')}</button>`:''}</span>`;
@@ -1502,7 +1501,7 @@ function hkCard(r,active){
   else if(r.status==='COMPLETED')act=`${timeline(r,r.category==='STAYOVER')}<p class="text-xs text-emerald-700 font-semibold">${mins(netClean(r))} menit bersih</p>`;
   if(r.status==='PENDING'&&r.category==='STAYOVER'&&!isDnd(r)&&!reqPmrOn(r))act+=`<button data-act="openReqPmr" data-mode="at" data-id="${esc(r.room)}" class="text-[11px] font-semibold text-emerald-700 hover:underline self-center">${ic('clock','w-3 h-3 inline -mt-0.5')} Tamu minta PMR jam tertentu</button>`;
   if(reqPmrOn(r)&&r.reqPmrBy===S.me.id)act+=`<button data-act="cancelReqPmr" data-id="${esc(r.room)}" class="text-[11px] font-semibold text-slate-500 hover:text-rose-600 self-center">Batalkan PMR jam ${clk(r.reqPmrAt)}</button>`;
-  {const N=openNotes(r);if(N.length)act=`<div class="rounded-xl bg-amber-50 ring-1 ring-inset ring-amber-300 px-3 py-2.5 space-y-2"><p class="text-[11px] font-bold uppercase tracking-wide text-amber-800 flex items-center gap-1.5">${ic('edit','w-3.5 h-3.5')} Notes permintaan tamu</p>${N.map(n=>`<div class="flex items-start gap-2"><div class="flex-1 min-w-0"><p class="text-sm font-bold text-slate-900">${esc(n.t)}</p><p class="text-[11px] text-amber-800">${esc((n.bn||nameOf(n.by)))} · ${clk(n.at)}</p></div><button data-act="noteDone" data-id="${esc(r.room)}" data-nid="${esc(n.id)}" class="${bc('success','sm')} shrink-0">${ic('check','w-3.5 h-3.5')} Sudah</button></div>`).join('')}</div>`+act}
+  {const N=openNotes(r);if(N.length)act=`<div class="rounded-xl bg-amber-50 ring-1 ring-inset ring-amber-300 px-3 py-2.5 space-y-2"><p class="text-[11px] font-bold uppercase tracking-wide text-amber-800 flex items-center gap-1.5">${ic('edit','w-3.5 h-3.5')} Notes</p>${N.map(n=>`<div class="flex items-start gap-2"><div class="flex-1 min-w-0"><p class="text-sm font-bold text-slate-900">${esc(n.t)}</p><p class="text-[11px] text-amber-800">${esc((n.bn||nameOf(n.by)))} · ${clk(n.at)}</p></div><button data-act="noteDone" data-id="${esc(r.room)}" data-nid="${esc(n.id)}" class="${bc('success','sm')} shrink-0">${ic('check','w-3.5 h-3.5')} Sudah</button></div>`).join('')}</div>`+act}
   if(retOn(r))act=retBanner(r)+act;
   const gl=guestLine(r),extra=resvChip(r)+flagChips(r);
   return `<article class="bg-white rounded-2xl ${isQ(r)?'ring-2 ring-rose-500':(pmrDue(r)||reqPmrDue(r))?'ring-2 ring-emerald-500':reqPmrOn(r)?'ring-1 ring-emerald-300':dndLate(r)?'ring-2 ring-rose-300':isDnd(r)?'ring-1 ring-slate-400':r.arrivalFlag&&r.status==='PENDING'?'ring-1 ring-fuchsia-300':'ring-1 ring-slate-200/80'} shadow-card p-4 flex flex-col gap-3 ${retOn(r)&&!isQ(r)?'!ring-2 !ring-orange-400':''}">${isQ(r)?`<div>${qChip(r)}</div>`:''}
@@ -1679,8 +1678,7 @@ function renderModals(){
   if(S.note&&S.me){const r=S.rooms.find(x=>x.room===S.note.room);
     if(r){const L=gnotes(r).slice().reverse();
       h+=sheet(`${sheetHead('Notes kamar '+esc(r.room),`${esc(r.roomType)} · ${catOf(r.category).l} · RA ${esc(nameOf(r.assignedTo))}${r.guest&&isSO(r)?' · '+esc(r.guest):''}`,'closeNote')}<div class="px-5 sm:px-6 pb-6 space-y-3 overflow-y-auto">
-        <div class="flex flex-wrap gap-1.5">${NOTE_QUICK.map(t=>`<button data-act="noteQuick" data-t="${esc(t)}" class="rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ring-slate-200 text-slate-700 hover:bg-slate-50">${esc(t)}</button>`).join('')}</div>
-        <div>${label('note-t','Permintaan tamu untuk RA')}<textarea id="note-t" rows="2" maxlength="200" placeholder="mis. Extra towel 2 pcs, antar sebelum jam 15.00" class="mt-1 w-full rounded-xl ring-1 ring-inset ring-slate-200 focus:ring-2 focus:ring-brand-500 border-0 px-3 py-2 text-sm">${esc(S.note.t||'')}</textarea></div>
+        <div>${label('note-t','Notes untuk RA')}<textarea id="note-t" rows="3" maxlength="200" placeholder="mis. Setup twin bed, tamu check-in jam 14.00" class="mt-1 w-full rounded-xl ring-1 ring-inset ring-slate-200 focus:ring-2 focus:ring-brand-500 border-0 px-3 py-2 text-sm">${esc(S.note.t||'')}</textarea></div>
         <p id="note-err" class="text-sm text-rose-600" hidden></p>
         <div class="grid grid-cols-[auto_1fr] gap-2"><button data-act="closeNote" class="${bc('ghost','lg')}">Tutup</button><button data-act="saveNote" class="${bc('dark','lg')}">${ic('edit','w-4 h-4')} Kirim ke RA</button></div>
         ${L.length?`<div class="pt-2 space-y-2"><p class="text-xs font-bold text-slate-500 uppercase tracking-wide">Riwayat notes</p>${L.map(n=>`<div class="flex items-start gap-2 rounded-xl ${n.doneAt?'bg-slate-50 ring-slate-200':'bg-amber-50 ring-amber-300'} ring-1 ring-inset px-3 py-2"><div class="flex-1 min-w-0"><p class="text-sm font-semibold ${n.doneAt?'text-slate-500 line-through':'text-slate-900'}">${esc(n.t)}</p><p class="text-[11px] text-slate-500">${esc((n.bn||nameOf(n.by)))} ${clk(n.at)} · ${n.doneAt?`<b class="text-emerald-700">selesai ${clk(n.doneAt)}</b> oleh ${esc((n.dn||nameOf(n.doneBy)))}`:'<b class="text-amber-800">belum dikerjakan</b>'}</p></div>${n.by===S.me.id||isAdmin()?`<button data-act="noteDel" data-id="${esc(r.room)}" data-nid="${esc(n.id)}" class="text-slate-400 hover:text-rose-600 p-1" aria-label="Hapus notes">${ic('trash','w-4 h-4')}</button>`:''}</div>`).join('')}</div>`:''}</div>`,{close:'closeNote',lbl:'Notes'});}
@@ -1909,7 +1907,6 @@ const A={
   closeRush(){S.rush=null;render()},
   openNote(el){S.note={room:el.dataset.id,t:''};render();setTimeout(()=>{const t=document.getElementById('note-t');t&&t.focus()},60)},
   closeNote(){S.note=null;render()},
-  noteQuick(el){const t=document.getElementById('note-t');if(!t)return;t.value=(t.value.trim()?t.value.trim()+', ':'')+el.dataset.t;S.note.t=t.value;t.focus()},
   async saveNote(){const k=S.note;if(!k)return;const t=((document.getElementById('note-t')||{}).value||'').trim();const err=m=>{const x=document.getElementById('note-err');if(x){x.textContent=m;x.hidden=false}};
     if(!t)return err('Tulis permintaan tamunya.');
     try{const upd=await api('addNote',S.today,k.room,t);const i=S.rooms.findIndex(x=>x.room===upd.room);if(i>=0)S.rooms[i]=upd;S.note={room:k.room,t:''};toast(`Notes kamar ${upd.room} terkirim ke ${nameOf(upd.assignedTo)}.`);render()}
