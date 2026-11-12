@@ -14,7 +14,7 @@
   <script>
     /* Alamat server (Google Apps Script). Ganti jika membuat deployment baru. */
     window.HK_API_URL = 'https://script.google.com/macros/s/AKfycbyyFZ7k-3dElnTu4hKc6IbNF9uVi5FnZiOTJ6N4Wszv9jNoRZQYKMee7GVqjIfr-QEaRA/exec';
-    window.HK_BUILD = '20261112001205';
+    window.HK_BUILD = '20261112083148';
     /* Pengganti google.script.run: memanggil server lewat POST {fn, args} */
     (function () {
       function runner() {
@@ -179,7 +179,7 @@ const SKI={SLEEPOUT:'bed',NOSHOW:'user',BYCALL:'phone'},SKC={SLEEPOUT:'bg-blue-5
 const isSkip=r=>!!r&&SKIPS.includes(r.status),skLbl=r=>SKL[r.status]||SKL[r.skipStayKind]||'';
 const CAT={CHECKOUT:{l:'Checkout',chip:'bg-rose-50 text-rose-700 ring-rose-200',text:'text-rose-600'},STAYOVER:{l:'Stayover',chip:'bg-indigo-50 text-indigo-700 ring-indigo-200',text:'text-indigo-600'}};
 const catOf=c=>CAT[c]||CAT.CHECKOUT;
-const ROLE={superadmin:{l:'PENGUASA',chip:'bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-200'},admin:{l:'Admin',chip:'bg-brand-50 text-brand-700 ring-brand-200'},supervisor:{l:'Supervisor',chip:'bg-amber-50 text-amber-800 ring-amber-200'},housekeeper:{l:'Housekeeper',chip:'bg-sky-50 text-sky-700 ring-sky-200'},frontoffice:{l:'Front Office',chip:'bg-indigo-50 text-indigo-700 ring-indigo-200'},operator:{l:'Operator',chip:'bg-cyan-50 text-cyan-700 ring-cyan-200'},gm:{l:'General Manager',chip:'bg-violet-50 text-violet-700 ring-violet-200'}};
+const ROLE={superadmin:{l:'PENGUASA',chip:'bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-200'},admin:{l:'Admin',chip:'bg-brand-50 text-brand-700 ring-brand-200'},supervisor:{l:'Supervisor',chip:'bg-amber-50 text-amber-800 ring-amber-200'},housekeeper:{l:'Housekeeper',chip:'bg-sky-50 text-sky-700 ring-sky-200'},frontoffice:{l:'Front Office',chip:'bg-indigo-50 text-indigo-700 ring-indigo-200'},fomanager:{l:'FO Manager',chip:'bg-blue-50 text-blue-800 ring-blue-300'},operator:{l:'Operator',chip:'bg-cyan-50 text-cyan-700 ring-cyan-200'},gm:{l:'General Manager',chip:'bg-violet-50 text-violet-700 ring-violet-200'}};
 const ORDER={CLEANING:0,PAUSED:1,PENDING:2,INSPECTION_READY:3,INSPECTING:4,COMPLETED:5,REFUSED:6,SLEEPOUT:7,NOSHOW:8,BYCALL:9};
 const ROOM_TYPES=['DBA','DBB','DBE','TWA','TWB','SKA','S2D','CA1A','CA2A','CA2P'];
 const AV=['bg-brand-100 text-brand-800','bg-sky-100 text-sky-800','bg-amber-100 text-amber-800','bg-rose-100 text-rose-800','bg-indigo-100 text-indigo-800','bg-emerald-100 text-emerald-800','bg-fuchsia-100 text-fuchsia-800','bg-orange-100 text-orange-800'];
@@ -212,7 +212,7 @@ async function run(fn,ok){try{const r=await fn();if(ok)toast(typeof ok==='functi
 let toastT;function toast(m){const el=document.getElementById('toast');document.getElementById('toast-msg').textContent=m;el.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>el.hidden=true,3500)}
 function renderBusy(){document.querySelectorAll('[data-busy]').forEach(el=>el.classList.toggle('spin',!!S.busy))}
 
-const CLIENT_VERSION=42; /* versi Code.gs yang dibutuhkan tampilan ini. Naikkan HANYA jika Code.gs ikut berubah (harus sama dengan APP_VERSION di Code.gs) */
+const CLIENT_VERSION=43; /* versi Code.gs yang dibutuhkan tampilan ini. Naikkan HANYA jika Code.gs ikut berubah (harus sama dengan APP_VERSION di Code.gs) */
 /* satu permintaan getState pada satu waktu: cegah notifikasi dobel & beban server.
    Jika dipanggil saat masih memuat (mis. setelah menyimpan), dijalankan sekali lagi sesudahnya agar data terbaru terambil. */
 let refreshing=null,refreshNext=null;
@@ -384,9 +384,9 @@ const queued=()=>S.rooms.filter(isQ).sort((a,b)=>(isTop(b)-isTop(a))||(a.queuedA
 /* lama tunggu dalam jam & menit: 45 mnt · 1 jam · 1 jam 25 mnt */
 const hmTxt=m=>m==null||m===''?'-':m<60?m+' mnt':Math.floor(m/60)+' jam'+(m%60?' '+m%60+' mnt':'');
 const waitSpan=r=>`<span data-wait="${r.queuedAt||0}" data-hm>${hmTxt(mins(nowS()-(r.queuedAt||nowS())))}</span>`;
-const canQueue=()=>!!S.me&&(S.me.role==='frontoffice'||S.me.role==='superadmin'); /* queue hanya Front Office (+PENGUASA). Admin & operator: Request PMR */
+const canQueue=()=>!!S.me&&['frontoffice','fomanager','superadmin'].includes(S.me.role); /* queue hanya Front Office (+PENGUASA). Admin & operator: Request PMR */
 /* Request PMR (kamar stayover): Front Office, Operator, admin, PENGUASA */
-const canReqPmr=()=>isAdmin()||(S.me&&['frontoffice','operator'].includes(S.me.role));
+const canReqPmr=()=>isAdmin()||(S.me&&['frontoffice','fomanager','operator'].includes(S.me.role));
 const reqPmrOn=r=>r.category==='STAYOVER'&&r.status==='PENDING'&&!!r.reqPmrAt;
 const reqPmrDue=r=>reqPmrOn(r)&&nowS()>=r.reqPmrAt;
 const reqPmrTxt=r=>r.reqPmrAt-(r.reqPmrMade||0)<120000?'sekarang (sejak '+clk(r.reqPmrAt)+')':'pukul '+clk(r.reqPmrAt);
@@ -397,7 +397,7 @@ const callBtn=r=>canReqPmr()&&reqPmrOn(r)?`<button data-act="pmrCall" data-id="$
 /* Notes untuk RA (permintaan tamu) dari Front Office / admin */
 const gnotes=r=>{try{const L=JSON.parse(r.gNotes||'[]');return Array.isArray(L)?L:[]}catch(e){return []}};
 const openNotes=r=>gnotes(r).filter(n=>!n.doneAt);
-const canNote=()=>!!S.me&&['superadmin','admin','frontoffice'].includes(S.me.role);
+const canNote=()=>!!S.me&&['superadmin','admin','frontoffice','fomanager'].includes(S.me.role);
 const noteBtn=r=>{if(!canNote())return '';const n=openNotes(r).length,all=gnotes(r).length;return `<button data-act="openNote" data-id="${esc(r.room)}" class="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-bold ${n?'bg-amber-100 text-amber-900 ring-amber-300':'text-slate-600 ring-slate-200 hover:bg-slate-50'} ring-1 ring-inset mr-1" title="Notes untuk RA (permintaan tamu)">${ic('edit','w-3.5 h-3.5')} Notes${n?' · '+n:all?' ✓':''}</button>`};
 function pmrButton(r){
   if(r.status==='COMPLETED')return `<span class="text-[11px] text-slate-400">${r.reqPmrAt?'PMR selesai':'–'}</span>`;
@@ -613,6 +613,7 @@ function navItems(){
   if(r==='superadmin')return ['dash','upload','rooms','ra','inspect','spv','op','report','users','recap','system'];
   if(r==='admin')return ['dash','upload','rooms','ra','inspect','spv','op','report','users','recap'];
   if(r==='supervisor')return ['inspect','dash','ra','upload','recap','users'];
+  if(r==='fomanager')return ['fo','spv','dash','op','report']; /* FO Manager: akses FO + lihat pergerakan supervisor & dashboard */
   if(r==='frontoffice')return ['fo','op','report']; /* laporan: hanya lihat, tidak bisa tutup/buka hari */
   if(r==='operator')return ['op','fo'];
   if(r==='gm')return ['dash','report','recap']; /* GM: lihat saja */
@@ -913,7 +914,7 @@ function importPreview(){
 const manualBtn=r=>isAdmin()&&r.status!=='COMPLETED'?`<button data-act="openManual" data-id="${esc(r.room)}" class="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-bold text-emerald-700 hover:bg-emerald-50 ring-1 ring-inset ring-emerald-200 mr-1" title="Tandai selesai & isi jam (kamar dibersihkan sebelum shift)">${ic('check','w-3.5 h-3.5')} Selesai manual</button>`:'';
 /* Admin & PENGUASA: skip kamar stayover (Sleep Out / No Show / By Call) langsung dari daftar Kamar */
 const skipSoBtn=r=>!isAdmin()?'':r.category!=='STAYOVER'?(r.status==='PENDING'?`<button data-act="openSkip" data-so="1" data-id="${esc(r.room)}" class="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-bold text-zinc-700 hover:bg-zinc-100 ring-1 ring-inset ring-zinc-300 mr-1" title="No Show: kamar tidak terpakai, langsung dicek SPV">${ic('skip','w-3.5 h-3.5')} No Show</button>`:''):isSkip(r)?`<button data-act="ask" data-type="undo" data-id="${esc(r.room)}" class="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-semibold text-zinc-600 hover:bg-zinc-100 mr-1" title="Batalkan (${esc(skLbl(r))})">${ic('undo','w-3.5 h-3.5')} Batal ${esc(skLbl(r))}</button>`:r.status==='PENDING'&&!isDnd(r)?`<button data-act="openSkip" data-so="1" data-id="${esc(r.room)}" class="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-bold text-zinc-700 hover:bg-zinc-100 ring-1 ring-inset ring-zinc-300 mr-1" title="Sleep Out / No Show / By Call">${ic('skip','w-3.5 h-3.5')} Skip</button>`:'';
-const canExtend=()=>!!S.me&&['superadmin','admin','frontoffice'].includes(S.me.role); /* tamu extend: FO, admin, PENGUASA */
+const canExtend=()=>!!S.me&&['superadmin','admin','frontoffice','fomanager'].includes(S.me.role); /* tamu extend: FO, admin, PENGUASA */
 const extendBtn=r=>!canExtend()?'':r.extendAt?`<button data-act="extendUndo" data-id="${esc(r.room)}" class="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-semibold text-slate-500 hover:bg-slate-100 mr-1" title="Batalkan extend (salah tekan)">${ic('undo','w-3.5 h-3.5')} Batal extend</button>`:r.category==='CHECKOUT'&&r.status!=='COMPLETED'&&!r.coAt?`<button data-act="extendAsk" data-id="${esc(r.room)}" class="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-bold text-indigo-700 hover:bg-indigo-50 ring-1 ring-inset ring-indigo-200 mr-1" title="Tamu extend: kamar jadi stayover, tidak perlu dicek supervisor">${ic('calendar','w-3.5 h-3.5')} Extend</button>`:'';
 const coBtn=r=>!canExtend()?'':r.coAt?(['INSPECTING','COMPLETED'].includes(r.status)?'':`<button data-act="coUndo" data-id="${esc(r.room)}" class="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-semibold text-slate-500 hover:bg-slate-100 mr-1" title="Batalkan (salah tekan)">${ic('undo','w-3.5 h-3.5')} Batal ${esc(COL[r.coReason]||'')}</button>`):r.category==='STAYOVER'&&!r.extendAt?`<button data-act="openCo" data-id="${esc(r.room)}" class="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-bold text-orange-700 hover:bg-orange-50 ring-1 ring-inset ring-orange-300 mr-1" title="Shorten / ACO / Room Move: kamar jadi checkout hari ini">${ic('logout','w-3.5 h-3.5')} Checkout</button>`:'';
 const extChip=r=>r.extendAt?`<span class="text-[10px] font-bold text-white bg-indigo-600 rounded px-1 py-0.5" title="Tamu extend · diubah ${esc(nameOf(r.extendBy))} ${clk(r.extendAt)}">Extend</span>`:'';
@@ -1356,7 +1357,7 @@ function viewOp(){
   const need=act.filter(r=>!r.csResult).sort((a,b)=>a.dndAt-b.dndAt),wait=act.filter(r=>r.csResult==='CALLED').sort((a,b)=>a.csAt-b.csAt),unr=act.filter(r=>r.csResult==='UNREACHABLE').sort((a,b)=>a.csAt-b.csAt);
   const pmr=act.filter(r=>r.csResult==='PMR').sort((a,b)=>a.csPmrAt-b.csPmrAt),nos=R.filter(r=>r.status==='REFUSED'&&r.csResult==='NOSERVICE');
   const done=R.filter(r=>r.dndReason&&r.dndClearAt&&r.csResult).sort((a,b)=>b.dndClearAt-a.dndClearAt);
-  const can=['superadmin','admin','frontoffice','operator'].includes(S.me.role);
+  const can=['superadmin','admin','frontoffice','fomanager','operator'].includes(S.me.role);
   const btn=(r,res,l,v)=>`<button data-act="${res==='PMR'?'openPmr':'csSet'}" data-id="${esc(r.room)}" data-res="${res}" class="${bc(v,'sm')}">${l}</button>`;
   const cardR=r=>{const c=r.csResult||'';
     return `<article class="bg-white rounded-2xl ${c===''?'ring-2 ring-amber-300':c==='PMR'?'ring-1 ring-emerald-300':'ring-1 ring-slate-200/80'} shadow-card p-4 flex flex-col gap-3">
@@ -1510,10 +1511,10 @@ function hkCard(r,active){
 }
 
 /* ================= PENGGUNA ================= */
-const ROLE_ORDER=['superadmin','admin','supervisor','frontoffice','operator','housekeeper','gm'];
+const ROLE_ORDER=['superadmin','admin','supervisor','fomanager','frontoffice','operator','housekeeper','gm'];
 /* hak ubah akun (sama dengan aturan di server) */
 function rights(t){
-  const u=S.me,self=u.id===t.id,m=['supervisor','housekeeper','frontoffice','operator'].includes(t.role);
+  const u=S.me,self=u.id===t.id,m=['supervisor','housekeeper','frontoffice','fomanager','operator'].includes(t.role);
   return {name:u.role==='superadmin'||(u.role==='admin'&&(m||self)),username:u.role==='superadmin',
     password:!self&&((u.role==='superadmin'&&t.role!=='superadmin')||(u.role==='admin'&&m)||(u.role==='supervisor'&&t.role==='housekeeper')),
     floors:(u.role==='superadmin'||u.role==='admin')&&t.role==='supervisor',role:u.role==='superadmin'&&!self&&t.role!=='superadmin',active:!self&&((u.role==='superadmin'&&t.role!=='superadmin')||(u.role==='admin'&&m))};
@@ -1526,7 +1527,7 @@ function viewUsers(){
   const counts={};S.allUsers.forEach(u=>counts[u.role]=(counts[u.role]||0)+1);
   const actions=(u,justify)=>{const R=rights(u),canDel=S.me.role==='superadmin'&&u.id!==S.me.id&&u.role!=='superadmin';if(!(R.name||R.username||R.password||R.role||R.active||canDel))return '';
     return `<div class="flex flex-wrap gap-1.5 ${justify}">
-    ${R.role?`<select data-urole="${u.id}" aria-label="Role ${esc(u.name)}" class="${selectCls} !py-1.5 !text-xs">${['admin','supervisor','frontoffice','operator','housekeeper','gm'].map(r=>`<option value="${r}" ${u.role===r?'selected':''}>${ROLE[r].l}</option>`).join('')}</select>`:''}
+    ${R.role?`<select data-urole="${u.id}" aria-label="Role ${esc(u.name)}" class="${selectCls} !py-1.5 !text-xs">${['admin','supervisor','fomanager','frontoffice','operator','housekeeper','gm'].map(r=>`<option value="${r}" ${u.role===r?'selected':''}>${ROLE[r].l}</option>`).join('')}</select>`:''}
     ${(R.name||R.username||R.password)?`<button data-act="openEditUser" data-id="${u.id}" class="${bc('ghost','sm')}">${ic(R.name||R.username?'edit':'key','w-3.5 h-3.5')} ${R.name||R.username?'Edit':'Ganti password'}</button>`:''}
     ${R.active?`<button data-act="toggleActive" data-id="${u.id}" class="${bc(u.active?'dangerSoft':'soft','sm')}">${u.active?'Nonaktifkan':'Aktifkan'}</button>`:''}
     ${canDel?`<button data-act="delUserAsk" data-id="${u.id}" class="${bc('danger','sm')}" title="Hapus akun">${ic('trash','w-3.5 h-3.5')} Hapus</button>`:''}</div>`};
@@ -1625,7 +1626,7 @@ function renderModals(){
       <button data-act="logout" class="${bc('dangerSoft','md','w-full')}">${ic('logout')} Keluar</button></div>`,{close:'closeAcct',lbl:'Akun'});
   }
   if(S.addUser&&S.me){
-    const creatable=S.me.role==='superadmin'?['admin','supervisor','frontoffice','operator','housekeeper','gm']:['supervisor','frontoffice','operator','housekeeper'];
+    const creatable=S.me.role==='superadmin'?['admin','supervisor','fomanager','frontoffice','operator','housekeeper','gm']:['supervisor','fomanager','frontoffice','operator','housekeeper'];
     const role=creatable.includes(dv('f-urole','housekeeper'))?dv('f-urole','housekeeper'):'housekeeper';
     h+=sheet(`${sheetHead('Tambah pengguna','','closeAddUser')}<div class="px-5 sm:px-6 pb-6 space-y-4 overflow-y-auto">
       <div>${label('f-uname','Nama lengkap')}<input id="f-uname" data-keep type="text" value="${esc(dv('f-uname',''))}" class="${field}" placeholder="Mis. Siti Rahma"></div>
@@ -2172,7 +2173,7 @@ function detectEvents(prev,next){
     const cs=next.filter(r=>onMyFloor(r)&&reqPmrOn(r)&&P.get(r.room)&&calls(r)>=2&&calls(r)>calls(P.get(r.room)));
     cs.forEach(r=>notify('alarm',`Call ke-${calls(r)} kamar ${r.room}`,`Tamu menelepon lagi · RA ${nameOf(r.assignedTo)} belum datang`,'pmr'));
   }
-  if(['superadmin','admin','frontoffice'].includes(me.role)){ /* notes yang saya kirim sudah dikerjakan RA */
+  if(['superadmin','admin','frontoffice','fomanager'].includes(me.role)){ /* notes yang saya kirim sudah dikerjakan RA */
     next.forEach(r=>{const P0=P.get(r.room);if(!P0)return;const was=new Map(gnotes(P0).map(n=>[n.id,n.doneAt]));gnotes(r).filter(n=>n.by===me.id&&n.doneAt&&was.has(n.id)&&!was.get(n.id)).forEach(n=>notify('info',`Notes kamar ${r.room} sudah dikerjakan`,n.t+' · '+(n.dn||nameOf(n.doneBy)),'assign'))});
   }
   if(me.role==='housekeeper'){
@@ -2208,7 +2209,7 @@ function detectEvents(prev,next){
     const ready=next.filter(r=>r.status==='INSPECTION_READY'&&r.category==='CHECKOUT'&&onMyFloor(r)&&P.get(r.room)&&P.get(r.room).status!=='INSPECTION_READY');
     if(ready.length)notify('info',ready.length===1?'Kamar '+ready[0].room+' siap dicek':ready.length+' kamar siap dicek',ready.slice(0,6).map(r=>r.room+' ('+nameOf(r.assignedTo)+')').join(', '),'inspect');
   }
-  if(isAdmin()||me.role==='frontoffice'){
+  if(isAdmin()||me.role==='frontoffice'||me.role==='fomanager'){
     const done=next.filter(r=>r.status==='COMPLETED'&&r.queuedAt&&P.get(r.room)&&P.get(r.room).status!=='COMPLETED');
     if(done.length)notify('info','Kamar '+done.map(r=>r.room).join(', ')+' ready','Tamu yang menunggu sudah bisa masuk','qready');
   }
