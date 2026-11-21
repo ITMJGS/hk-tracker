@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&family=Inter:wght@400;500;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&family=Inter:wght@400;500;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <style>
     :root {
       --bg:#0b2a29; --bg2:#123d3b; --accent:#78cfc4; --accent2:#4fb3a7; --gold:#f2c46d; --gold2:#f6dca3;
@@ -48,7 +48,7 @@
     .house { transform-box:fill-box; transform-origin:center bottom; animation: houseUp .55s cubic-bezier(.34,1.56,.64,1) 1.85s both; }
     .win { animation: winOn .4s ease 2.2s both; }
     .badge { transform-box:fill-box; transform-origin:center; animation: pop .45s cubic-bezier(.34,1.7,.64,1) 2.35s both; }
-    .tick { stroke-dasharray:24; animation: draw .35s ease 2.55s both; }
+    .tick { stroke-dasharray:24; animation: drawTick .35s ease 2.55s both; }
 
     /* ---------- Kartu kaca ---------- */
     .card {
@@ -97,6 +97,7 @@
       .msg { margin-top:8px; }
     }
 
+    @keyframes drawTick { from { stroke-dashoffset:24 } to { stroke-dashoffset:0 } }
     @keyframes fadeIn { from { opacity:0 } }
     @keyframes fadeOut { to { opacity:0 } }
     @keyframes draw { from { stroke-dashoffset:260 } to { stroke-dashoffset:0 } }
@@ -187,7 +188,10 @@
       var url = (cfg.url || '').trim();
       if (/^https?:\/\//i.test(url)) {
         document.getElementById('go').href = url;
-        document.getElementById('actions').hidden = false;
+        var act = document.getElementById('actions');
+        /* animasi tombol dihitung dari saat halaman dibuka, bukan dari selesainya pindah.json */
+        if (act.hidden) act.style.animationDelay = Math.max(0, 2.85 - performance.now() / 1000) + 's';
+        act.hidden = false;
         var n = +cfg.alihkan_detik || 0, el = document.getElementById('count');
         if (n > 0 && !timer) {
           el.hidden = false;

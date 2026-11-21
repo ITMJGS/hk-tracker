@@ -31,9 +31,13 @@ async function open(browser, opts = {}) {
   const page = await ctx.newPage();
   const cfg = Object.assign({}, CFG, opts.cfg || {});
   if (opts.dropDari) delete cfg.dari;
-  await page.route('**/pindah.json*', (r) => r.fulfill({ json: cfg }));
+  await page.route('**/pindah.json*', async (r) => {
+    if (opts.cfgDelay) await new Promise((d) => setTimeout(d, opts.cfgDelay));
+    r.fulfill({ json: cfg });
+  });
   if (opts.noFonts) await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
-  await page.goto(BASE);
+  if (opts.hangFonts) await page.route(/fonts\.(googleapis|gstatic)\.com/, () => {});
+  await page.goto(BASE, { waitUntil: opts.hangFonts ? 'commit' : 'load' });
   return { ctx, page };
 }
 
@@ -90,6 +94,29 @@ async function normalChecks(page, label) {
     console.log('noFonts');
     ({ ctx, page } = await open(browser, { noFonts: true }));
     await normalChecks(page, 'noFonts');
+    await ctx.close();
+
+    const opacity = (page, sel) => page.evaluate((s) => getComputedStyle(document.querySelector(s)).opacity, sel);
+
+    console.log('slowCfg');
+    ({ ctx, page } = await open(browser, { cfgDelay: 800 }));
+    await page.waitForTimeout(3600);
+    check('slowCfg: tombol penuh terlihat ≤3,6 dtk walau pindah.json lambat', (await opacity(page, '#actions')) === '1', await opacity(page, '#actions'));
+    await ctx.close();
+
+    console.log('hangFonts');
+    ({ ctx, page } = await open(browser, { hangFonts: true }));
+    await page.waitForTimeout(3600);
+    check('hangFonts: tombol penuh terlihat ≤3,6 dtk walau font macet', (await page.locator('#go').isVisible()) && (await opacity(page, '#actions')) === '1');
+    await ctx.close();
+
+    console.log('tick');
+    ({ ctx, page } = await open(browser));
+    const from = await page.evaluate(() => {
+      const a = document.querySelector('.tick').getAnimations()[0];
+      return a ? parseFloat(a.effect.getKeyframes()[0].strokeDashoffset) : null;
+    });
+    check('tick: centang tergambar dari panjang garisnya sendiri (≤24)', from !== null && from <= 24, from);
     await ctx.close();
 
     console.log('landscape');
