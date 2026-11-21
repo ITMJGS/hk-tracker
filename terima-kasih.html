@@ -9,74 +9,168 @@
   <link rel="icon" href="icon-192.png">
   <link rel="apple-touch-icon" href="icon-192.png">
   <link rel="manifest" href="manifest.webmanifest">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&family=Inter:wght@400;500;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
   <style>
-    :root { --bg:#0b2a29; --bg2:#123d3b; --accent:#78cfc4; --gold:#f2c46d; --text:#eaf7f5; --muted:#a9cfca; }
-    * { box-sizing:border-box; margin:0; padding:0; }
-    html, body { height:100%; }
-    body {
-      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-      background: radial-gradient(ellipse at 50% 20%, var(--bg2), var(--bg) 70%);
-      color: var(--text); overflow:hidden;
-      display:flex; align-items:center; justify-content:center;
-      padding: 24px 16px;
+    :root {
+      --bg:#0b2a29; --bg2:#123d3b; --accent:#78cfc4; --accent2:#4fb3a7; --gold:#f2c46d; --gold2:#f6dca3;
+      --text:#eaf7f5; --muted:#b9dbd6;
+      --serif:"Playfair Display", Georgia, "Times New Roman", serif;
+      --sans:Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      --script:"Dancing Script", "Segoe Script", "Snell Roundhand", cursive;
+      --ease:cubic-bezier(.22,1,.36,1);
     }
-    canvas { position:fixed; inset:0; width:100%; height:100%; pointer-events:none; }
-    main { position:relative; z-index:1; text-align:center; max-width:520px; width:100%; }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    html { background:var(--bg); }
+    body {
+      min-height:100vh; min-height:100dvh; overflow-x:hidden;
+      font-family:var(--sans); color:var(--text);
+      background:
+        radial-gradient(ellipse 70% 45% at 50% 18%, rgba(242,196,109,.16), transparent 70%),
+        radial-gradient(ellipse at 50% 30%, var(--bg2), var(--bg) 72%);
+      display:flex; align-items:center; justify-content:center;
+      padding:max(20px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+    }
+    canvas#fx { position:fixed; inset:0; width:100%; height:100%; pointer-events:none; z-index:2; }
+    main { position:relative; z-index:1; width:100%; max-width:440px; text-align:center; }
 
-    /* Ikon gedung + tanda centang yang tergambar */
-    .badge { width:132px; height:132px; margin:0 auto 28px; position:relative;
-      animation: pop .9s cubic-bezier(.2,1.4,.4,1) both; }
-    .badge::before { content:""; position:absolute; inset:-14px; border-radius:50%;
-      border:2px solid var(--accent); opacity:.0; animation: ring 2.8s ease-out 1.2s infinite; }
-    .badge svg { width:100%; height:100%; }
-    .draw { stroke-dasharray:200; stroke-dashoffset:200; animation: draw 1.1s ease forwards; }
-    .d1 { animation-delay:.5s } .d2 { animation-delay:.9s } .d3 { animation-delay:1.5s; stroke-dasharray:60; stroke-dashoffset:60 }
+    /* ---------- Adegan: pintu lama → jalan → rumah baru ---------- */
+    #scene { display:block; width:100%; max-width:360px; height:auto; margin:0 auto -18px; overflow:visible;
+      animation: fadeIn .5s ease .05s both; }
+    .glow { transform-box:fill-box; transform-origin:center; animation: glowIn 1s var(--ease) .8s both, breathe 3.5s ease-in-out 2s infinite; }
+    .frame { stroke-dasharray:240; animation: draw .7s var(--ease) .2s both; }
+    .leaf { transform-box:fill-box; transform-origin:left center; animation: doorOpen .7s var(--ease) .85s both; }
+    .beam { transform-box:fill-box; transform-origin:left center; animation: beamIn .8s var(--ease) 1s both; }
+    .road-reveal { stroke-dasharray:260; animation: draw .9s cubic-bezier(.45,0,.25,1) 1.25s both; }
+    .spark { offset-path: path("M78 112 C 130 140, 190 140, 236 104"); offset-rotate:0deg;
+      animation: travel .9s cubic-bezier(.45,0,.25,1) 1.25s both, fadeOut .3s ease 2.1s both; }
+    .house { transform-box:fill-box; transform-origin:center bottom; animation: houseUp .55s cubic-bezier(.34,1.56,.64,1) 1.85s both; }
+    .win { animation: winOn .4s ease 2.2s both; }
+    .badge { transform-box:fill-box; transform-origin:center; animation: pop .45s cubic-bezier(.34,1.7,.64,1) 2.35s both; }
+    .tick { stroke-dasharray:24; animation: draw .35s ease 2.55s both; }
 
-    h1 { font-size: clamp(2.2rem, 9vw, 3.4rem); font-weight:800; letter-spacing:-.02em;
-      background: linear-gradient(90deg, var(--accent), var(--gold), var(--accent));
-      background-size:200% auto; -webkit-background-clip:text; background-clip:text; color:transparent;
-      animation: rise .8s ease 1.7s both, shine 4s linear 2.5s infinite; }
-    p.msg { margin-top:16px; font-size:1.05rem; line-height:1.6; color:var(--muted);
-      animation: rise .8s ease 2.1s both; }
-    .heart { display:inline-block; color:var(--gold); animation: beat 1.4s ease-in-out infinite; }
-    .sign { margin-top:22px; font-size:.95rem; color:var(--muted); animation: rise .8s ease 2.3s both; }
-    .sign b { font-size:1.6rem; font-weight:600; color:var(--gold);
-      font-family: "Brush Script MT", "Segoe Script", "Snell Roundhand", cursive; letter-spacing:.02em; }
-    .actions { margin-top:28px; animation: rise .8s ease 2.5s both; }
-    a.btn { display:inline-flex; align-items:center; gap:10px; padding:14px 26px; border-radius:999px;
-      background:var(--accent); color:var(--bg); font-weight:700; text-decoration:none; font-size:1rem;
-      box-shadow:0 8px 30px rgba(120,207,196,.35); transition: transform .15s; }
-    a.btn:active { transform:scale(.97); }
-    .count { margin-top:14px; font-size:.9rem; color:var(--muted); }
-    footer { margin-top:40px; font-size:.8rem; color:var(--muted); opacity:.7; animation: rise .8s ease 2.9s both; }
+    /* ---------- Kartu kaca ---------- */
+    .card {
+      position:relative; padding:34px 24px 28px; border-radius:28px;
+      background:linear-gradient(160deg, rgba(255,255,255,.09), rgba(255,255,255,.03));
+      border:1px solid rgba(120,207,196,.22);
+      box-shadow:0 24px 60px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08);
+      -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px);
+      animation: rise .7s var(--ease) 2.1s both;
+    }
+    h1 {
+      font-family:var(--serif); font-weight:700; line-height:1.1; letter-spacing:-.01em;
+      font-size:clamp(2.3rem, 10vw, 3.2rem);
+      background:linear-gradient(100deg, var(--accent) 0%, var(--gold2) 45%, var(--gold) 55%, var(--accent) 100%);
+      background-size:220% auto; -webkit-background-clip:text; background-clip:text; color:transparent;
+      animation: rise .7s var(--ease) 2.25s both, shine 5s linear 3.2s infinite;
+    }
+    .msg { margin-top:14px; font-size:1.02rem; line-height:1.65; color:var(--muted); text-wrap:balance;
+      animation: rise .7s var(--ease) 2.4s both; }
+    .heart { display:inline-block; width:1.05em; height:1.05em; vertical-align:-.17em; margin-left:4px;
+      animation: beat 1.6s ease-in-out 3.4s infinite; }
+    #sign { margin-top:14px; }
+    #dari { display:inline-block; font-family:var(--script); font-weight:600; font-size:2rem; line-height:1.2; color:var(--gold);
+      text-shadow:0 0 18px rgba(242,196,109,.35); animation: rise .7s var(--ease) 2.6s both; }
+
+    .actions { margin-top:22px; animation: rise .6s var(--ease) 2.85s both; }
+    a#go {
+      position:relative; display:inline-flex; align-items:center; gap:10px; min-height:52px; padding:0 28px;
+      border-radius:999px; background:linear-gradient(135deg, var(--accent), var(--accent2));
+      color:var(--bg); font-weight:700; font-size:1.02rem; text-decoration:none; cursor:pointer;
+      box-shadow:0 10px 30px rgba(120,207,196,.35);
+      transition:transform .2s var(--ease), box-shadow .2s var(--ease);
+      animation: pulse 2.4s ease-out 3.4s infinite;
+    }
+    a#go:hover { transform:translateY(-2px); box-shadow:0 14px 36px rgba(120,207,196,.5); }
+    a#go:active { transform:scale(.97); }
+    a#go:focus-visible { outline:3px solid var(--gold); outline-offset:4px; }
+    a#go svg { width:20px; height:20px; animation: nudge 1.6s ease-in-out 3.4s infinite; }
+    #count { margin-top:12px; font-size:.88rem; color:var(--muted); }
     [hidden] { display:none !important; }
 
-    @keyframes pop { from { transform:scale(.3); opacity:0 } to { transform:scale(1); opacity:1 } }
-    @keyframes draw { to { stroke-dashoffset:0 } }
-    @keyframes ring { 0% { transform:scale(.85); opacity:.6 } 100% { transform:scale(1.35); opacity:0 } }
-    @keyframes rise { from { transform:translateY(16px); opacity:0 } to { transform:none; opacity:1 } }
-    @keyframes shine { to { background-position:200% center } }
-    @keyframes beat { 0%,100% { transform:scale(1) } 50% { transform:scale(1.25) } }
-    @media (prefers-reduced-motion: reduce) { *, *::before { animation-duration:.01s !important; animation-iteration-count:1 !important; animation-delay:0s !important; } }
+    @media (max-height:520px) {
+      body { align-items:flex-start; }
+      #scene { max-width:240px; margin-bottom:-12px; }
+      .card { padding:22px 20px 20px; }
+      .msg { margin-top:8px; }
+    }
+
+    @keyframes fadeIn { from { opacity:0 } }
+    @keyframes fadeOut { to { opacity:0 } }
+    @keyframes draw { from { stroke-dashoffset:260 } to { stroke-dashoffset:0 } }
+    @keyframes doorOpen { from { transform:scaleX(1) } to { transform:scaleX(.28) skewY(-6deg) } }
+    @keyframes beamIn { from { opacity:0; transform:scaleX(.2) } }
+    @keyframes glowIn { from { opacity:0; transform:scale(.4) } }
+    @keyframes breathe { 50% { opacity:.75 } }
+    @keyframes travel { from { offset-distance:0%; opacity:0 } 10% { opacity:1 } to { offset-distance:100%; opacity:1 } }
+    @keyframes houseUp { from { opacity:0; transform:translateY(14px) scale(.6) } }
+    @keyframes winOn { from { fill:#1d4a47 } }
+    @keyframes pop { from { opacity:0; transform:scale(0) } }
+    @keyframes rise { from { opacity:0; transform:translateY(16px) } }
+    @keyframes shine { to { background-position:220% center } }
+    @keyframes beat { 0%,100% { transform:scale(1) } 50% { transform:scale(1.22) } }
+    @keyframes nudge { 0%,100% { transform:translateX(0) } 50% { transform:translateX(4px) } }
+    @keyframes pulse { 0% { box-shadow:0 10px 30px rgba(120,207,196,.35), 0 0 0 0 rgba(120,207,196,.45) }
+                       70%,100% { box-shadow:0 10px 30px rgba(120,207,196,.35), 0 0 0 16px rgba(120,207,196,0) } }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation:none !important; transition:none !important; }
+      .leaf { transform:scaleX(.28) skewY(-6deg); }
+      .spark { display:none; }
+    }
   </style>
 </head>
 <body>
-  <canvas id="fx"></canvas>
+  <canvas id="fx" aria-hidden="true"></canvas>
   <main>
-    <div class="badge" aria-hidden="true">
-      <svg viewBox="0 0 132 132" fill="none" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="66" cy="66" r="60" fill="rgba(120,207,196,.10)" stroke="#78cfc4" stroke-width="3" class="draw d1" style="stroke-dasharray:380;stroke-dashoffset:380"/>
-        <path d="M44 92V40h34v52M36 92h60M68 66h1" stroke="#eaf7f5" stroke-width="5" class="draw d2"/>
-        <path d="M74 84l8 8 16-18" stroke="#f2c46d" stroke-width="6" class="draw d3"/>
-      </svg>
-    </div>
-    <h1 id="judul">Terima Kasih</h1>
-    <p class="msg"><span id="pesan">HK Tracker sudah pindah ke aplikasi baru. Terima kasih sudah menjadi bagian dari pengembangan aplikasi ini!</span> <span class="heart">♥</span></p>
-    <div class="sign" id="sign"><b id="dari">Aldifi</b></div>
-    <div class="actions" id="actions" hidden>
-      <a class="btn" id="go" href="https://hktracker.mjgs.my.id">Buka aplikasi baru <span aria-hidden="true">→</span></a>
-      <div class="count" id="count" hidden></div>
-    </div>
+    <svg id="scene" viewBox="0 0 320 170" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <defs>
+        <radialGradient id="g-glow"><stop offset="0" stop-color="#f2c46d" stop-opacity=".55"/><stop offset="1" stop-color="#f2c46d" stop-opacity="0"/></radialGradient>
+        <linearGradient id="g-beam" x1="0" x2="1"><stop offset="0" stop-color="#f6dca3" stop-opacity=".55"/><stop offset="1" stop-color="#f6dca3" stop-opacity="0"/></linearGradient>
+        <linearGradient id="g-house" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#78cfc4"/><stop offset="1" stop-color="#4fb3a7"/></linearGradient>
+        <mask id="m-road"><path class="road-reveal" d="M78 112 C 130 140, 190 140, 236 104" stroke="#fff" stroke-width="10"/></mask>
+      </defs>
+
+      <!-- pintu lama -->
+      <ellipse class="glow" cx="58" cy="88" rx="60" ry="56" fill="url(#g-glow)"/>
+      <path class="beam" d="M72 52 L130 40 L130 132 L72 124 Z" fill="url(#g-beam)"/>
+      <rect x="40" y="50" width="34" height="76" rx="3" fill="#f6dca3" opacity=".9"/>
+      <g class="leaf"><rect x="40" y="50" width="34" height="76" rx="3" fill="#123d3b" stroke="#78cfc4" stroke-width="2"/><circle cx="67" cy="90" r="2.4" fill="#f2c46d"/></g>
+      <path class="frame" d="M34 128 V44 h46 v84" stroke="#eaf7f5" stroke-width="4"/>
+      <path d="M26 128 h62" stroke="#eaf7f5" stroke-width="4" opacity=".9"/>
+
+      <!-- jalan -->
+      <path d="M78 112 C 130 140, 190 140, 236 104" stroke="#f2c46d" stroke-width="3" stroke-dasharray="2 9" mask="url(#m-road)"/>
+      <circle class="spark" r="5" fill="#f6dca3" style="filter:drop-shadow(0 0 6px #f2c46d)"/>
+
+      <!-- rumah baru -->
+      <g class="house">
+        <ellipse cx="262" cy="130" rx="44" ry="6" fill="#000" opacity=".25"/>
+        <path d="M228 128 V86 l34 -26 l34 26 v42 Z" fill="url(#g-house)"/>
+        <path d="M220 90 l42 -33 l42 33" stroke="#eaf7f5" stroke-width="5"/>
+        <rect x="252" y="104" width="20" height="24" rx="2" fill="#0b2a29"/>
+        <rect class="win" x="238" y="92" width="12" height="11" rx="2" fill="#f2c46d"/>
+        <rect class="win" x="274" y="92" width="12" height="11" rx="2" fill="#f2c46d"/>
+      </g>
+      <g class="badge">
+        <circle cx="298" cy="62" r="13" fill="#f2c46d"/>
+        <path class="tick" d="M292 62 l4 4 l8 -8" stroke="#0b2a29" stroke-width="3.2"/>
+      </g>
+    </svg>
+
+    <section class="card">
+      <h1 id="judul">Terima Kasih</h1>
+      <p class="msg"><span id="pesan">HK Tracker sudah pindah ke aplikasi baru. Terima kasih sudah menjadi bagian dari pengembangan aplikasi ini!</span><svg class="heart" viewBox="0 0 24 24" aria-hidden="true"><path fill="#f2c46d" d="M12 21s-7.5-4.6-9.6-9.2C.9 8.4 3 4.5 6.7 4.5c2.1 0 3.6 1.1 5.3 3.1 1.7-2 3.2-3.1 5.3-3.1 3.7 0 5.8 3.9 4.3 7.3C19.5 16.4 12 21 12 21z"/></svg></p>
+      <div id="sign"><span id="dari">Aldifi</span></div>
+      <div class="actions" id="actions" hidden>
+        <a id="go" href="https://hktracker.mjgs.my.id">Buka aplikasi baru
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </a>
+        <div id="count" hidden></div>
+      </div>
+    </section>
   </main>
 
   <script>
@@ -103,6 +197,8 @@
           };
           tick(); timer = setInterval(tick, 1000);
         }
+      } else {
+        document.getElementById('actions').hidden = true;
       }
     }
     function check() {
@@ -112,32 +208,35 @@
     check(); setInterval(check, 60000);
   })();
 
-  /* Animasi confetti & kilau lembut */
+  /* Confetti dari rumah baru + kilau yang naik pelan */
   (function () {
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     var c = document.getElementById('fx'), x = c.getContext('2d'), W, H, P = [];
-    var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
     var colors = ['#78cfc4', '#f2c46d', '#eaf7f5', '#4fb3a7', '#f6dca3'];
     function size() { var d = devicePixelRatio || 1; W = innerWidth; H = innerHeight; c.width = W * d; c.height = H * d; x.setTransform(d, 0, 0, d, 0, 0); }
     size(); addEventListener('resize', size);
-    function burst(n) {
-      for (var i = 0; i < n; i++) P.push({ k: 'c', x: W / 2, y: H * 0.32, vx: (Math.random() - .5) * 14, vy: -Math.random() * 13 - 3,
+    function origin() {
+      var s = document.getElementById('scene').getBoundingClientRect();
+      return { x: s.left + s.width * 0.82, y: s.top + s.height * 0.45 };
+    }
+    function burst(n, spread) {
+      var o = origin();
+      for (var i = 0; i < n; i++) P.push({ k: 'c', x: o.x, y: o.y, vx: (Math.random() - .5) * spread - 2, vy: -Math.random() * 11 - 4,
         r: Math.random() * 6 + 4, a: Math.random() * 6, va: (Math.random() - .5) * .3, col: colors[i % colors.length], life: 1 });
     }
     function sparkle() { P.push({ k: 's', x: Math.random() * W, y: H + 10, vx: 0, vy: -(Math.random() * .6 + .3), r: Math.random() * 2 + .6, life: 1, col: colors[(Math.random() * colors.length) | 0] }); }
-    if (reduce) return;
-    setTimeout(function () { burst(140); }, 1500);
-    setTimeout(function () { burst(80); }, 2300);
+    setTimeout(function () { burst(120, 16); }, 2400);
+    setTimeout(function () { burst(70, 22); }, 2950);
     (function loop() {
       x.clearRect(0, 0, W, H);
-      if (Math.random() < .25) sparkle();
+      if (Math.random() < .2) sparkle();
       for (var i = P.length - 1; i >= 0; i--) {
         var p = P[i];
-        if (p.k === 'c') { p.vy += .32; p.vx *= .985; p.a += p.va; if (p.y > H * .7) p.life -= .015; }
+        if (p.k === 'c') { p.vy += .3; p.vx *= .985; p.a += p.va; if (p.y > H * .75) p.life -= .02; }
         else { p.life -= .0025; }
         p.x += p.vx; p.y += p.vy;
-        if (p.life <= 0 || p.y > H + 40 || p.y < -20) { P.splice(i, 1); continue; }
-        x.globalAlpha = Math.max(0, p.life);
-        x.fillStyle = p.col;
+        if (p.life <= 0 || p.y > H + 40 || p.y < -60) { P.splice(i, 1); continue; }
+        x.globalAlpha = Math.max(0, p.life); x.fillStyle = p.col;
         if (p.k === 'c') { x.save(); x.translate(p.x, p.y); x.rotate(p.a); x.fillRect(-p.r / 2, -p.r / 4, p.r, p.r / 2); x.restore(); }
         else { x.beginPath(); x.arc(p.x, p.y, p.r, 0, 6.283); x.fill(); }
       }
