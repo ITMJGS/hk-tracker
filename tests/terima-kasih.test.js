@@ -119,6 +119,28 @@ async function normalChecks(page, label) {
     check('tick: centang tergambar dari panjang garisnya sendiri (≤24)', from !== null && from <= 24, from);
     await ctx.close();
 
+    console.log('desktop');
+    ({ ctx, page } = await open(browser, { viewport: { width: 1440, height: 900 } }));
+    await page.waitForTimeout(3600);
+    const d = await page.evaluate(() => ({
+      card: document.querySelector('.card').getBoundingClientRect().width,
+      h1: parseFloat(getComputedStyle(document.querySelector('h1')).fontSize),
+      scene: document.querySelector('#scene').getBoundingClientRect().width,
+      bottom: document.querySelector('#go').getBoundingClientRect().bottom,
+    }));
+    check('desktop: kartu ≥560px, judul ≥64px, ilustrasi ≥460px', d.card >= 560 && d.h1 >= 64 && d.scene >= 460, d);
+    check('desktop: tombol muat di layar 900px tanpa scroll', d.bottom <= 900, d);
+    await ctx.close();
+    ({ ctx, page } = await open(browser, { viewport: { width: 1366, height: 680 } }));
+    await page.waitForTimeout(3600);
+    const lb = await page.evaluate(() => document.querySelector('#go').getBoundingClientRect().bottom);
+    check('laptop pendek 1366×680: tombol muat di layar', lb <= 680, lb);
+    await ctx.close();
+    ({ ctx, page } = await open(browser));
+    const m = await page.evaluate(() => document.querySelector('.card').getBoundingClientRect().width);
+    check('HP: kartu tetap ≤440px', m <= 440, m);
+    await ctx.close();
+
     console.log('landscape');
     ({ ctx, page } = await open(browser, { viewport: { width: 844, height: 390 } }));
     await page.waitForTimeout(3500);
