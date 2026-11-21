@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Cache-Control" content="no-cache">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b2a29">
+  <title>Terima Kasih · HK Tracker</title>
+  <link rel="icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <style>
+    :root { --bg:#0b2a29; --bg2:#123d3b; --accent:#78cfc4; --gold:#f2c46d; --text:#eaf7f5; --muted:#a9cfca; }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    html, body { height:100%; }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: radial-gradient(ellipse at 50% 20%, var(--bg2), var(--bg) 70%);
+      color: var(--text); overflow:hidden;
+      display:flex; align-items:center; justify-content:center;
+      padding: 24px 16px;
+    }
+    canvas { position:fixed; inset:0; width:100%; height:100%; pointer-events:none; }
+    main { position:relative; z-index:1; text-align:center; max-width:520px; width:100%; }
+
+    /* Ikon gedung + tanda centang yang tergambar */
+    .badge { width:132px; height:132px; margin:0 auto 28px; position:relative;
+      animation: pop .9s cubic-bezier(.2,1.4,.4,1) both; }
+    .badge::before { content:""; position:absolute; inset:-14px; border-radius:50%;
+      border:2px solid var(--accent); opacity:.0; animation: ring 2.8s ease-out 1.2s infinite; }
+    .badge svg { width:100%; height:100%; }
+    .draw { stroke-dasharray:200; stroke-dashoffset:200; animation: draw 1.1s ease forwards; }
+    .d1 { animation-delay:.5s } .d2 { animation-delay:.9s } .d3 { animation-delay:1.5s; stroke-dasharray:60; stroke-dashoffset:60 }
+
+    h1 { font-size: clamp(2.2rem, 9vw, 3.4rem); font-weight:800; letter-spacing:-.02em;
+      background: linear-gradient(90deg, var(--accent), var(--gold), var(--accent));
+      background-size:200% auto; -webkit-background-clip:text; background-clip:text; color:transparent;
+      animation: rise .8s ease 1.7s both, shine 4s linear 2.5s infinite; }
+    p.msg { margin-top:16px; font-size:1.05rem; line-height:1.6; color:var(--muted);
+      animation: rise .8s ease 2.1s both; }
+    .heart { display:inline-block; color:var(--gold); animation: beat 1.4s ease-in-out infinite; }
+    .actions { margin-top:32px; animation: rise .8s ease 2.5s both; }
+    a.btn { display:inline-flex; align-items:center; gap:10px; padding:14px 26px; border-radius:999px;
+      background:var(--accent); color:var(--bg); font-weight:700; text-decoration:none; font-size:1rem;
+      box-shadow:0 8px 30px rgba(120,207,196,.35); transition: transform .15s; }
+    a.btn:active { transform:scale(.97); }
+    .count { margin-top:14px; font-size:.9rem; color:var(--muted); }
+    footer { margin-top:40px; font-size:.8rem; color:var(--muted); opacity:.7; animation: rise .8s ease 2.9s both; }
+    [hidden] { display:none !important; }
+
+    @keyframes pop { from { transform:scale(.3); opacity:0 } to { transform:scale(1); opacity:1 } }
+    @keyframes draw { to { stroke-dashoffset:0 } }
+    @keyframes ring { 0% { transform:scale(.85); opacity:.6 } 100% { transform:scale(1.35); opacity:0 } }
+    @keyframes rise { from { transform:translateY(16px); opacity:0 } to { transform:none; opacity:1 } }
+    @keyframes shine { to { background-position:200% center } }
+    @keyframes beat { 0%,100% { transform:scale(1) } 50% { transform:scale(1.25) } }
+    @media (prefers-reduced-motion: reduce) { *, *::before { animation-duration:.01s !important; animation-iteration-count:1 !important; animation-delay:0s !important; } }
+  </style>
+</head>
+<body>
+  <canvas id="fx"></canvas>
+  <main>
+    <div class="badge" aria-hidden="true">
+      <svg viewBox="0 0 132 132" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="66" cy="66" r="60" fill="rgba(120,207,196,.10)" stroke="#78cfc4" stroke-width="3" class="draw d1" style="stroke-dasharray:380;stroke-dashoffset:380"/>
+        <path d="M44 92V40h34v52M36 92h60M68 66h1" stroke="#eaf7f5" stroke-width="5" class="draw d2"/>
+        <path d="M74 84l8 8 16-18" stroke="#f2c46d" stroke-width="6" class="draw d3"/>
+      </svg>
+    </div>
+    <h1 id="judul">Terima Kasih</h1>
+    <p class="msg"><span id="pesan">HK Tracker telah pindah ke aplikasi baru. Terima kasih atas kerja keras dan kebersamaan seluruh tim selama menggunakan aplikasi ini.</span> <span class="heart">♥</span></p>
+    <div class="actions" id="actions" hidden>
+      <a class="btn" id="go" href="#">Buka aplikasi baru <span aria-hidden="true">→</span></a>
+      <div class="count" id="count" hidden></div>
+    </div>
+    <footer>HK Tracker · Housekeeping</footer>
+  </main>
+
+  <script>
+  /* Isi halaman diambil dari pindah.json. Jika "aktif" diubah menjadi false, halaman ini otomatis kembali ke aplikasi. */
+  (function () {
+    var timer = null;
+    function apply(cfg) {
+      if (!cfg) return;
+      if (cfg.aktif === false) { location.replace('./?v=' + Date.now()); return; }
+      if (cfg.judul) document.getElementById('judul').textContent = cfg.judul;
+      if (cfg.pesan) document.getElementById('pesan').textContent = cfg.pesan;
+      var url = (cfg.url || '').trim();
+      if (/^https?:\/\//i.test(url)) {
+        document.getElementById('go').href = url;
+        document.getElementById('actions').hidden = false;
+        var n = +cfg.alihkan_detik || 0, el = document.getElementById('count');
+        if (n > 0 && !timer) {
+          el.hidden = false;
+          var tick = function () {
+            el.textContent = 'Dialihkan otomatis dalam ' + n + ' detik…';
+            if (n-- <= 0) { clearInterval(timer); location.href = url; }
+          };
+          tick(); timer = setInterval(tick, 1000);
+        }
+      }
+    }
+    function check() {
+      fetch('pindah.json?t=' + Date.now(), { cache: 'no-store' })
+        .then(function (r) { return r.json(); }).then(apply).catch(function () {});
+    }
+    check(); setInterval(check, 60000);
+  })();
+
+  /* Animasi confetti & kilau lembut */
+  (function () {
+    var c = document.getElementById('fx'), x = c.getContext('2d'), W, H, P = [];
+    var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var colors = ['#78cfc4', '#f2c46d', '#eaf7f5', '#4fb3a7', '#f6dca3'];
+    function size() { var d = devicePixelRatio || 1; W = innerWidth; H = innerHeight; c.width = W * d; c.height = H * d; x.setTransform(d, 0, 0, d, 0, 0); }
+    size(); addEventListener('resize', size);
+    function burst(n) {
+      for (var i = 0; i < n; i++) P.push({ k: 'c', x: W / 2, y: H * 0.32, vx: (Math.random() - .5) * 14, vy: -Math.random() * 13 - 3,
+        r: Math.random() * 6 + 4, a: Math.random() * 6, va: (Math.random() - .5) * .3, col: colors[i % colors.length], life: 1 });
+    }
+    function sparkle() { P.push({ k: 's', x: Math.random() * W, y: H + 10, vx: 0, vy: -(Math.random() * .6 + .3), r: Math.random() * 2 + .6, life: 1, col: colors[(Math.random() * colors.length) | 0] }); }
+    if (reduce) return;
+    setTimeout(function () { burst(140); }, 1500);
+    setTimeout(function () { burst(80); }, 2300);
+    (function loop() {
+      x.clearRect(0, 0, W, H);
+      if (Math.random() < .25) sparkle();
+      for (var i = P.length - 1; i >= 0; i--) {
+        var p = P[i];
+        if (p.k === 'c') { p.vy += .32; p.vx *= .985; p.a += p.va; if (p.y > H * .7) p.life -= .015; }
+        else { p.life -= .0025; }
+        p.x += p.vx; p.y += p.vy;
+        if (p.life <= 0 || p.y > H + 40 || p.y < -20) { P.splice(i, 1); continue; }
+        x.globalAlpha = Math.max(0, p.life);
+        x.fillStyle = p.col;
+        if (p.k === 'c') { x.save(); x.translate(p.x, p.y); x.rotate(p.a); x.fillRect(-p.r / 2, -p.r / 4, p.r, p.r / 2); x.restore(); }
+        else { x.beginPath(); x.arc(p.x, p.y, p.r, 0, 6.283); x.fill(); }
+      }
+      x.globalAlpha = 1;
+      requestAnimationFrame(loop);
+    })();
+  })();
+  </script>
+</body>
+</html>

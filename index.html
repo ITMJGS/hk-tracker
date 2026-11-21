@@ -12,9 +12,25 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <script>
+    /* Mode pindah aplikasi: jika pindah.json berisi "aktif": true, tampilkan halaman terima kasih.
+       Untuk kembali memakai aplikasi ini, ubah "aktif" menjadi false. */
+    (function () {
+      var de = document.documentElement; de.style.visibility = 'hidden';
+      var shown = false, show = function () { if (!shown) { shown = true; de.style.visibility = ''; } };
+      setTimeout(show, 2000);
+      window.hkCekPindah = function (first) {
+        return fetch('pindah.json?t=' + Date.now(), { cache: 'no-store' })
+          .then(function (r) { return r.json(); })
+          .then(function (j) { if (j && j.aktif === true) location.replace('terima-kasih.html'); else if (first) show(); })
+          .catch(function () { if (first) show(); });
+      };
+      window.hkCekPindah(true);
+    })();
+  </script>
+  <script>
     /* Alamat server (Google Apps Script). Ganti jika membuat deployment baru. */
     window.HK_API_URL = 'https://script.google.com/macros/s/AKfycbyyFZ7k-3dElnTu4hKc6IbNF9uVi5FnZiOTJ6N4Wszv9jNoRZQYKMee7GVqjIfr-QEaRA/exec';
-    window.HK_BUILD = '20261118094444';
+    window.HK_BUILD = '20261121021736';
     /* Pengganti google.script.run: memanggil server lewat POST {fn, args} */
     (function () {
       function runner() {
@@ -256,6 +272,7 @@ let lastVerCheck=0;
 const anyDialog=()=>!!(S.manual||S.modal||S.confirm||S.addUser||S.editUser||S.acct||S.skip||S.rush||S.co||S.note||S.move||S.pmr||S.unreach||S.closing||S.creds||S.ret||S.imp);
 async function checkUpdate(){
   if(!window.HK_API_URL||!window.HK_BUILD||Date.now()-lastVerCheck<90000)return;lastVerCheck=Date.now();
+  if(window.hkCekPindah)window.hkCekPindah(false);
   try{const j=await (await fetch('version.json?t='+Date.now(),{cache:'no-store'})).json();
     if(j&&j.build&&j.build!==window.HK_BUILD){const busy=S.busy||anyDialog()||(document.activeElement&&/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName));
       if(!busy&&reloadOk())hardReload(j.build)}}catch(e){}
